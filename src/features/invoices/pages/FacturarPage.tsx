@@ -1,3 +1,5 @@
+import { useSearchParams } from "react-router-dom";
+
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +10,9 @@ import { WorkflowModule } from "@/features/invoices/components/WorkflowModule";
 import { useFacturarForm } from "@/features/invoices/hooks/useFacturarForm";
 
 export function FacturarPage() {
+  const [searchParams] = useSearchParams();
+  const initialRecordId = String(searchParams.get("recordId") || "").trim();
+  const initialTemplateProfileId = String(searchParams.get("templateProfileId") || "").trim();
   const {
     form,
     submit,
@@ -46,9 +51,12 @@ export function FacturarPage() {
     loadBySelectedHistory,
     loadingHistory,
     serverRecordId,
+    officialHtmlUrl,
+    officialPdfUrl,
+    canOpenOfficialOutput,
     loadingConfig,
     liveDocument,
-  } = useFacturarForm();
+  } = useFacturarForm(initialRecordId, initialTemplateProfileId);
   const {
     register,
     formState: { errors, isSubmitting },
@@ -378,8 +386,41 @@ export function FacturarPage() {
               <Button type="submit" disabled={isSubmitting || saveMutation.isPending || loadingConfig}>
                 {saveMutation.isPending ? "Guardando..." : "Guardar documento"}
               </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (!officialHtmlUrl) {
+                      return;
+                    }
+                    window.open(officialHtmlUrl, "_blank", "noopener,noreferrer");
+                  }}
+                  disabled={!canOpenOfficialOutput}
+                >
+                  Ver HTML oficial
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    if (!officialPdfUrl) {
+                      return;
+                    }
+                    window.open(officialPdfUrl, "_blank", "noopener,noreferrer");
+                  }}
+                  disabled={!canOpenOfficialOutput}
+                >
+                  Abrir PDF oficial
+                </Button>
+              </div>
               <span className="text-sm text-muted-foreground">
                 {serverRecordId ? `recordId: ${serverRecordId}` : "Documento nuevo"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {canOpenOfficialOutput
+                  ? "Salida oficial habilitada para este recordId guardado."
+                  : "Guarda o carga un documento para habilitar HTML/PDF oficiales."}
               </span>
               {(saveMutation.error || loadMutation.error || suggestNumberMutation.error || checkAvailabilityMutation.error) && (
                 <p className="text-sm text-red-600">

@@ -65,26 +65,48 @@ export type CalculatedTotals = {
   total: number;
 };
 
+export type TemplateProfileConfig = {
+  id: string;
+  label?: string;
+  tenantId?: string;
+  colorKey?: string;
+  invoiceNumberTag?: string;
+  defaults?: {
+    paymentMethod?: string;
+    taxRate?: number;
+    withholdingRate?: number;
+  };
+  business?: {
+    brand?: string;
+    taxId?: string;
+    email?: string;
+    address?: string;
+    phone?: string;
+    website?: string;
+    bankAccount?: string;
+  };
+  design?: {
+    layout?: string;
+  };
+};
+
 export type ConfigResponse = {
   activeTemplateProfileId?: string;
   currentUser?: {
+    id?: string;
+    email?: string;
+    name?: string;
+    role?: string;
     tenantId?: string;
+    allowedTemplateProfileIds?: string[];
   } | null;
-  templateProfiles?: Array<{
-    id: string;
-    label?: string;
-    defaults?: {
-      paymentMethod?: string;
-      taxRate?: number;
-      withholdingRate?: number;
-    };
-    business?: {
-      bankAccount?: string;
-    };
-    design?: {
-      layout?: string;
-    };
-  }>;
+  defaults?: {
+    paymentMethod?: string;
+    taxRate?: number;
+    withholdingRate?: number;
+    currency?: string;
+  };
+  templateProfiles?: TemplateProfileConfig[];
 };
 
 export type ClientRecord = {

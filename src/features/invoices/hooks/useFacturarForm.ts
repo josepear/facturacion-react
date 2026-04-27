@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import { calculateTotals } from "@/domain/document/calculateTotals";
@@ -35,7 +35,7 @@ function totalsAreConsistent(document: InvoiceDocument, totals: CalculatedTotals
   );
 }
 
-export function useFacturarForm() {
+export function useFacturarForm(initialRecordId?: string, initialTemplateProfileId?: string) {
   const [recordIdInput, setRecordIdInput] = useState("");
   const [serverRecordId, setServerRecordId] = useState("");
   const [numberAvailabilityText, setNumberAvailabilityText] = useState("Pendiente de validar número.");
@@ -44,6 +44,8 @@ export function useFacturarForm() {
   const [selectedHistoryRecordId, setSelectedHistoryRecordId] = useState("");
   const [historySearchTerm, setHistorySearchTerm] = useState("");
   const [withoutWithholding, setWithoutWithholding] = useState(true);
+  const bootstrappedRecordIdRef = useRef("");
+  const bootstrappedTemplateProfileRef = useRef("");
 
   const form = useForm<InvoiceDocument>({
     resolver: zodResolver(invoiceDocumentSchema),
@@ -446,6 +448,62 @@ export function useFacturarForm() {
     },
   });
 
+  useEffect(() => {
+    const safeInitial = String(initialRecordId || "").trim();
+    if (!safeInitial) {
+      return;
+    }
+    if (bootstrappedRecordIdRef.current === safeInitial) {
+      return;
+    }
+    if (loadMutation.isPending) {
+      return;
+    }
+    bootstrappedRecordIdRef.current = safeInitial;
+    loadMutation.mutate(safeInitial);
+  }, [initialRecordId, loadMutation]);
+
+  useEffect(() => {
+    const safeProfileId = String(initialTemplateProfileId || "").trim();
+    if (!safeProfileId) {
+      return;
+    }
+    if (bootstrappedTemplateProfileRef.current === safeProfileId) {
+      return;
+    }
+    if (!configQuery.data) {
+      return;
+    }
+    const profile = (configQuery.data.templateProfiles ?? []).find((item) => item.id === safeProfileId);
+    if (!profile) {
+      return;
+    }
+    if (serverRecordId) {
+      return;
+    }
+    bootstrappedTemplateProfileRef.current = safeProfileId;
+    form.setValue("templateProfileId", safeProfileId, { shouldDirty: false, shouldValidate: true });
+    const profilePayment = String(profile.defaults?.paymentMethod || "").trim();
+    if (profilePayment) {
+      form.setValue("paymentMethod", profilePayment, { shouldDirty: false, shouldValidate: true });
+    }
+    const profileBank = String(profile.business?.bankAccount || "").trim();
+    if (profileBank) {
+      form.setValue("bankAccount", profileBank, { shouldDirty: false, shouldValidate: true });
+    }
+    const profileLayout = String(profile.design?.layout || "").trim();
+    if (profileLayout) {
+      form.setValue("templateLayout", profileLayout, { shouldDirty: false, shouldValidate: true });
+    }
+    const profileTaxRate = Number(profile.defaults?.taxRate);
+    if (Number.isFinite(profileTaxRate)) {
+      form.setValue("taxRate", profileTaxRate, { shouldDirty: false, shouldValidate: true });
+    }
+    const profileWithholding = Number(profile.defaults?.withholdingRate);
+    const validWithholding = profileWithholding === 15 || profileWithholding === 19 || profileWithholding === 21;
+    form.setValue("withholdingRate", validWithholding ? profileWithholding : "", { shouldDirty: false, shouldValidate: true });
+  }, [initialTemplateProfileId, configQuery.data, serverRecordId, form]);
+
   const replaceClientData = (selected: (typeof clientOptions)[number]["client"]) => {
     form.setValue("client.name", selected.name || "", { shouldDirty: true, shouldValidate: true });
     form.setValue("client.taxId", selected.taxId || "", { shouldDirty: true, shouldValidate: true });
@@ -513,6 +571,13 @@ export function useFacturarForm() {
     loadMutation.mutate(safeRecordId);
   };
 
+  const officialHtmlUrl = serverRecordId
+    ? `/api/documents/rendered-html?recordId=${encodeURIComponent(serverRecordId)}`
+    : "";
+  const officialPdfUrl = serverRecordId
+    ? `/api/documents/pdf?recordId=${encodeURIComponent(serverRecordId)}`
+    : "";
+
   return {
     form,
     submit,
@@ -554,6 +619,9 @@ export function useFacturarForm() {
     loadBySelectedHistory,
     loadingHistory: historyQuery.isLoading,
     serverRecordId,
+    officialHtmlUrl,
+    officialPdfUrl,
+    canOpenOfficialOutput: Boolean(serverRecordId),
     loadingConfig: configQuery.isLoading,
     liveDocument,
   };
