@@ -1,10 +1,10 @@
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { InvoiceHeader } from "@/features/invoices/components/InvoiceHeader";
+import { DocumentLivePreview } from "@/features/invoices/components/DocumentLivePreview";
 import { InvoiceItemsTable } from "@/features/invoices/components/InvoiceItemsTable";
 import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotalsPanel";
+import { WorkflowModule } from "@/features/invoices/components/WorkflowModule";
 import { useFacturarForm } from "@/features/invoices/hooks/useFacturarForm";
 
 export function FacturarPage() {
@@ -14,8 +14,18 @@ export function FacturarPage() {
     totals,
     itemsArray,
     profileOptions,
+    selectedProfile,
+    activeTemplateProfileId,
+    applyTemplateProfile,
+    taxValidation,
+    applyWithholdingMode,
+    workflowChecklist,
+    clientOptions,
     clients,
     applyClientByName,
+    applyClientByOptionId,
+    clearClientData,
+    selectedClientOptionId,
     suggestNumber,
     checkNumberAvailability,
     saveMutation,
@@ -27,13 +37,23 @@ export function FacturarPage() {
     recordIdInput,
     setRecordIdInput,
     loadByRecordId,
+    historyOptions,
+    filteredHistoryOptions,
+    historySearchTerm,
+    setHistorySearchTerm,
+    selectedHistoryRecordId,
+    setSelectedHistoryRecordId,
+    loadBySelectedHistory,
+    loadingHistory,
     serverRecordId,
     loadingConfig,
+    liveDocument,
   } = useFacturarForm();
   const {
     register,
     formState: { errors, isSubmitting },
   } = form;
+  const selectedProfileLabel = selectedProfile?.label || selectedProfile?.id || "-";
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
@@ -46,41 +66,199 @@ export function FacturarPage() {
 
       <form className="grid gap-6 lg:grid-cols-[2fr_1fr]" onSubmit={submit}>
         <div className="grid gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Cabecera documento</CardTitle>
-              <CardDescription>Número, fecha, perfil y recarga por recordId.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <InvoiceHeader
-                issueDateError={errors.issueDate?.message}
-                numberAvailabilityText={numberAvailabilityText}
-                numberAvailabilityTone={numberAvailabilityTone}
-                loadingNumber={suggestNumberMutation.isPending}
-                checkingAvailability={checkAvailabilityMutation.isPending}
-                profiles={profileOptions}
-                onSuggestNumber={suggestNumber}
-                onCheckAvailability={checkNumberAvailability}
-                register={{
-                  templateProfileId: register("templateProfileId"),
-                  issueDate: register("issueDate"),
-                  series: register("series"),
-                  number: register("number"),
-                  recordIdInput,
-                  setRecordIdInput,
-                  onLoadRecord: loadByRecordId,
-                  loadingRecord: loadMutation.isPending,
-                }}
-              />
-            </CardContent>
-          </Card>
+          <WorkflowModule
+            title="Emisor"
+            stateLabel={workflowChecklist.emitter.complete ? "Completo" : "Pendiente"}
+            stateTone={workflowChecklist.emitter.complete ? "ok" : "pending"}
+            help={workflowChecklist.emitter.tip}
+          >
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label="Perfil plantilla">
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register("templateProfileId")}
+                  onChange={(event) => {
+                    register("templateProfileId").onChange(event);
+                    applyTemplateProfile(event.target.value);
+                  }}
+                >
+                  <option value="">Selecciona perfil</option>
+                  {profileOptions.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Plantilla/layout">
+                <Input placeholder="pear/editorial/voulita" {...register("templateLayout")} />
+              </Field>
+              <Field label="Forma de pago">
+                <Input placeholder="Transferencia" {...register("paymentMethod")} />
+              </Field>
+              <Field label="Cuenta bancaria">
+                <Input placeholder="ES..." {...register("bankAccount")} />
+              </Field>
+            </div>
+            <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+              <span>Perfil activo config: {activeTemplateProfileId || "-"}</span>
+              <span>Perfil aplicado: {selectedProfileLabel}</span>
+              <span>Default pago perfil: {selectedProfile?.defaults?.paymentMethod || "-"}</span>
+              <span>Default cuenta perfil: {selectedProfile?.business?.bankAccount || "-"}</span>
+            </div>
+          </WorkflowModule>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Cliente</CardTitle>
-              <CardDescription>Cliente obligatorio (alineado con validación legacy de guardado).</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
+          <WorkflowModule
+            title="Datos del documento"
+            stateLabel={workflowChecklist.document.complete ? "Completo" : "Pendiente"}
+            stateTone={workflowChecklist.document.complete ? "ok" : "pending"}
+            help={workflowChecklist.document.tip}
+          >
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label="Tipo" error={errors.type?.message}>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register("type")}
+                >
+                  <option value="factura">Factura</option>
+                  <option value="presupuesto">Presupuesto</option>
+                </select>
+              </Field>
+              <Field label="Número">
+                <Input placeholder="Número factura" {...register("number")} />
+              </Field>
+              <Field label="Serie">
+                <Input placeholder="Serie opcional" {...register("series")} />
+              </Field>
+              <Field label="Estado" error={errors.accounting?.status?.message}>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register("accounting.status")}
+                >
+                  <option value="ENVIADA">Enviada</option>
+                  <option value="COBRADA">Cobrada</option>
+                  <option value="CANCELADA">Cancelada</option>
+                </select>
+              </Field>
+              <Field label="Fecha emisión" error={errors.issueDate?.message}>
+                <Input type="date" {...register("issueDate")} />
+              </Field>
+              <Field label="Vencimiento" error={errors.dueDate?.message}>
+                <Input type="date" {...register("dueDate")} />
+              </Field>
+              <Field label="Referencia" error={errors.reference?.message}>
+                <Input placeholder="Referencia documento" {...register("reference")} />
+              </Field>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Button type="button" variant="outline" onClick={suggestNumber} disabled={suggestNumberMutation.isPending}>
+                {suggestNumberMutation.isPending ? "Pidiendo número..." : "Pedir siguiente número"}
+              </Button>
+              <Button type="button" variant="outline" onClick={checkNumberAvailability} disabled={checkAvailabilityMutation.isPending}>
+                {checkAvailabilityMutation.isPending ? "Comprobando..." : "Validar disponibilidad"}
+              </Button>
+              <span
+                className={`self-center text-sm ${
+                  numberAvailabilityTone === "success"
+                    ? "text-emerald-600"
+                    : numberAvailabilityTone === "error"
+                      ? "text-red-600"
+                      : "text-muted-foreground"
+                }`}
+              >
+                {numberAvailabilityText}
+              </span>
+            </div>
+
+            <div className="grid gap-4 pt-2 sm:grid-cols-1">
+              <Field label="Recargar por recordId">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="facturas/2026/..."
+                    value={recordIdInput}
+                    onChange={(event) => setRecordIdInput(event.target.value)}
+                  />
+                  <Button type="button" variant="outline" onClick={loadByRecordId} disabled={loadMutation.isPending}>
+                    {loadMutation.isPending ? "Cargando..." : "Recargar"}
+                  </Button>
+                </div>
+              </Field>
+            </div>
+          </WorkflowModule>
+
+          <WorkflowModule
+            title="Histórico"
+            stateLabel={workflowChecklist.history.complete ? "Disponible" : "Pendiente"}
+            stateTone={workflowChecklist.history.complete ? "ok" : "pending"}
+            help={workflowChecklist.history.tip}
+          >
+            <div className="grid gap-4">
+              <Field label="Buscar en recientes">
+                <Input
+                  placeholder="Número, cliente o recordId"
+                  value={historySearchTerm}
+                  onChange={(event) => setHistorySearchTerm(event.target.value)}
+                />
+              </Field>
+              <Field label="Selección rápida (histórico)">
+                <div className="flex gap-2">
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={selectedHistoryRecordId}
+                    onChange={(event) => setSelectedHistoryRecordId(event.target.value)}
+                  >
+                    <option value="">Selecciona documento</option>
+                    {filteredHistoryOptions.map((option) => (
+                      <option key={option.recordId} value={option.recordId}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={loadBySelectedHistory}
+                    disabled={!selectedHistoryRecordId || loadMutation.isPending}
+                  >
+                    {loadMutation.isPending ? "Cargando..." : "Cargar"}
+                  </Button>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {loadingHistory
+                    ? "Cargando histórico..."
+                    : `${filteredHistoryOptions.length} de ${historyOptions.length} documentos recientes`}
+                </span>
+              </Field>
+            </div>
+          </WorkflowModule>
+
+          <WorkflowModule
+            title="Cliente"
+            stateLabel={workflowChecklist.client.complete ? "Completo" : "Pendiente"}
+            stateTone={workflowChecklist.client.complete ? "ok" : "pending"}
+            help={workflowChecklist.client.tip}
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Cliente guardado">
+                <div className="flex gap-2">
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={selectedClientOptionId}
+                    onChange={(event) => applyClientByOptionId(event.target.value)}
+                  >
+                    <option value="">Seleccionar cliente guardado</option>
+                    {clientOptions.map((option) => (
+                      <option key={option.optionId} value={option.optionId}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <Button type="button" variant="outline" onClick={clearClientData}>
+                    Limpiar cliente
+                  </Button>
+                </div>
+              </Field>
               <Field label="Nombre cliente" error={errors.client?.name?.message}>
                 <Input
                   list="client-options"
@@ -103,19 +281,61 @@ export function FacturarPage() {
               <Field label="Dirección">
                 <Input placeholder="Dirección fiscal" {...register("client.address")} />
               </Field>
-            </CardContent>
-          </Card>
+              <Field label="Ciudad">
+                <Input placeholder="Ciudad" {...register("client.city")} />
+              </Field>
+              <Field label="Provincia">
+                <Input placeholder="Provincia" {...register("client.province")} />
+              </Field>
+              <Field label="País (código)">
+                <Input placeholder="ES" {...register("client.taxCountryCode")} />
+              </Field>
+              <Field label="Tipo NIF">
+                <Input placeholder="NIF/CIF/VAT..." {...register("client.taxIdType")} />
+              </Field>
+            </div>
+          </WorkflowModule>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Líneas de factura</CardTitle>
-              <CardDescription>Múltiples líneas con alta/baja/edición.</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <WorkflowModule
+            title="Conceptos"
+            stateLabel={workflowChecklist.concepts.complete ? "Completo" : "Pendiente"}
+            stateTone={workflowChecklist.concepts.complete ? "ok" : "pending"}
+            help={workflowChecklist.concepts.tip}
+          >
+            <div className="grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Modo cálculo conceptos">
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    {...register("totalsBasis")}
+                  >
+                    <option value="items">Por concepto (suma líneas)</option>
+                    <option value="gross">Por bruto (base imponible manual)</option>
+                  </select>
+                </Field>
+                {liveDocument.totalsBasis === "gross" ? (
+                  <Field label="Base imponible bruta">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      {...register("manualGrossSubtotal", {
+                        setValueAs: (value) => {
+                          if (value === "" || value === null || value === undefined) {
+                            return 0;
+                          }
+                          const parsed = Number(value);
+                          return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+                        },
+                      })}
+                    />
+                  </Field>
+                ) : null}
+              </div>
               <InvoiceItemsTable
                 register={register}
                 errors={errors}
                 itemCount={itemsArray.fields.length}
+                totalsBasis={liveDocument.totalsBasis}
                 onAddItem={() =>
                   itemsArray.append({
                     concept: "",
@@ -126,17 +346,35 @@ export function FacturarPage() {
                 }
                 onRemoveItem={(index) => itemsArray.remove(index)}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </WorkflowModule>
+
+          <WorkflowModule
+            title="Fiscalidad"
+            stateLabel={workflowChecklist.fiscal.complete ? "Completo" : "Pendiente"}
+            stateTone={workflowChecklist.fiscal.complete ? "ok" : "pending"}
+            help={workflowChecklist.fiscal.tip}
+          >
+            <InvoiceTotalsPanel
+              register={register}
+              totals={totals}
+              taxValidation={taxValidation}
+              onWithholdingModeChange={applyWithholdingMode}
+            />
+          </WorkflowModule>
+
+          <DocumentLivePreview document={liveDocument} />
         </div>
 
         <div className="grid gap-6">
-          <InvoiceTotalsPanel register={register} totals={totals} />
-          <Card>
-            <CardHeader>
-              <CardTitle>Persistencia</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-3">
+          <WorkflowModule
+            title="Guardar"
+            stateLabel={workflowChecklist.save.complete ? "Completo" : "Pendiente"}
+            stateTone={workflowChecklist.save.complete ? "ok" : "pending"}
+            help={workflowChecklist.save.tip}
+            defaultOpen
+          >
+            <div className="grid gap-3">
               <Button type="submit" disabled={isSubmitting || saveMutation.isPending || loadingConfig}>
                 {saveMutation.isPending ? "Guardando..." : "Guardar documento"}
               </Button>
@@ -151,8 +389,8 @@ export function FacturarPage() {
                     (checkAvailabilityMutation.error as Error | null)?.message}
                 </p>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </WorkflowModule>
         </div>
       </form>
     </main>

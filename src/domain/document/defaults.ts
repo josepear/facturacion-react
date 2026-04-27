@@ -14,8 +14,17 @@ export function createEmptyDocument(): InvoiceDocument {
     issueDate: getToday(),
     dueDate: "",
     reference: "",
+    templateLayout: "pear",
     paymentMethod: "Transferencia",
     bankAccount: "",
+    accounting: {
+      status: "ENVIADA",
+      paymentDate: "",
+      quarter: "",
+      invoiceId: "",
+      netCollected: 0,
+      taxes: "",
+    },
     client: {
       name: "",
       taxId: "",

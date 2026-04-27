@@ -9,6 +9,7 @@ type InvoiceItemsTableProps = {
   register: UseFormRegister<InvoiceDocument>;
   errors: FieldErrors<InvoiceDocument>;
   itemCount: number;
+  totalsBasis: "items" | "gross";
   onAddItem: () => void;
   onRemoveItem: (index: number) => void;
 };
@@ -17,6 +18,7 @@ export function InvoiceItemsTable({
   register,
   errors,
   itemCount,
+  totalsBasis,
   onAddItem,
   onRemoveItem,
 }: InvoiceItemsTableProps) {
@@ -70,6 +72,11 @@ export function InvoiceItemsTable({
       ))}
 
       {errors.items?.message ? <p className="text-sm text-red-600">{errors.items.message}</p> : null}
+      {totalsBasis === "gross" ? (
+        <p className="text-xs text-muted-foreground">
+          En modo bruto, estas líneas se mantienen para detalle/preview, pero el cálculo usa la base imponible manual.
+        </p>
+      ) : null}
     </section>
   );
 }

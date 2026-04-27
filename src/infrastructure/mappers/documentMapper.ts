@@ -1,4 +1,4 @@
-import type { InvoiceDocument, InvoiceItem } from "@/domain/document/types";
+import type { DocumentAccountingStatus, InvoiceDocument, InvoiceItem } from "@/domain/document/types";
 import { createEmptyDocument } from "@/domain/document/defaults";
 import { toNumber } from "@/lib/utils";
 
@@ -29,10 +29,23 @@ function mapItem(rawItem: unknown): InvoiceItem {
   };
 }
 
+function toValidWithholdingRate(value: unknown): "" | 15 | 19 | 21 {
+  if (value === "" || value === null || value === undefined) {
+    return "";
+  }
+  const numeric = toNumber(value);
+  if (numeric === 15 || numeric === 19 || numeric === 21) {
+    return numeric;
+  }
+  return "";
+}
+
 export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
   const base = createEmptyDocument();
   const record = asRecord(input);
   const client = asRecord(record.client);
+  const accounting = asRecord(record.accounting);
+  const design = asRecord(record.design);
   const rawItems = Array.isArray(record.items) ? record.items : [];
 
   const mappedItems = rawItems.length ? rawItems.map(mapItem) : base.items;
@@ -47,8 +60,23 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
     issueDate: asString(record.issueDate) || base.issueDate,
     dueDate: asString(record.dueDate),
     reference: asString(record.reference),
+    templateLayout: asString(design.layout) || base.templateLayout,
     paymentMethod: asString(record.paymentMethod) || base.paymentMethod,
     bankAccount: asString(record.bankAccount),
+    accounting: {
+      status: ((): InvoiceDocument["accounting"]["status"] => {
+        const status = asString(accounting.status).toUpperCase();
+        if (status === "COBRADA" || status === "CANCELADA") {
+          return status;
+        }
+        return "ENVIADA";
+      })(),
+      paymentDate: asString(accounting.paymentDate),
+      quarter: asString(accounting.quarter),
+      invoiceId: asString(accounting.invoiceId || accounting.driveLabel),
+      netCollected: toNumber(accounting.netCollected),
+      taxes: asString(accounting.taxes || accounting.taxNote),
+    },
     client: {
       ...base.client,
       name: asString(client.name),
@@ -63,10 +91,7 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
     },
     items: mappedItems,
     taxRate: toNumber(record.taxRate ?? base.taxRate),
-    withholdingRate:
-      record.withholdingRate === "" || record.withholdingRate === null || record.withholdingRate === undefined
-        ? ""
-        : toNumber(record.withholdingRate),
+    withholdingRate: toValidWithholdingRate(record.withholdingRate),
     totalsBasis: asString(record.totalsBasis) === "gross" ? "gross" : "items",
     manualGrossSubtotal: toNumber(record.manualGrossSubtotal),
     subtotal: toNumber(record.subtotal),
@@ -77,6 +102,14 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
 }
 
 export function mapFormToLegacyDocument(document: InvoiceDocument): InvoiceDocument {
+  const accountingStatus = ((): DocumentAccountingStatus => {
+    const status = asString(document.accounting.status || "ENVIADA").toUpperCase();
+    if (status === "COBRADA" || status === "CANCELADA") {
+      return status;
+    }
+    return "ENVIADA";
+  })();
+
   return {
     ...document,
     items: document.items.map((item) => ({
@@ -97,6 +130,15 @@ export function mapFormToLegacyDocument(document: InvoiceDocument): InvoiceDocum
       province: asString(document.client.province),
       email: asString(document.client.email),
       contactPerson: asString(document.client.contactPerson),
+    },
+    accounting: {
+      ...document.accounting,
+      status: accountingStatus,
+      paymentDate: asString(document.accounting.paymentDate),
+      quarter: asString(document.accounting.quarter),
+      invoiceId: asString(document.accounting.invoiceId),
+      netCollected: toNumber(document.accounting.netCollected),
+      taxes: asString(document.accounting.taxes),
     },
   };
 }

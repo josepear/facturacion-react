@@ -1,0 +1,250 @@
+.preview-shell {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--card));
+  overflow: hidden;
+}
+
+.preview-shell-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+  font-size: 0.8rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.preview-shell-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: hsl(var(--foreground));
+}
+
+.preview-reference-sheet {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.9rem;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+.preview-reference-top-row,
+.preview-reference-meta-row,
+.preview-reference-content-row {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.preview-reference-top-row {
+  grid-template-columns: 1fr 1.5fr 0.9fr;
+}
+
+.preview-reference-brand-panel,
+.preview-reference-services-panel,
+.preview-reference-title-panel,
+.preview-issuer-mini-box,
+.preview-client-data-box,
+.preview-reference-side-column,
+.preview-reference-main-column {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.45rem;
+  background: #f8fafc;
+  padding: 0.6rem;
+}
+
+.preview-reference-brand-label,
+.preview-reference-copy-label {
+  margin: 0 0 0.2rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.preview-reference-brand-value,
+.preview-reference-title-panel {
+  margin: 0;
+  font-weight: 700;
+}
+
+.preview-reference-title-panel {
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.preview-reference-services-panel p {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.preview-reference-meta-row {
+  grid-template-columns: 1fr 1fr 1.3fr;
+}
+
+.preview-issue-boxes {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+.preview-issue-box {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+  background: #ffffff;
+  padding: 0.45rem;
+}
+
+.preview-issue-box span {
+  display: block;
+  font-size: 0.62rem;
+  color: #64748b;
+}
+
+.preview-issue-box strong {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.preview-client-data-box p,
+.preview-issuer-mini-box p,
+.preview-reference-side-column p {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.25;
+}
+
+.preview-client-title {
+  font-weight: 700;
+  margin-bottom: 0.25rem !important;
+}
+
+.preview-reference-content-row {
+  grid-template-columns: 0.7fr 1.3fr;
+}
+
+.preview-reference-section-bar {
+  margin: 0 0 0.45rem;
+  padding: 0.3rem 0.45rem;
+  border-radius: 0.35rem;
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 0.63rem;
+  letter-spacing: 0.05em;
+}
+
+.preview-reference-item-stack {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.preview-reference-item-block {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+  background: #ffffff;
+  padding: 0.45rem;
+}
+
+.preview-reference-item-headline {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  align-items: start;
+}
+
+.preview-reference-item-headline h4 {
+  margin: 0;
+  font-size: 0.75rem;
+}
+
+.preview-reference-item-meta {
+  margin: 0;
+  font-size: 0.65rem;
+  color: #475569;
+  text-align: right;
+}
+
+.preview-reference-item-description {
+  margin: 0.3rem 0 0;
+  font-size: 0.68rem;
+  color: #475569;
+  white-space: pre-wrap;
+}
+
+.preview-reference-bottom-row {
+  display: grid;
+}
+
+.preview-finance-strip {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.preview-finance-cell {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.4rem;
+  background: #ffffff;
+  padding: 0.45rem;
+}
+
+.preview-finance-cell.is-accent {
+  background: #f1f5f9;
+}
+
+.preview-finance-cell.is-dark {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.preview-finance-cell-label {
+  font-size: 0.58rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.preview-finance-cell-value {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.preview-payment-strip {
+  margin-top: 0.55rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.45rem;
+  overflow: hidden;
+}
+
+.preview-payment-strip-title {
+  padding: 0.35rem 0.5rem;
+  background: #f1f5f9;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.preview-payment-strip-content {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.7rem;
+}
+
+.preview-payment-account-box {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+@media (max-width: 1120px) {
+  .preview-reference-top-row,
+  .preview-reference-meta-row,
+  .preview-reference-content-row,
+  .preview-finance-strip {
+    grid-template-columns: 1fr;
+  }
+}

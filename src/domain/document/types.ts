@@ -21,6 +21,17 @@ export type DocumentClient = {
   contactPerson: string;
 };
 
+export type DocumentAccountingStatus = "ENVIADA" | "COBRADA" | "CANCELADA";
+
+export type DocumentAccounting = {
+  status: DocumentAccountingStatus;
+  paymentDate: string;
+  quarter: string;
+  invoiceId: string;
+  netCollected: number;
+  taxes: string;
+};
+
 export type InvoiceDocument = {
   type: DocumentType;
   templateProfileId: string;
@@ -30,12 +41,14 @@ export type InvoiceDocument = {
   issueDate: string;
   dueDate: string;
   reference: string;
+  templateLayout: string;
   paymentMethod: string;
   bankAccount: string;
+  accounting: DocumentAccounting;
   client: DocumentClient;
   items: InvoiceItem[];
   taxRate: number;
-  withholdingRate: number | "";
+  withholdingRate: "" | 15 | 19 | 21;
   totalsBasis: TotalsBasis;
   manualGrossSubtotal: number;
   subtotal: number;
@@ -60,6 +73,17 @@ export type ConfigResponse = {
   templateProfiles?: Array<{
     id: string;
     label?: string;
+    defaults?: {
+      paymentMethod?: string;
+      taxRate?: number;
+      withholdingRate?: number;
+    };
+    business?: {
+      bankAccount?: string;
+    };
+    design?: {
+      layout?: string;
+    };
   }>;
 };
 

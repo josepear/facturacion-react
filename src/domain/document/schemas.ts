@@ -20,6 +20,15 @@ export const invoiceClientSchema = z.object({
   contactPerson: z.string().trim(),
 });
 
+export const invoiceAccountingSchema = z.object({
+  status: z.enum(["ENVIADA", "COBRADA", "CANCELADA"]),
+  paymentDate: z.string().trim(),
+  quarter: z.string().trim(),
+  invoiceId: z.string().trim(),
+  netCollected: z.number(),
+  taxes: z.string().trim(),
+});
+
 export const invoiceDocumentSchema = z.object({
   type: z.enum(["factura", "presupuesto"]),
   templateProfileId: z.string().trim().min(1, "Falta el perfil de plantilla."),
@@ -29,8 +38,10 @@ export const invoiceDocumentSchema = z.object({
   issueDate: z.string().trim().min(1, "La fecha de emisión es obligatoria."),
   dueDate: z.string().trim(),
   reference: z.string().trim(),
+  templateLayout: z.string().trim(),
   paymentMethod: z.string().trim(),
   bankAccount: z.string().trim(),
+  accounting: invoiceAccountingSchema,
   client: invoiceClientSchema,
   items: z
     .array(invoiceItemSchema)
@@ -38,8 +49,8 @@ export const invoiceDocumentSchema = z.object({
     .refine((items) => items.some((item) => item.concept || item.description), {
       message: "Añade al menos un concepto o descripción.",
     }),
-  taxRate: z.number(),
-  withholdingRate: z.union([z.number(), z.literal("")]),
+  taxRate: z.number().finite().nonnegative(),
+  withholdingRate: z.union([z.literal(""), z.literal(15), z.literal(19), z.literal(21)]),
   totalsBasis: z.enum(["items", "gross"]),
   manualGrossSubtotal: z.number().nonnegative(),
   subtotal: z.number(),
