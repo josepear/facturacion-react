@@ -1,5 +1,18 @@
 type HttpMethod = "GET" | "POST";
 
+const AUTH_TOKEN_KEY = "facturacion-auth-token";
+
+function getBrowserAuthToken(): string | null {
+  if (typeof globalThis === "undefined" || !("localStorage" in globalThis)) {
+    return null;
+  }
+  try {
+    return globalThis.localStorage.getItem(AUTH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -18,11 +31,17 @@ export async function request<TResponse>(
     signal?: AbortSignal;
   } = {},
 ): Promise<TResponse> {
+  const token = getBrowserAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch(path, {
     method: options.method ?? "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
     signal: options.signal,
   });
