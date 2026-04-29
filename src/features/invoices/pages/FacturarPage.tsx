@@ -109,12 +109,6 @@ export function FacturarPage() {
                 <Input placeholder="ES..." {...register("bankAccount")} />
               </Field>
             </div>
-            <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
-              <span>Perfil activo config: {activeTemplateProfileId || "-"}</span>
-              <span>Perfil aplicado: {selectedProfileLabel}</span>
-              <span>Default pago perfil: {selectedProfile?.defaults?.paymentMethod || "-"}</span>
-              <span>Default cuenta perfil: {selectedProfile?.business?.bankAccount || "-"}</span>
-            </div>
           </WorkflowModule>
 
           <WorkflowModule
@@ -318,28 +312,37 @@ export function FacturarPage() {
               <Field label="NIF/CIF">
                 <Input placeholder="NIF/CIF" {...register("client.taxId")} />
               </Field>
-              <Field label="Email">
-                <Input placeholder="email@cliente.com" {...register("client.email")} />
-              </Field>
-              <Field label="Persona de contacto">
-                <Input placeholder="Persona de contacto" {...register("client.contactPerson")} />
-              </Field>
-              <Field label="Dirección">
-                <Input placeholder="Dirección fiscal" {...register("client.address")} />
-              </Field>
-              <Field label="Ciudad">
-                <Input placeholder="Ciudad" {...register("client.city")} />
-              </Field>
-              <Field label="Provincia">
-                <Input placeholder="Provincia" {...register("client.province")} />
-              </Field>
-              <Field label="País (código)">
-                <Input placeholder="ES" {...register("client.taxCountryCode")} />
-              </Field>
-              <Field label="Tipo NIF">
-                <Input placeholder="NIF/CIF/VAT..." {...register("client.taxIdType")} />
-              </Field>
             </div>
+
+            <details className="group mt-2">
+              <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
+                <span className="transition-transform group-open:rotate-90">▶</span>
+                <span>Más datos del cliente</span>
+              </summary>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <Field label="Email">
+                  <Input placeholder="email@cliente.com" {...register("client.email")} />
+                </Field>
+                <Field label="Persona de contacto">
+                  <Input placeholder="Persona de contacto" {...register("client.contactPerson")} />
+                </Field>
+                <Field label="Dirección">
+                  <Input placeholder="Dirección fiscal" {...register("client.address")} />
+                </Field>
+                <Field label="Ciudad">
+                  <Input placeholder="Ciudad" {...register("client.city")} />
+                </Field>
+                <Field label="Provincia">
+                  <Input placeholder="Provincia" {...register("client.province")} />
+                </Field>
+                <Field label="País (código)">
+                  <Input placeholder="ES" {...register("client.taxCountryCode")} />
+                </Field>
+                <Field label="Tipo NIF">
+                  <Input placeholder="NIF/CIF/VAT..." {...register("client.taxIdType")} />
+                </Field>
+              </div>
+            </details>
           </WorkflowModule>
 
           <WorkflowModule
