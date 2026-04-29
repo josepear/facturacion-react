@@ -186,6 +186,9 @@ export function FacturarPage() {
                 <Field label="Serie">
                   <Input placeholder="Serie opcional" {...register("series")} />
                 </Field>
+                <Field label="Número final" error={errors.numberEnd?.message}>
+                  <Input placeholder="Opcional (rango o número final)" {...register("numberEnd")} />
+                </Field>
                 <Field label="Vencimiento" error={errors.dueDate?.message}>
                   <Input type="date" {...register("dueDate")} />
                 </Field>

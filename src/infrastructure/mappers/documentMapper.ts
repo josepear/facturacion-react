@@ -67,6 +67,7 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
     templateProfileId: asString(record.templateProfileId) || base.templateProfileId,
     tenantId: asString(record.tenantId) || base.tenantId,
     number: asString(record.number),
+    numberEnd: asString(record.numberEnd),
     series: asString(record.series),
     issueDate: asString(record.issueDate) || base.issueDate,
     dueDate: asString(record.dueDate),

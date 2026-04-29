@@ -37,6 +37,8 @@ export type InvoiceDocument = {
   templateProfileId: string;
   tenantId: string;
   number: string;
+  /** Número final / rango (legacy `numberEnd`); opcional. */
+  numberEnd: string;
   series: string;
   issueDate: string;
   dueDate: string;

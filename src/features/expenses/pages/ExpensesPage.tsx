@@ -414,6 +414,52 @@ export function ExpensesPage() {
                 onChange={(event) => setDraft((prev) => ({ ...prev, paymentMethod: event.target.value }))}
               />
             </Field>
+
+            <details className="sm:col-span-2 group rounded-md border border-dashed p-3">
+              <summary className="cursor-pointer text-sm font-medium text-muted-foreground outline-none group-open:text-foreground">
+                Más campos del gasto
+              </summary>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <Field label="Fecha operación / devengo">
+                  <Input
+                    type="date"
+                    value={draft.operationDate || ""}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, operationDate: event.target.value }))}
+                  />
+                </Field>
+                <Field label="Número final (rango)">
+                  <Input
+                    value={draft.invoiceNumberEnd || ""}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, invoiceNumberEnd: event.target.value }))}
+                  />
+                </Field>
+                <Field label="Trimestre">
+                  <Input
+                    placeholder="p. ej. Q1 o 1T"
+                    value={draft.quarter || ""}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, quarter: event.target.value }))}
+                  />
+                </Field>
+                <Field label="Enlace Nextcloud">
+                  <Input
+                    type="url"
+                    inputMode="url"
+                    placeholder="https://…"
+                    value={draft.nextcloudUrl || ""}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, nextcloudUrl: event.target.value }))}
+                  />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="Concepto gasto">
+                    <Input
+                      value={draft.expenseConcept || ""}
+                      onChange={(event) => setDraft((prev) => ({ ...prev, expenseConcept: event.target.value }))}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </details>
+
             <Field label="Base (subtotal)">
               <Input
                 type="number"

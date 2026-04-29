@@ -57,6 +57,7 @@
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `number` | Obligatorio operativo; sugerencia desde servidor | `register("number")`; `getNextNumber` vía dominio | Ninguna en flujo feliz | — | E2E + manual | **cerrado** | P0 |
+| `numberEnd` | «Número-Final» opcional en «Más campos del documento» | `register("numberEnd")` en desplegable; dominio + Zod + mapper | — | — | Guardar/recargar conserva valor | **cerrado** | P1 |
 
 ---
 
@@ -73,11 +74,11 @@
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `accounting.status` | ENVIADA / COBRADA / CANCELADA (o equivalente) | `select` `register("accounting.status")` | Ninguna obvia en enum | — | Recarga conserva estado | **cerrado** | P0 |
-| `accounting.paymentDate` | Suele existir si «cobrada» | En modelo y mapper; **sin input en Facturar** | No editable en React; puede ser obligatorio en legacy para ciertos estados | Campos fecha + validación condicional | Marcar cobrada: exige fecha como legacy | **pendiente** | P1 |
-| `accounting.quarter` | Si legacy asigna trimestre | Modelo + mapper; sin UI | Misma brecha | Input o cálculo automático | Igual que legacy | **pendiente** | P2 |
-| `accounting.invoiceId` | Referencia contable / drive | Modelo; mapper lee `invoiceId` / `driveLabel`; sin UI | Misma brecha | Campo opcional en UI | Persistencia tras guardar | **pendiente** | P2 |
-| `accounting.netCollected` | Importe cobrado | Modelo; sin UI | Misma brecha | Input numérico si aplica | — | **pendiente** | P2 |
-| `accounting.taxes` | Nota fiscal / impuestos texto | Modelo; mapper `taxes` / `taxNote`; sin UI | Misma brecha | Textarea si legacy la usa | — | **pendiente** | P2 |
+| `accounting.paymentDate` | Suele existir si «cobrada» | En modelo y mapper; **input `type="date"`** en Facturar | Sin checklist manual legacy/backend no se confirma obligatoriedad estricta | Mantener exposición + round-trip; no endurecer guardado sin evidencia contractual | E2E: crear/guardar/recargar conserva `paymentDate` | **parcial** | P1 |
+| `accounting.quarter` | Si legacy asigna trimestre | Modelo + mapper; **input visible no restrictivo** en Facturar | Sin checklist manual legacy/backend no se confirma cálculo automático ni obligatoriedad | Mantener exposición + round-trip sin reglas duras; validar legado antes de automatizar | Guardar/recargar conserva `quarter` | **parcial** | P2 |
+| `accounting.invoiceId` | Referencia contable / drive | Modelo + mapper (`invoiceId` / `driveLabel`) e **input visible no restrictivo** en Facturar | Sin checklist manual legacy/backend no se confirman formato ni reglas estrictas | Mantener exposición + round-trip sin bloqueo de guardado | Guardar/recargar conserva `invoiceId` | **parcial** | P2 |
+| `accounting.netCollected` | Importe cobrado | Modelo + mapper; **input numérico** en Facturar (`setValueAs` → `number` para RHF+Zod) | Sin checklist manual legacy/backend no se confirman reglas de negocio sobre el importe | Exposición + round-trip; sin obligatoriedad ni rangos impuestos | Guardar/recargar conserva `netCollected` | **parcial** | P2 |
+| `accounting.taxes` | Nota fiscal / impuestos texto | Modelo + mapper; **input texto** en Facturar (desplegable) | Sin checklist legacy sobre formato largo | — | Guardar/recargar conserva texto | **parcial** | P2 |
 
 ---
 
@@ -101,7 +102,7 @@
 | Dirección, ciudad, provincia | Típicamente en factura | Inputs presentes | — | — | Preview | **cerrado** | P1 |
 | País (`taxCountryCode`) | Código | Input | — | Select ISO si legacy usa lista | — | **parcial** | P2 |
 | Tipo NIF | Catálogo posible | Input libre | Si legacy es lista cerrada, hay brecha | Select alineado | — | **parcial** | P1 |
-| **Persona de contacto** | Si legacy lo muestra en factura | `client.contactPerson` en modelo, `replaceClientData`; **sin campo visible en FacturarPage** | No se puede editar desde pantalla Facturar | Añadir `Field` + `register("client.contactPerson")` | Preview oficial y PDF muestran contacto | **pendiente** | P1 |
+| **Persona de contacto** | Si legacy lo muestra en factura | `client.contactPerson` en modelo, `replaceClientData`; **campo visible y editable en FacturarPage** | No se puede editar desde pantalla Facturar | Añadir `Field` + `register("client.contactPerson")` | Preview oficial y PDF muestran contacto; E2E valida persistencia round-trip | **cerrado** | P1 |
 
 ---
 
@@ -196,8 +197,8 @@
 
 ### P1 (paridad operativa / datos completos)
 
-1. Campos **contables extendidos** (`paymentDate`, y según legacy `quarter`, `invoiceId`, etc.) sin UI en Facturar.  
-2. **`client.contactPerson`**: en dominio y preview, sin input en Facturar.  
+1. Campos **contables extendidos** en Facturar: expuestos en «Más campos del documento» + mapper; obligatoriedad estricta solo con evidencia legacy/backend.  
+2. **`client.contactPerson`**: editable en Facturar (desplegable «Más datos del cliente»); E2E y round-trip cubiertos.
 3. **Catálogos** alineados con legacy: `paymentMethod`, tipo documento si hay más tipos, tipo NIF, obligatoriedad NIF/fecha vencimiento.  
 4. **Histórico**: límite 40 ítems; puede ser insuficiente vs legacy.  
 5. **PDF**: confirmar disponibilidad endpoint en todos los despliegues.

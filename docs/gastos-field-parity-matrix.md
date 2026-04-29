@@ -30,7 +30,7 @@
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `invoiceNumber` | Campo principal nº factura | Input en formulario | — | — | Recarga conserva valor | **cerrado** | P1 |
-| `invoiceNumberEnd` | Rango / segundo nº si legacy lo usa | En tipo `ExpenseRecord`; **sin UI** | No editable en React | Añadir campo si prod lo exige | Paridad con legacy | **pendiente** | P1 |
+| `invoiceNumberEnd` | Rango / segundo nº si legacy lo usa | `<details>` «Más campos del gasto» | «validar en legacy» formato | — | Paridad con legacy | **parcial** | P1 |
 
 ---
 
@@ -39,7 +39,7 @@
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `issueDate` (fecha factura) | Obligatoria según política | `type="date"` | Validar obligatoriedad vs backend/legacy | Zod o validación previa a POST | Error claro si falta | **parcial** | P1 |
-| `operationDate` | Fecha de operación / devengo si aplica | En modelo; **sin UI** | Brecha si legacy la muestra | Campo fecha | Igual que legacy | **pendiente** | P1 |
+| `operationDate` | Fecha de operación / devengo si aplica | `type="date"` en «Más campos del gasto» | «validar en legacy» obligatoriedad | — | Igual que legacy | **parcial** | P1 |
 
 ---
 
@@ -48,7 +48,7 @@
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `description` | Texto libre | Input | — | — | — | **cerrado** | P1 |
-| `expenseConcept` | Concepto contable / etiqueta si legacy distingue | En modelo; **sin UI** | Duplicidad semántica con `description` en React solo en backend | Campo dedicado o documentar mapeo | Legacy muestra ambos | **pendiente** | P2 |
+| `expenseConcept` | Concepto contable / etiqueta si legacy distingue | Input en «Más campos del gasto» | Duplicidad semántica con `description` | — | Legacy muestra ambos | **parcial** | P2 |
 
 ---
 
@@ -130,12 +130,12 @@
 
 | Campo | En UI React | Estado matriz | Pri. |
 | --- | --- | --- | --- |
-| `operationDate` | No | **pendiente** | P1 |
+| `operationDate` | Sí («Más campos del gasto») | **parcial** | P1 |
 | `taxIdType` | No | **pendiente** | P2 |
-| `invoiceNumberEnd` | No | **pendiente** | P1 |
-| `expenseConcept` | No | **pendiente** | P2 |
-| `quarter` | No | **pendiente** | P1 |
-| `nextcloudUrl` | No | **pendiente** | P1 |
+| `invoiceNumberEnd` | Sí | **parcial** | P1 |
+| `expenseConcept` | Sí | **parcial** | P2 |
+| `quarter` | Sí (texto libre) | **parcial** | P1 |
+| `nextcloudUrl` | Sí (`type="url"`) | **parcial** | P1 |
 | `tenantId`, `savedAt`, `updatedAt`, `id` | No (metadatos / servidor) | **parcial** (solo si legacy los edita) | P2 |
 
 ---
@@ -150,14 +150,14 @@
 
 ### P1
 
-1. Campos modelo sin UI: `operationDate`, `invoiceNumberEnd`, `quarter`, `nextcloudUrl`, y posiblemente obligatoriedad de `vendor` / `issueDate`.  
+1. Alinear con legacy: obligatoriedad de `vendor` / `issueDate`, formato de `quarter`, y checklist manual de los campos en «Más campos del gasto».  
 2. **Permisos:** papelera solo admin; revisar si archivar debe estar restringido igual.  
 3. **`/api/expense-options`:** forma de respuesta y riqueza de listas vs legacy.  
 4. **IRPF / IGIC:** alinear catálogos y redondeo con legacy.
 
 ### P2
 
-- `expenseConcept`, `templateProfileLabel`, filtros avanzados, deep links, total manual, reporting.
+- `templateProfileLabel`, filtros avanzados, deep links, total manual, reporting.
 
 ---
 

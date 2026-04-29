@@ -10,6 +10,7 @@ export function createEmptyDocument(): InvoiceDocument {
     templateProfileId: "",
     tenantId: "default",
     number: "",
+    numberEnd: "",
     series: "",
     issueDate: getToday(),
     dueDate: "",
