@@ -66,13 +66,13 @@
 
 **Legacy (referencia producción):** listado de documentos emitidos, apertura, re-edición, archivado y gestión de residuos según rol.
 
-**React actual:** `HistoryPage`: `GET /api/history`, detalle `GET /api/documents/detail`, búsqueda en cliente sobre la lista, panel de detalle con **Editar en Facturar** (`/facturar?recordId=` y `templateProfileId` si el documento lo trae), **Ver HTML oficial** y **Abrir PDF oficial** vía las mismas rutas que Facturar (`/api/documents/rendered-html`, `/api/documents/pdf`) usando `fetchWithAuth` + blob (Bearer como el resto de la app); mensaje de error visible si la respuesta no es OK o el navegador bloquea pop-up. Archivado unitario y por ejercicio; papelera con borrado permanente para admin; restauración no soportada por contrato actual.
+**React actual:** `HistoryPage`: `GET /api/history`, detalle `GET /api/documents/detail`, filtros **en cliente** (tipo factura/presupuesto, ejercicio por `issueDate`, texto que coincide con número/cliente/recordId/tipo), contador «mostrando N de M», mensajes diferenciados si la API devuelve lista vacía vs ningún resultado con filtros vs error de carga; panel de detalle con **Seleccionado: recordId** y aviso si el documento abierto queda fuera de la lista filtrada; **Editar en Facturar** (`/facturar?recordId=` y `templateProfileId` si aplica); HTML/PDF vía `openOfficialDocumentInNewTab`. Archivado unitario y por ejercicio; papelera admin-only; restauración no soportada por contrato actual.
 
 | legacy (referencia) | React actual | Brecha exacta | Implementación para cerrar | Verificación de cierre | Estado |
 | --- | --- | --- | --- | --- | --- |
 | Restaurar desde papelera (si legacy lo permite) | UI indica que restauración no está soportada | Usuario admin no puede restaurar desde React como en legacy | Backend + UI de restore si el contrato legacy lo expone; si no existe API, alinear expectativas | Caso restore en legacy reproducido | **pendiente** |
 | Abrir PDF y HTML oficial desde detalle de historial | Mismas salidas que en Facturar para un `recordId` dado | **Cerrado en React:** botones HTML + PDF; prefetch autenticado y feedback si falla | — | Seleccionar documento en Historial: HTML/PDF abren o muestran error claro | **cerrado** |
-| Filtros por fechas, tipo, estado, perfil (si legacy) | Búsqueda por texto sobre lista cargada | Filtrado menos rico que legacy | Ampliar query o filtros cliente según `GET /api/history` | Mismos filtros y conteos que legacy | **pendiente** |
+| Filtros por fechas, tipo, estado, perfil (si legacy) | Tipo + año emisión + texto en lista cargada; sin filtro por estado contable ni perfil emisor en UI | Legacy puede filtrar más dimensiones o en servidor | Si el backend expone query params documentados, cablear; si no, checklist manual legacy | Operación diaria con tipo+año+texto | **parcial** |
 
 ---
 
