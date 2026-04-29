@@ -66,12 +66,12 @@
 
 **Legacy (referencia producción):** listado de documentos emitidos, apertura, re-edición, archivado y gestión de residuos según rol.
 
-**React actual:** `HistoryPage`: `GET /api/history`, detalle `GET /api/documents/detail`, navegación a `/facturar?recordId=...`, HTML oficial, archivado unitario y por ejercicio, papelera con borrado permanente para admin; texto explícito: restauración no soportada por contrato actual.
+**React actual:** `HistoryPage`: `GET /api/history`, detalle `GET /api/documents/detail`, búsqueda en cliente sobre la lista, panel de detalle con **Editar en Facturar** (`/facturar?recordId=` y `templateProfileId` si el documento lo trae), **Ver HTML oficial** y **Abrir PDF oficial** vía las mismas rutas que Facturar (`/api/documents/rendered-html`, `/api/documents/pdf`) usando `fetchWithAuth` + blob (Bearer como el resto de la app); mensaje de error visible si la respuesta no es OK o el navegador bloquea pop-up. Archivado unitario y por ejercicio; papelera con borrado permanente para admin; restauración no soportada por contrato actual.
 
 | legacy (referencia) | React actual | Brecha exacta | Implementación para cerrar | Verificación de cierre | Estado |
 | --- | --- | --- | --- | --- | --- |
 | Restaurar desde papelera (si legacy lo permite) | UI indica que restauración no está soportada | Usuario admin no puede restaurar desde React como en legacy | Backend + UI de restore si el contrato legacy lo expone; si no existe API, alinear expectativas | Caso restore en legacy reproducido | **pendiente** |
-| Abrir PDF oficial desde listado | Botón “Ver HTML oficial”; PDF no enlazado igual que en Facturar | Paridad de accesos a salidas (HTML vs PDF) desde Historial | Reutilizar patrón de URLs de Facturar o endpoint legacy de PDF | Mismo `recordId` abre misma salida que legacy | **pendiente** |
+| Abrir PDF y HTML oficial desde detalle de historial | Mismas salidas que en Facturar para un `recordId` dado | **Cerrado en React:** botones HTML + PDF; prefetch autenticado y feedback si falla | — | Seleccionar documento en Historial: HTML/PDF abren o muestran error claro | **cerrado** |
 | Filtros por fechas, tipo, estado, perfil (si legacy) | Búsqueda por texto sobre lista cargada | Filtrado menos rico que legacy | Ampliar query o filtros cliente según `GET /api/history` | Mismos filtros y conteos que legacy | **pendiente** |
 
 ---
@@ -125,7 +125,7 @@
 | --- | --- | --- |
 | P1-1 | Gastos: modelo completo vs formulario reducido (detalle en `docs/gastos-field-parity-matrix.md`) | Riesgo de datos incompletos respecto a legacy |
 | P1-2 | Historial: sin restauración desde papelera en UI | Admins dependen de legacy o de procedimiento manual |
-| P1-3 | Historial: acceso PDF vs HTML puede diferir de Facturar | Revisar URLs y expectativas de usuario |
+| P1-3 | ~~Historial: acceso PDF vs HTML~~ **Cerrado en UI Historial** (mismas rutas que Facturar + PDF). Facturar sigue usando `window.open` directo sin comprobar HTTP previo | Opcional: alinear Facturar con prefetch+blob para Bearer coherente |
 | P1-4 | Clientes: posibles acciones de ciclo de vida ausentes | Depende de qué exponga legacy |
 
 ---

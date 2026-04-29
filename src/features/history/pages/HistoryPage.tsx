@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
 import { archiveDocument, archiveDocumentYear, fetchDocumentDetail, fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
+import { fetchWithAuth } from "@/infrastructure/api/httpClient";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import { deleteTrashEntries, fetchTrash } from "@/infrastructure/api/trashApi";
 import { mapLegacyDocumentToForm } from "@/infrastructure/mappers/documentMapper";
@@ -29,6 +30,13 @@ export function HistoryPage() {
   const [archiveProfileId, setArchiveProfileId] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
+  const [outputFeedback, setOutputFeedback] = useState<{ text: string; tone: "error" } | null>(null);
+  const [officialOutputLoading, setOfficialOutputLoading] = useState<"html" | "pdf" | null>(null);
+
+  const selectRecord = (recordId: string) => {
+    setSelectedRecordId(recordId);
+    setOutputFeedback(null);
+  };
 
   const historyQuery = useQuery({
     queryKey: ["history-invoices"],
@@ -91,6 +99,48 @@ export function HistoryPage() {
     [trashQuery.data?.items],
   );
 
+  const openOfficialOutput = async (kind: "html" | "pdf") => {
+    if (!selectedRecordId) {
+      return;
+    }
+    const path =
+      kind === "html"
+        ? `/api/documents/rendered-html?recordId=${encodeURIComponent(selectedRecordId)}`
+        : `/api/documents/pdf?recordId=${encodeURIComponent(selectedRecordId)}`;
+    const label = kind === "html" ? "HTML oficial" : "PDF oficial";
+    setOutputFeedback(null);
+    setOfficialOutputLoading(kind);
+    try {
+      const response = await fetchWithAuth(path);
+      if (!response.ok) {
+        setOutputFeedback({
+          text: `${label} no disponible (HTTP ${response.status}). Si el documento está archivado o aún no tiene salida generada, prueba desde Facturar o en legacy.`,
+          tone: "error",
+        });
+        return;
+      }
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const win = window.open(objectUrl, "_blank", "noopener,noreferrer");
+      if (!win) {
+        URL.revokeObjectURL(objectUrl);
+        setOutputFeedback({
+          text: "El navegador bloqueó la ventana emergente. Permite ventanas para este sitio e inténtalo de nuevo.",
+          tone: "error",
+        });
+        return;
+      }
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (error) {
+      setOutputFeedback({
+        text: (error as Error).message || `No se pudo cargar ${label.toLowerCase()}.`,
+        tone: "error",
+      });
+    } finally {
+      setOfficialOutputLoading(null);
+    }
+  };
+
   const archiveDocumentMutation = useMutation({
     mutationFn: (recordId: string) => archiveDocument(recordId),
     onSuccess: async () => {
@@ -100,7 +150,7 @@ export function HistoryPage() {
       ]);
       setStatusMessage("Documento archivado.");
       setStatusTone("success");
-      setSelectedRecordId("");
+      selectRecord("");
     },
     onError: (error) => {
       setStatusMessage((error as Error).message || "No se pudo archivar el documento.");
@@ -182,7 +232,7 @@ export function HistoryPage() {
                           className={`w-full px-3 py-2 text-left text-sm transition-colors ${
                             isActive ? "bg-primary text-primary-foreground" : "hover:bg-accent"
                           }`}
-                          onClick={() => setSelectedRecordId(item.recordId)}
+                          onClick={() => selectRecord(item.recordId)}
                         >
                           <p className="font-medium">{item.number || "Sin número"}</p>
                           <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
@@ -262,16 +312,31 @@ export function HistoryPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
-                    onClick={() => navigate(`/facturar?recordId=${encodeURIComponent(selectedRecordId)}`)}
+                    onClick={() => {
+                      const profileId = String(openedDocument.templateProfileId || "").trim();
+                      const query = profileId
+                        ? `recordId=${encodeURIComponent(selectedRecordId)}&templateProfileId=${encodeURIComponent(profileId)}`
+                        : `recordId=${encodeURIComponent(selectedRecordId)}`;
+                      navigate(`/facturar?${query}`);
+                    }}
                   >
                     Editar en Facturar
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => window.open(`/api/documents/rendered-html?recordId=${encodeURIComponent(selectedRecordId)}`, "_blank", "noopener,noreferrer")}
+                    onClick={() => openOfficialOutput("html")}
+                    disabled={officialOutputLoading !== null}
                   >
-                    Ver HTML oficial
+                    {officialOutputLoading === "html" ? "Abriendo HTML..." : "Ver HTML oficial"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openOfficialOutput("pdf")}
+                    disabled={officialOutputLoading !== null}
+                  >
+                    {officialOutputLoading === "pdf" ? "Abriendo PDF..." : "Abrir PDF oficial"}
                   </Button>
                   <Button
                     type="button"
@@ -282,6 +347,9 @@ export function HistoryPage() {
                     {archiveDocumentMutation.isPending ? "Archivando..." : "Archivar documento"}
                   </Button>
                 </div>
+                {outputFeedback ? (
+                  <p className="text-sm text-red-600">{outputFeedback.text}</p>
+                ) : null}
               </>
             ) : (
               <p className="text-sm text-muted-foreground">Sin datos de documento.</p>

@@ -57,3 +57,13 @@ export async function request<TResponse>(
 
   return payload as TResponse;
 }
+
+/** Misma cabecera `Authorization` que `request`, sin forzar JSON (p. ej. HTML/PDF oficiales). */
+export async function fetchWithAuth(input: string | URL, init: RequestInit = {}): Promise<Response> {
+  const token = getBrowserAuthToken();
+  const headers = new Headers(init.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return fetch(input, { ...init, headers });
+}

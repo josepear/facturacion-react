@@ -176,6 +176,16 @@
 
 ---
 
+## 17. Módulo Historial (misma salida oficial, otro punto de entrada)
+
+| Acción | Legacy (ref.; validar) | React (`HistoryPage`) | Brecha exacta | Verificación | Estado | Pri. |
+| --- | --- | --- | --- | --- | --- | --- |
+| Localizar documento | Listado + filtros/búsqueda según legacy | Lista `GET /api/history` + filtro texto (número, cliente, tipo, recordId) | Menos filtros que legacy si aplica | Encontrar mismo doc que en legacy | **parcial** | P1 |
+| Abrir en Facturar | Navegación a edición con id | `navigate` a `/facturar?recordId=` y `templateProfileId` si viene en el documento | Ninguna obvia | Editar y guardar como en flujo Facturar | **cerrado** | P0 |
+| HTML/PDF oficial | Abrir render y PDF para el id | Mismas URLs que Facturar; `fetchWithAuth` + blob; mensaje si HTTP error o pop-up bloqueado | Facturar aún abre pestaña sin comprobar respuesta (inconsistencia menor) | Historial: éxito o mensaje claro | **cerrado** | P0 |
+
+---
+
 ## Resumen de brechas por prioridad (para backlog)
 
 ### P0 (operación diaria acordada)
