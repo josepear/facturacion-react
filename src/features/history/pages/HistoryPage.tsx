@@ -21,6 +21,17 @@ function formatDate(value: string): string {
   return safe;
 }
 
+const ACCOUNTING_STATUS_LABELS: Record<string, string> = {
+  ENVIADA: "Enviada",
+  COBRADA: "Cobrada",
+  CANCELADA: "Cancelada",
+};
+
+function formatAccountingStatusLabel(status: string): string {
+  const key = String(status || "").trim().toUpperCase();
+  return ACCOUNTING_STATUS_LABELS[key] || (key ? key : "-");
+}
+
 export function HistoryPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -34,10 +45,12 @@ export function HistoryPage() {
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
   const [outputFeedback, setOutputFeedback] = useState<{ text: string; tone: "error" } | null>(null);
   const [officialOutputLoading, setOfficialOutputLoading] = useState<"html" | "pdf" | null>(null);
+  const [recordIdCopyFeedback, setRecordIdCopyFeedback] = useState<{ text: string; tone: "success" | "error" } | null>(null);
 
   const selectRecord = (recordId: string) => {
     setSelectedRecordId(recordId);
     setOutputFeedback(null);
+    setRecordIdCopyFeedback(null);
   };
 
   const historyQuery = useQuery({
@@ -107,7 +120,24 @@ export function HistoryPage() {
     [historyQuery.data],
   );
 
-  const profileOptions = configQuery.data?.templateProfiles ?? [];
+  const profileOptions = useMemo(
+    () => configQuery.data?.templateProfiles ?? [],
+    [configQuery.data?.templateProfiles],
+  );
+
+  /** Solo lectura: `id` viene del detalle; `label` solo si coincide con `/api/config` ya cargado (sin inferir). */
+  const documentProfileSummary = useMemo(() => {
+    if (!openedDocument) {
+      return null;
+    }
+    const id = String(openedDocument.templateProfileId || "").trim();
+    if (!id) {
+      return null;
+    }
+    const label = profileOptions.find((p) => p.id === id)?.label?.trim();
+    return label ? `${label} (${id})` : id;
+  }, [openedDocument, profileOptions]);
+
   const isAdmin = String(configQuery.data?.currentUser?.role || "").trim().toLowerCase() === "admin";
   const trashDocumentItems = useMemo(
     () => (trashQuery.data?.items ?? []).filter((item) => item.category === "documentos"),
@@ -118,6 +148,36 @@ export function HistoryPage() {
   const selectionHiddenByFilters = Boolean(
     selectedRecordId && !filteredItems.some((item) => item.recordId === selectedRecordId),
   );
+
+  const copySelectedRecordId = async () => {
+    const id = String(selectedRecordId || "").trim();
+    if (!id) {
+      return;
+    }
+    setRecordIdCopyFeedback(null);
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(id);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = id;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (!ok) {
+          throw new Error("copy");
+        }
+      }
+      setRecordIdCopyFeedback({ text: "Copiado al portapapeles.", tone: "success" });
+    } catch {
+      setRecordIdCopyFeedback({ text: "No se pudo copiar.", tone: "error" });
+    }
+    window.setTimeout(() => setRecordIdCopyFeedback(null), 2500);
+  };
 
   const openOfficialOutput = async (kind: "html" | "pdf") => {
     if (!selectedRecordId) {
@@ -285,9 +345,24 @@ export function HistoryPage() {
               ) : rawHistoryCount === 0 ? (
                 <p className="p-3 text-sm text-muted-foreground">No hay documentos en el historial.</p>
               ) : (
-                <p className="p-3 text-sm text-muted-foreground">
-                  Ningún documento coincide con los filtros activos. Prueba otros criterios o borra el texto de búsqueda.
-                </p>
+                <div className="grid gap-3 p-3">
+                  <p className="text-sm text-muted-foreground">
+                    Ningún documento coincide con los filtros activos (tipo, ejercicio o búsqueda).
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-fit"
+                    onClick={() => {
+                      setFilterType("");
+                      setFilterYear("");
+                      setSearchTerm("");
+                    }}
+                  >
+                    Limpiar filtros
+                  </Button>
+                </div>
               )}
             </div>
             <div className="grid gap-2 rounded-md border p-3">
@@ -330,9 +405,23 @@ export function HistoryPage() {
             <CardTitle>Documento abierto</CardTitle>
             <CardDescription>Detalle cargado con `GET /api/documents/detail`.</CardDescription>
             {selectedRecordId ? (
-              <p className="text-xs text-muted-foreground">
-                Seleccionado: <span className="font-mono">{selectedRecordId}</span>
-              </p>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="min-w-0 text-xs text-muted-foreground">
+                    Seleccionado: <span className="font-mono break-all">{selectedRecordId}</span>
+                  </p>
+                  <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => void copySelectedRecordId()}>
+                    Copiar recordId
+                  </Button>
+                </div>
+                {recordIdCopyFeedback ? (
+                  <p
+                    className={`text-xs ${recordIdCopyFeedback.tone === "success" ? "text-emerald-600" : "text-red-600"}`}
+                  >
+                    {recordIdCopyFeedback.text}
+                  </p>
+                ) : null}
+              </div>
             ) : null}
           </CardHeader>
           <CardContent className="grid gap-3">
@@ -353,8 +442,15 @@ export function HistoryPage() {
               <>
                 <div className="rounded-md border p-3 text-sm">
                   <p><strong>recordId:</strong> {selectedRecordId}</p>
+                  {documentProfileSummary ? (
+                    <p><strong>Perfil plantilla:</strong> {documentProfileSummary}</p>
+                  ) : null}
+                  {String(openedDocument.templateLayout || "").trim() ? (
+                    <p><strong>Plantilla / layout:</strong> {String(openedDocument.templateLayout).trim()}</p>
+                  ) : null}
                   <p><strong>Tipo:</strong> {openedDocument.type}</p>
                   <p><strong>Número:</strong> {openedDocument.number || "-"}</p>
+                  <p><strong>Estado contable:</strong> {formatAccountingStatusLabel(openedDocument.accounting.status)}</p>
                   <p><strong>Fecha:</strong> {formatDate(openedDocument.issueDate)}</p>
                   <p><strong>Cliente:</strong> {openedDocument.client.name || "-"}</p>
                   <p><strong>Líneas:</strong> {openedDocument.items.length}</p>

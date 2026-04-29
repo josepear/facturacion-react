@@ -181,7 +181,8 @@
 
 | Acción | Legacy (ref.; validar) | React (`HistoryPage`) | Brecha exacta | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- |
-| Localizar documento | Listado + filtros/búsqueda según legacy | Lista `GET /api/history` + **tipo** (todos/factura/presupuesto) + **ejercicio** (`issueDate` YYYY) + texto (número, cliente, recordId, etiqueta/código tipo); conteo N/M; error de API explícito | Estado, perfil, rangos de fecha u otros filtros legacy sin contrato en `GET /api/history` | Encontrar doc con mismos criterios que en legacy cuando aplique | **parcial** | P1 |
+| Localizar documento | Listado + filtros/búsqueda según legacy | Lista `GET /api/history` + **tipo** (todos/factura/presupuesto) + **ejercicio** (`issueDate` YYYY) + texto (número, cliente, recordId, etiqueta/código tipo); conteo N/M; error de API explícito | Filtro por estado contable, perfil, rangos de fecha u otros criterios legacy sin contrato en `GET /api/history` | Encontrar doc con mismos criterios que en legacy cuando aplique | **parcial** | P1 |
+| Estado contable en detalle | Suele visible al revisar documento en legacy | Panel «Documento abierto» muestra `accounting.status` del detalle (`GET /api/documents/detail`) con etiqueta legible (solo lectura) | Filtro por estado en listado sigue sin contrato | Abrir documento y comprobar coherencia con Facturar | **cerrado** | P1 |
 | Selección clara | Resaltado fila / contexto | Resaltado + `recordId` en cabecera del panel; aviso si la fila no está en lista filtrada | — | — | **cerrado** | P1 |
 | Abrir en Facturar | Navegación a edición con id | `navigate` a `/facturar?recordId=` y `templateProfileId` si viene en el documento | Ninguna obvia | Editar y guardar como en flujo Facturar | **cerrado** | P0 |
 | HTML/PDF oficial | Abrir render y PDF para el id | Mismo helper `openOfficialDocumentInNewTab` que Facturar | — | Éxito o mensaje claro | **cerrado** | P0 |
