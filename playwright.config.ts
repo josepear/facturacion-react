@@ -11,6 +11,7 @@ const nodeExecPath = process.env.E2E_NODE_PATH || "node";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
+  workers: 1,
   retries: 0,
   globalSetup: "./e2e/global-setup.ts",
   reporter: [["list"], ["html", { open: "never" }]],

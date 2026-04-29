@@ -32,6 +32,24 @@ Contrato que protege:
 
 No debe haber `skip` silencioso ni falsos positivos.
 
+## Smoke Gastos (backend real)
+
+Archivo: `e2e/expenses-flow.spec.ts`.
+
+Caso:
+
+```text
+Gastos: smoke crear, guardar, editar y archivar
+```
+
+Resumen:
+
+1. Misma autenticación (bearer) y **reenvío de `/api/**`** que Facturar, extraído a `e2e/browserApiHarness.ts` (`bootstrapAuthInBrowser`, `fetchApiJson`, cumplimiento JSON de `/api/config` en navegador).
+2. En Node: `GET /api/expense-options` debe exponer `vendors` y `categories` como arrays (raíz, `expenseOptions` o `data`, coherente con `e2e/global-setup.ts`).
+3. UI `/gastos`: marcador único `E2E-GASTO-<timestamp>`, perfil desde `/api/config`, fecha, proveedor, descripción, base.
+4. Dos `POST /api/expenses` con `response.ok()`, mismo `recordId` en la edición; si la respuesta incluye `expense.description`, debe coincidir con el texto editado.
+5. **Limpieza:** `POST /api/expenses/archive` con bearer. Si falla, el test **falla** con mensaje explícito (el gasto E2E puede quedar en el sistema).
+
 ## Entorno esperado
 
 Frontend local:
@@ -138,6 +156,8 @@ El navegador pedía `/api/config` con token presente, pero recibía el HTML de l
 - histórico vacío,
 - clientes vacíos.
 
+**Desarrollo manual:** además del harness E2E, el repo define el mismo `proxy` de `/api` en `server` (comando `vite`) y en `preview` (`vite preview`) en `vite.config.ts`, para que una sesión local no reciba HTML de la SPA en rutas API. Detalle y smoke `curl` en README («API en desarrollo local»).
+
 Decisión:
 
 En el harness E2E, Playwright intercepta rutas reales `/api/**` y las reenvía a `E2E_API_TARGET` con bearer. Para `/api/config`, responde con el JSON real validado por Node mediante `fetchApiJson("/api/config")`.
@@ -202,14 +222,17 @@ Decisiones:
 
 ## Cambios relevantes
 
+### `e2e/browserApiHarness.ts`
+
+- `fetchApiJson`, `fetchRuntimeConfigForE2E`, `bootstrapAuthInBrowser` (route solo si `pathname.startsWith("/api/")`; `/api/config` cumplido con JSON real).
+- `archiveExpenseByRecordId` para limpieza del smoke Gastos.
+
 ### `e2e/critical-flows.spec.ts`
 
 Responsabilidades actuales:
 
-- Lee bearer real desde `e2e/.auth/bearer`.
-- Inyecta token en `localStorage`.
-- Routea `/api/**` real hacia `E2E_API_TARGET`.
-- Protege `/api/config` sirviendo JSON backend real.
+- Usa el harness anterior; lee bearer desde `e2e/.auth/bearer`.
+- Inyecta token en `localStorage` y routea `/api/**` vía `bootstrapAuthInBrowser`.
 - Rellena precondiciones mínimas de Facturar:
   - `templateProfileId`,
   - `templateLayout`,
@@ -225,6 +248,10 @@ Responsabilidades actuales:
 - Guarda y exige `POST /api/documents` OK + `recordId`.
 - Recarga por `recordId`.
 - Edita y vuelve a guardar.
+
+### `e2e/expenses-flow.spec.ts`
+
+- Smoke Gastos descrito en la sección «Smoke Gastos» de este runbook.
 
 ### `playwright.config.ts`
 
