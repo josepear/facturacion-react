@@ -84,9 +84,6 @@ export function FacturarPage() {
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">Facturar</h1>
-        <p className="text-sm text-muted-foreground">
-          Paridad funcional base con legacy: edición, numeración, validación, guardado y recarga.
-        </p>
       </header>
 
       <form className="grid gap-6 lg:grid-cols-[2fr_1fr]" onSubmit={submit}>
@@ -116,7 +113,15 @@ export function FacturarPage() {
                 </select>
               </Field>
               <Field label="Plantilla/layout">
-                <Input placeholder="pear/editorial/voulita" {...register("templateLayout")} />
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register("templateLayout")}
+                >
+                  <option value="">Plantilla...</option>
+                  <option value="pear">Pear&amp;co. clásica</option>
+                  <option value="editorial">Editorial / Nacho</option>
+                  <option value="voulita">Eventos / La Jaulita</option>
+                </select>
               </Field>
               <Field label="Forma de pago">
                 <Input placeholder="Transferencia" {...register("paymentMethod")} />
@@ -157,7 +162,17 @@ export function FacturarPage() {
                 </select>
               </Field>
               <Field label="Fecha emisión" error={errors.issueDate?.message}>
-                <Input type="date" {...register("issueDate")} />
+                <div className="flex gap-2">
+                  <Input type="date" {...register("issueDate")} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => form.setValue("issueDate", new Date().toISOString().slice(0, 10))}
+                  >
+                    Hoy
+                  </Button>
+                </div>
               </Field>
             </div>
 
