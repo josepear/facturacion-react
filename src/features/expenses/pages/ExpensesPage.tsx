@@ -330,6 +330,9 @@ export function ExpensesPage() {
                           <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
                             {formatCurrency(Number(item.total || 0))} · {item.recordId}
                           </p>
+                          <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                            Perfil: {item.templateProfileLabel || item.templateProfileId || "por defecto"}
+                          </p>
                         </button>
                       </li>
                     );
@@ -431,6 +434,21 @@ export function ExpensesPage() {
                   <Input
                     value={draft.invoiceNumberEnd || ""}
                     onChange={(event) => setDraft((prev) => ({ ...prev, invoiceNumberEnd: event.target.value }))}
+                  />
+                </Field>
+                <Field label="Tipo NIF/CIF proveedor">
+                  <Input
+                    placeholder="NIF / CIF / VAT..."
+                    value={draft.taxIdType || ""}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, taxIdType: event.target.value }))}
+                  />
+                </Field>
+                <Field label="País fiscal proveedor">
+                  <Input
+                    placeholder="ES"
+                    maxLength={2}
+                    value={draft.taxCountryCode || ""}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, taxCountryCode: event.target.value.toUpperCase() }))}
                   />
                 </Field>
                 <Field label="Trimestre">

@@ -14,6 +14,8 @@
 | Campo / bloque | Legacy (ref.; validar) | React actual | Brecha exacta | Implementación sugerida | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `vendor` | Típicamente obligatorio o fuerte convención operativa | Input + `datalist` alimentado por `expenseOptions.vendors` | Validación React: basta `vendor` **o** `description`; legacy puede exigir proveedor siempre | Alinear reglas con legacy / backend | Guardar mismos casos límite que prod | **parcial** | P1 |
+| `taxIdType` | Tipo de identificación fiscal del proveedor | Input en «Más campos del gasto» | «validar en legacy» catálogo/forma | — | Guardar/recargar conserva valor | **parcial** | P2 |
+| `taxCountryCode` | País fiscal del proveedor (código) | Input `maxLength=2` en «Más campos del gasto» | «validar en legacy» formato/obligatoriedad | — | Guardar/recargar conserva valor en mayúsculas | **parcial** | P2 |
 
 ---
 
@@ -68,7 +70,7 @@
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `templateProfileId` | Gasto asociado a perfil / tenant | Select desde `GET /api/config` (`templateProfiles`); opción vacía «Perfil por defecto» | Coherencia con **Configuración** (`activeTemplateProfileId`): nuevo gasto usa `activeProfileId` en `createEmptyExpense` | Alinear copy y default con legacy | Mismo perfil por defecto que prod | **parcial** | P1 |
-| `templateProfileLabel` | Solo lectura en listados legacy | En tipo; no mostrado en formulario React | Informativo | Mostrar si API lo devuelve | — | **pendiente** | P2 |
+| `templateProfileLabel` | Solo lectura en listados legacy | Mostrado en listado (`Perfil: ...`) con fallback a `templateProfileId` | Informativo | — | Ver listado con datos API | **parcial** | P2 |
 
 ---
 
@@ -131,7 +133,8 @@
 | Campo | En UI React | Estado matriz | Pri. |
 | --- | --- | --- | --- |
 | `operationDate` | Sí («Más campos del gasto») | **parcial** | P1 |
-| `taxIdType` | No | **pendiente** | P2 |
+| `taxIdType` | Sí («Más campos del gasto») | **parcial** | P2 |
+| `taxCountryCode` | Sí («Más campos del gasto») | **parcial** | P2 |
 | `invoiceNumberEnd` | Sí | **parcial** | P1 |
 | `expenseConcept` | Sí | **parcial** | P2 |
 | `quarter` | Sí (texto libre) | **parcial** | P1 |
@@ -157,7 +160,7 @@
 
 ### P2
 
-- `templateProfileLabel`, filtros avanzados, deep links, total manual, reporting.
+- filtros avanzados, deep links, total manual, reporting.
 
 ---
 
