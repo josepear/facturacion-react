@@ -20,8 +20,6 @@ export function FacturarPage() {
     totals,
     itemsArray,
     profileOptions,
-    selectedProfile,
-    activeTemplateProfileId,
     applyTemplateProfile,
     taxValidation,
     applyWithholdingMode,
@@ -61,9 +59,12 @@ export function FacturarPage() {
   } = useFacturarForm(initialRecordId, initialTemplateProfileId);
   const {
     register,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = form;
-  const selectedProfileLabel = selectedProfile?.label || selectedProfile?.id || "-";
+  const taxRateWatched = watch("taxRate");
+  const withholdingRateWatched = watch("withholdingRate");
   const [historyYearFilter, setHistoryYearFilter] = useState("");
 
   const historyYearOptions = useMemo(() => {
@@ -451,8 +452,11 @@ export function FacturarPage() {
           >
             <InvoiceTotalsPanel
               register={register}
+              taxRate={taxRateWatched}
+              withholdingRate={withholdingRateWatched}
               totals={totals}
               taxValidation={taxValidation}
+              onTaxRatePreset={(rate) => setValue("taxRate", rate, { shouldDirty: true, shouldValidate: true })}
               onWithholdingModeChange={applyWithholdingMode}
             />
           </WorkflowModule>
