@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import { calculateTotals } from "@/domain/document/calculateTotals";
@@ -10,6 +10,10 @@ import { invoiceDocumentSchema } from "@/domain/document/schemas";
 import type { CalculatedTotals, InvoiceDocument } from "@/domain/document/types";
 import { fetchClients } from "@/infrastructure/api/clientsApi";
 import { fetchDocumentDetail, fetchRuntimeConfig, saveDocument } from "@/infrastructure/api/documentsApi";
+import {
+  openOfficialDocumentInNewTab,
+  type OfficialDocumentOutputKind,
+} from "@/infrastructure/api/openOfficialDocumentOutput";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import { mapFormToLegacyDocument, mapLegacyDocumentToForm } from "@/infrastructure/mappers/documentMapper";
 
@@ -44,6 +48,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const [selectedHistoryRecordId, setSelectedHistoryRecordId] = useState("");
   const [historySearchTerm, setHistorySearchTerm] = useState("");
   const [withoutWithholding, setWithoutWithholding] = useState(true);
+  const [officialOutputError, setOfficialOutputError] = useState<string | null>(null);
+  const [officialOutputLoading, setOfficialOutputLoading] = useState<OfficialDocumentOutputKind | null>(null);
   const bootstrappedRecordIdRef = useRef("");
   const bootstrappedTemplateProfileRef = useRef("");
 
@@ -421,6 +427,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     onSuccess: ({ recordId, document }) => {
       const mapped = applyTotals(mapLegacyDocumentToForm(document));
       setServerRecordId(recordId);
+      setOfficialOutputError(null);
       form.reset(mapped);
       syncSelectedClientOptionByName(mapped.client?.name || "");
       setNumberAvailabilityText("Guardado correcto.");
@@ -439,6 +446,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     onSuccess: ({ recordId, document }) => {
       const mapped = applyTotals(mapLegacyDocumentToForm(document));
       setServerRecordId(recordId);
+      setOfficialOutputError(null);
       setRecordIdInput(recordId);
       setSelectedHistoryRecordId(recordId);
       form.reset(mapped);
@@ -571,12 +579,25 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     loadMutation.mutate(safeRecordId);
   };
 
-  const officialHtmlUrl = serverRecordId
-    ? `/api/documents/rendered-html?recordId=${encodeURIComponent(serverRecordId)}`
-    : "";
-  const officialPdfUrl = serverRecordId
-    ? `/api/documents/pdf?recordId=${encodeURIComponent(serverRecordId)}`
-    : "";
+  const openOfficialOutput = useCallback(
+    async (kind: OfficialDocumentOutputKind) => {
+      const id = String(serverRecordId || "").trim();
+      if (!id) {
+        return;
+      }
+      setOfficialOutputError(null);
+      setOfficialOutputLoading(kind);
+      try {
+        const result = await openOfficialDocumentInNewTab(id, kind);
+        if (!result.ok) {
+          setOfficialOutputError(result.message);
+        }
+      } finally {
+        setOfficialOutputLoading(null);
+      }
+    },
+    [serverRecordId],
+  );
 
   return {
     form,
@@ -619,8 +640,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     loadBySelectedHistory,
     loadingHistory: historyQuery.isLoading,
     serverRecordId,
-    officialHtmlUrl,
-    officialPdfUrl,
+    openOfficialOutput,
+    officialOutputError,
+    officialOutputLoading,
     canOpenOfficialOutput: Boolean(serverRecordId),
     loadingConfig: configQuery.isLoading,
     liveDocument,

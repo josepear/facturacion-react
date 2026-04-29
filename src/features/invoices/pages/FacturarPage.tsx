@@ -51,8 +51,9 @@ export function FacturarPage() {
     loadBySelectedHistory,
     loadingHistory,
     serverRecordId,
-    officialHtmlUrl,
-    officialPdfUrl,
+    openOfficialOutput,
+    officialOutputError,
+    officialOutputLoading,
     canOpenOfficialOutput,
     loadingConfig,
     liveDocument,
@@ -390,30 +391,21 @@ export function FacturarPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    if (!officialHtmlUrl) {
-                      return;
-                    }
-                    window.open(officialHtmlUrl, "_blank", "noopener,noreferrer");
-                  }}
-                  disabled={!canOpenOfficialOutput}
+                  onClick={() => openOfficialOutput("html")}
+                  disabled={!canOpenOfficialOutput || officialOutputLoading !== null}
                 >
-                  Ver HTML oficial
+                  {officialOutputLoading === "html" ? "Abriendo HTML..." : "Ver HTML oficial"}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    if (!officialPdfUrl) {
-                      return;
-                    }
-                    window.open(officialPdfUrl, "_blank", "noopener,noreferrer");
-                  }}
-                  disabled={!canOpenOfficialOutput}
+                  onClick={() => openOfficialOutput("pdf")}
+                  disabled={!canOpenOfficialOutput || officialOutputLoading !== null}
                 >
-                  Abrir PDF oficial
+                  {officialOutputLoading === "pdf" ? "Abriendo PDF..." : "Abrir PDF oficial"}
                 </Button>
               </div>
+              {officialOutputError ? <p className="text-sm text-red-600">{officialOutputError}</p> : null}
               <span className="text-sm text-muted-foreground">
                 {serverRecordId ? `recordId: ${serverRecordId}` : "Documento nuevo"}
               </span>

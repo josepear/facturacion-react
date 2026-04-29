@@ -37,14 +37,14 @@
 
 **Legacy (referencia producción):** flujo único de emisión/edición de documentos (factura/presupuesto), con datos de emisor por perfil, cliente, líneas, fiscalidad, numeración, guardado, recarga por identificador y acceso a salida oficial (HTML/PDF según backend).
 
-**React actual:** `FacturarPage` + `useFacturarForm`: carga `GET /api/config`, clientes `GET /api/clients`, histórico reciente `GET /api/history`, detalle `GET /api/documents/detail`, guardado `POST /api/documents`, numeración `GET /api/next-number` y validación de número; checklist de módulos; preview en vivo; enlaces a HTML/PDF oficial tras guardar/cargar.
+**React actual:** `FacturarPage` + `useFacturarForm`: carga `GET /api/config`, clientes `GET /api/clients`, histórico reciente `GET /api/history`, detalle `GET /api/documents/detail`, guardado `POST /api/documents`, numeración `GET /api/next-number` y validación de número; checklist de módulos; preview en vivo; HTML/PDF oficial vía `openOfficialDocumentInNewTab` (Bearer + blob + feedback de error), alineado con Historial.
 
 | legacy (referencia) | React actual | Brecha exacta | Implementación para cerrar | Verificación de cierre | Estado |
 | --- | --- | --- | --- | --- | --- |
 | Operación estable en navegador contra el mismo host que sirve la API | Vite **dev** y **preview** reenvían `/api` al backend (`vite.config.ts`, variable opcional `E2E_API_TARGET`) | **Condición de fallo histórica:** `vite preview` no heredaba `server.proxy`, así que `GET /api/config` devolvía `index.html` (200) en lugar de JSON | Proxy unificado `server` + `preview` + documentación README (curl de smoke) | `curl …/api/config \| head -c 80` no empieza por `<`; Network en `/facturar` muestra JSON | **cerrado** |
 | Paridad de todos los campos y reglas de negocio del formulario legacy | Formulario React acotado al modelo `InvoiceDocument` + validaciones Zod y checklist propia | Brechas puntuales inventariadas (contabilidad extendida, `contactPerson`, catálogos, límites histórico, etc.); varias filas legacy requieren checklist en prod | Seguir `docs/facturar-field-parity-matrix.md`; implementar por prioridad P0/P1/P2 allí definida | Cerrar filas `pendiente`/`parcial` en la matriz con evidencia en legacy | **parcial** |
 | Flujos posteriores al guardado (envío, duplicar, anular, etc., si existen en legacy) | Botones centrados en guardar y abrir HTML/PDF oficial | Acciones post-guardado del legacy no reflejadas en UI React | Añadir acciones que llamen a los mismos endpoints legacy (si existen) o documentar exclusión | Checklist en legacy y reproducción en React | **pendiente** |
-| Salida HTML/PDF oficial tras guardar, recargar y re-guardar | Tras persistir, usuario abre render y PDF con el id del documento | `serverRecordId` se fija en `onSuccess` de guardar y de cargar detalle; botones `window.open` a `/api/documents/rendered-html` y `/api/documents/pdf` | **Resiliencia:** PDF puede 404 según despliegue; sin feedback previo en UI. **E2E:** se asume habilitación de botones, no contenido del PDF | Mejorar UX ante 404 opcional; mantener contrato de URLs con legacy | Tras guardado/recarga/edición: botones habilitados; manual: pestaña HTML/PDF correcta | **parcial** |
+| Salida HTML/PDF oficial tras guardar, recargar y re-guardar | Tras persistir, usuario abre render y PDF con el id del documento | `serverRecordId` en `onSuccess`; botones llaman a `openOfficialDocumentInNewTab` (mismas rutas `/api/documents/...`) | PDF puede fallar por backend; UI muestra mensaje si HTTP error o pop-up bloqueado | — | Botones habilitados E2E; manual: salida o error legible | **cerrado** |
 
 ---
 
@@ -125,7 +125,7 @@
 | --- | --- | --- |
 | P1-1 | Gastos: modelo completo vs formulario reducido (detalle en `docs/gastos-field-parity-matrix.md`) | Riesgo de datos incompletos respecto a legacy |
 | P1-2 | Historial: sin restauración desde papelera en UI | Admins dependen de legacy o de procedimiento manual |
-| P1-3 | ~~Historial: acceso PDF vs HTML~~ **Cerrado en UI Historial** (mismas rutas que Facturar + PDF). Facturar sigue usando `window.open` directo sin comprobar HTTP previo | Opcional: alinear Facturar con prefetch+blob para Bearer coherente |
+| P1-3 | ~~Historial vs Facturar HTML/PDF~~ **Cerrado:** ambos usan `openOfficialDocumentInNewTab` | — |
 | P1-4 | Clientes: posibles acciones de ciclo de vida ausentes | Depende de qué exponga legacy |
 
 ---

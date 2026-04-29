@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
 import { archiveDocument, archiveDocumentYear, fetchDocumentDetail, fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
-import { fetchWithAuth } from "@/infrastructure/api/httpClient";
+import { openOfficialDocumentInNewTab } from "@/infrastructure/api/openOfficialDocumentOutput";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import { deleteTrashEntries, fetchTrash } from "@/infrastructure/api/trashApi";
 import { mapLegacyDocumentToForm } from "@/infrastructure/mappers/documentMapper";
@@ -103,39 +103,13 @@ export function HistoryPage() {
     if (!selectedRecordId) {
       return;
     }
-    const path =
-      kind === "html"
-        ? `/api/documents/rendered-html?recordId=${encodeURIComponent(selectedRecordId)}`
-        : `/api/documents/pdf?recordId=${encodeURIComponent(selectedRecordId)}`;
-    const label = kind === "html" ? "HTML oficial" : "PDF oficial";
     setOutputFeedback(null);
     setOfficialOutputLoading(kind);
     try {
-      const response = await fetchWithAuth(path);
-      if (!response.ok) {
-        setOutputFeedback({
-          text: `${label} no disponible (HTTP ${response.status}). Si el documento está archivado o aún no tiene salida generada, prueba desde Facturar o en legacy.`,
-          tone: "error",
-        });
-        return;
+      const result = await openOfficialDocumentInNewTab(selectedRecordId, kind);
+      if (!result.ok) {
+        setOutputFeedback({ text: result.message, tone: "error" });
       }
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const win = window.open(objectUrl, "_blank", "noopener,noreferrer");
-      if (!win) {
-        URL.revokeObjectURL(objectUrl);
-        setOutputFeedback({
-          text: "El navegador bloqueó la ventana emergente. Permite ventanas para este sitio e inténtalo de nuevo.",
-          tone: "error",
-        });
-        return;
-      }
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-    } catch (error) {
-      setOutputFeedback({
-        text: (error as Error).message || `No se pudo cargar ${label.toLowerCase()}.`,
-        tone: "error",
-      });
     } finally {
       setOfficialOutputLoading(null);
     }

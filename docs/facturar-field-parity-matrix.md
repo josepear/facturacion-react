@@ -130,8 +130,8 @@
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Preview en pantalla | Vista previa cercana a oficial | `DocumentLivePreview` + `buildLegacyPreviewModel` (adaptación) | Puede no coincidir pixel-perfect con legacy | Iterar modelo o enlazar preview servidor | Comparar con HTML oficial mismo `recordId` | **parcial** | P2 |
-| HTML oficial | Abre documento renderizado | `officialHtmlUrl` → `/api/documents/rendered-html?recordId=` tras guardar | Ninguna obvia si `serverRecordId` existe | — | E2E / manual | **cerrado** | P0 |
-| PDF oficial | Abre PDF | `officialPdfUrl` → `/api/documents/pdf?recordId=` | Validar que el endpoint existe en todos los entornos | Manejo error 404 en UI | Botón PDF abre fichero | **parcial** | P1 |
+| HTML oficial | Abre documento renderizado | `openOfficialDocumentInNewTab` → `fetchWithAuth` + blob + misma ruta `/api/documents/rendered-html?recordId=` | Ninguna obvia si `serverRecordId` existe | — | E2E / manual | **cerrado** | P0 |
+| PDF oficial | Abre PDF | Mismo helper; `/api/documents/pdf?recordId=`; mensaje si HTTP ≠ OK o pop-up bloqueado | PDF puede seguir sin existir en backend según entorno | — | Botón + feedback error | **parcial** | P1 |
 
 ### Ciclo de vida `recordId` → HTML/PDF (diagnóstico 2026)
 
@@ -142,7 +142,7 @@
 | Tras **editar y guardar de nuevo** | Salida oficial refleja revisión | Mismo `onSuccess` de guardado actualiza `serverRecordId` desde la respuesta | Ninguna en habilitación |
 | Documento **nuevo** (sin guardar) | No debería ofrecer salida «oficial» hasta persistir | `serverRecordId` vacío → botones deshabilitados (`canOpenOfficialOutput`) | Alineado |
 
-**Notas:** (1) Habilitar el botón no garantiza que el PDF exista en el backend (404 por entorno); la UI no muestra error antes de abrir la pestaña. (2) E2E crítico (`e2e/critical-flows.spec.ts`) comprueba que **Ver HTML oficial** y **Abrir PDF oficial** quedan **habilitados** tras crear, recargar y tras segunda guardada; no abre las URLs (evita depender del binario PDF en CI).
+**Notas:** (1) Facturar e Historial comparten `openOfficialDocumentInNewTab` (`src/infrastructure/api/openOfficialDocumentOutput.ts`): Bearer, comprobación `response.ok`, blob y mensaje bajo los botones si falla o el navegador bloquea la ventana. (2) Habilitar el botón no garantiza PDF en servidor. (3) E2E crítico comprueba botones **habilitados** tras crear, recargar y editar; no descarga PDF en CI.
 
 ---
 
@@ -172,7 +172,7 @@
 | Pedir siguiente número | Sí | `suggestNumber` → dominio `getNextNumber` | Requiere perfil seleccionado | — | — | **cerrado** | P0 |
 | Validar disponibilidad | Sí | `checkNumberAvailability` | — | — | — | **cerrado** | P0 |
 | Guardar | Sí | Submit → `saveDocument` | — | — | E2E | **cerrado** | P0 |
-| Ver HTML / PDF | Sí | Botones con `window.open` si hay `serverRecordId` | Deshabilitados hasta guardar (correcto) | — | — | **cerrado** | P0 |
+| Ver HTML / PDF | Sí | `openOfficialOutput` en hook + helper autenticado si hay `serverRecordId` | Deshabilitados hasta guardar (correcto) | — | E2E habilitación | **cerrado** | P0 |
 
 ---
 
@@ -182,7 +182,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | Localizar documento | Listado + filtros/búsqueda según legacy | Lista `GET /api/history` + filtro texto (número, cliente, tipo, recordId) | Menos filtros que legacy si aplica | Encontrar mismo doc que en legacy | **parcial** | P1 |
 | Abrir en Facturar | Navegación a edición con id | `navigate` a `/facturar?recordId=` y `templateProfileId` si viene en el documento | Ninguna obvia | Editar y guardar como en flujo Facturar | **cerrado** | P0 |
-| HTML/PDF oficial | Abrir render y PDF para el id | Mismas URLs que Facturar; `fetchWithAuth` + blob; mensaje si HTTP error o pop-up bloqueado | Facturar aún abre pestaña sin comprobar respuesta (inconsistencia menor) | Historial: éxito o mensaje claro | **cerrado** | P0 |
+| HTML/PDF oficial | Abrir render y PDF para el id | Mismo helper `openOfficialDocumentInNewTab` que Facturar | — | Éxito o mensaje claro | **cerrado** | P0 |
 
 ---
 
