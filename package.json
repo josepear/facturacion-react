@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "PATH=/opt/homebrew/bin:/usr/local/bin:$PATH E2E_NODE_PATH=/opt/homebrew/bin/node PLAYWRIGHT_BROWSERS_PATH=0 playwright test",
+    "test:e2e:headed": "PATH=/opt/homebrew/bin:/usr/local/bin:$PATH E2E_NODE_PATH=/opt/homebrew/bin/node PLAYWRIGHT_BROWSERS_PATH=0 playwright test --headed"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

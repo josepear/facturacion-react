@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
 import { archiveDocument, archiveDocumentYear, fetchDocumentDetail, fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
+import { openOfficialDocumentInNewTab } from "@/infrastructure/api/openOfficialDocumentOutput";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import { deleteTrashEntries, fetchTrash } from "@/infrastructure/api/trashApi";
 import { mapLegacyDocumentToForm } from "@/infrastructure/mappers/documentMapper";
@@ -24,11 +25,20 @@ export function HistoryPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterType, setFilterType] = useState<"" | "factura" | "presupuesto">("");
+  const [filterYear, setFilterYear] = useState("");
   const [selectedRecordId, setSelectedRecordId] = useState("");
   const [archiveYear, setArchiveYear] = useState("");
   const [archiveProfileId, setArchiveProfileId] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
+  const [outputFeedback, setOutputFeedback] = useState<{ text: string; tone: "error" } | null>(null);
+  const [officialOutputLoading, setOfficialOutputLoading] = useState<"html" | "pdf" | null>(null);
+
+  const selectRecord = (recordId: string) => {
+    setSelectedRecordId(recordId);
+    setOutputFeedback(null);
+  };
 
   const historyQuery = useQuery({
     queryKey: ["history-invoices"],
@@ -53,7 +63,13 @@ export function HistoryPage() {
 
   const filteredItems = useMemo(() => {
     const term = String(searchTerm || "").trim().toLowerCase();
-    const items = historyQuery.data ?? [];
+    let items = historyQuery.data ?? [];
+    if (filterType) {
+      items = items.filter((item) => item.type === filterType);
+    }
+    if (filterYear) {
+      items = items.filter((item) => String(item.issueDate || "").startsWith(filterYear));
+    }
     if (!term) {
       return items;
     }
@@ -62,9 +78,16 @@ export function HistoryPage() {
       const number = String(item.number || "").toLowerCase();
       const client = String(item.clientName || "").toLowerCase();
       const typeLabel = String(item.typeLabel || "").toLowerCase();
-      return recordId.includes(term) || number.includes(term) || client.includes(term) || typeLabel.includes(term);
+      const typeRaw = String(item.type || "").toLowerCase();
+      return (
+        recordId.includes(term) ||
+        number.includes(term) ||
+        client.includes(term) ||
+        typeLabel.includes(term) ||
+        typeRaw.includes(term)
+      );
     });
-  }, [historyQuery.data, searchTerm]);
+  }, [historyQuery.data, searchTerm, filterType, filterYear]);
 
   const openedDocument = useMemo(() => {
     if (!detailQuery.data?.document) {
@@ -91,6 +114,27 @@ export function HistoryPage() {
     [trashQuery.data?.items],
   );
 
+  const rawHistoryCount = historyQuery.data?.length ?? 0;
+  const selectionHiddenByFilters = Boolean(
+    selectedRecordId && !filteredItems.some((item) => item.recordId === selectedRecordId),
+  );
+
+  const openOfficialOutput = async (kind: "html" | "pdf") => {
+    if (!selectedRecordId) {
+      return;
+    }
+    setOutputFeedback(null);
+    setOfficialOutputLoading(kind);
+    try {
+      const result = await openOfficialDocumentInNewTab(selectedRecordId, kind);
+      if (!result.ok) {
+        setOutputFeedback({ text: result.message, tone: "error" });
+      }
+    } finally {
+      setOfficialOutputLoading(null);
+    }
+  };
+
   const archiveDocumentMutation = useMutation({
     mutationFn: (recordId: string) => archiveDocument(recordId),
     onSuccess: async () => {
@@ -100,7 +144,7 @@ export function HistoryPage() {
       ]);
       setStatusMessage("Documento archivado.");
       setStatusTone("success");
-      setSelectedRecordId("");
+      selectRecord("");
     },
     onError: (error) => {
       setStatusMessage((error as Error).message || "No se pudo archivar el documento.");
@@ -163,14 +207,56 @@ export function HistoryPage() {
             <CardDescription>Fuente: contrato legacy de `GET /api/history`.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-1">
+                <span className="text-xs font-medium text-muted-foreground">Tipo de documento</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={filterType}
+                  onChange={(event) => setFilterType(event.target.value as "" | "factura" | "presupuesto")}
+                  aria-label="Filtrar por tipo de documento"
+                >
+                  <option value="">Todos</option>
+                  <option value="factura">Factura</option>
+                  <option value="presupuesto">Presupuesto</option>
+                </select>
+              </div>
+              <div className="grid gap-1">
+                <span className="text-xs font-medium text-muted-foreground">Ejercicio (fecha emisión)</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={filterYear}
+                  onChange={(event) => setFilterYear(event.target.value)}
+                  aria-label="Filtrar por año de emisión"
+                >
+                  <option value="">Todos</option>
+                  {years.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <Input
-              placeholder="Buscar por número, cliente, tipo o recordId"
+              placeholder="Filtrar por número, cliente, recordId o texto del tipo"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
+              aria-label="Filtrar listado de historial"
             />
+            {historyQuery.isSuccess ? (
+              <p className="text-xs text-muted-foreground">
+                Mostrando {filteredItems.length} de {rawHistoryCount} documento{rawHistoryCount === 1 ? "" : "s"}
+                {rawHistoryCount === 0 ? " (lista vacía desde el servidor)" : ""}.
+              </p>
+            ) : null}
             <div className="max-h-[560px] overflow-auto rounded-md border">
               {historyQuery.isLoading ? (
                 <p className="p-3 text-sm text-muted-foreground">Cargando historial...</p>
+              ) : historyQuery.isError ? (
+                <p className="p-3 text-sm text-red-600">
+                  {(historyQuery.error as Error).message || "No se pudo cargar el historial. Revisa la conexión y vuelve a entrar en la página."}
+                </p>
               ) : filteredItems.length ? (
                 <ul className="divide-y">
                   {filteredItems.map((item) => {
@@ -182,7 +268,7 @@ export function HistoryPage() {
                           className={`w-full px-3 py-2 text-left text-sm transition-colors ${
                             isActive ? "bg-primary text-primary-foreground" : "hover:bg-accent"
                           }`}
-                          onClick={() => setSelectedRecordId(item.recordId)}
+                          onClick={() => selectRecord(item.recordId)}
                         >
                           <p className="font-medium">{item.number || "Sin número"}</p>
                           <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
@@ -196,8 +282,12 @@ export function HistoryPage() {
                     );
                   })}
                 </ul>
+              ) : rawHistoryCount === 0 ? (
+                <p className="p-3 text-sm text-muted-foreground">No hay documentos en el historial.</p>
               ) : (
-                <p className="p-3 text-sm text-muted-foreground">No hay documentos para ese filtro.</p>
+                <p className="p-3 text-sm text-muted-foreground">
+                  Ningún documento coincide con los filtros activos. Prueba otros criterios o borra el texto de búsqueda.
+                </p>
               )}
             </div>
             <div className="grid gap-2 rounded-md border p-3">
@@ -239,15 +329,27 @@ export function HistoryPage() {
           <CardHeader>
             <CardTitle>Documento abierto</CardTitle>
             <CardDescription>Detalle cargado con `GET /api/documents/detail`.</CardDescription>
+            {selectedRecordId ? (
+              <p className="text-xs text-muted-foreground">
+                Seleccionado: <span className="font-mono">{selectedRecordId}</span>
+              </p>
+            ) : null}
           </CardHeader>
           <CardContent className="grid gap-3">
             {!selectedRecordId ? (
               <p className="text-sm text-muted-foreground">Selecciona un documento del listado para abrirlo.</p>
-            ) : detailQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">Abriendo documento...</p>
-            ) : detailQuery.error ? (
-              <p className="text-sm text-red-600">{(detailQuery.error as Error).message || "No se pudo abrir el documento."}</p>
-            ) : openedDocument ? (
+            ) : (
+              <>
+                {selectionHiddenByFilters ? (
+                  <p className="text-sm text-muted-foreground">
+                    Este documento no aparece en la lista filtrada; el detalle sigue disponible. Ajusta tipo, ejercicio o búsqueda para verlo en el listado.
+                  </p>
+                ) : null}
+                {detailQuery.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Abriendo documento...</p>
+                ) : detailQuery.error ? (
+                  <p className="text-sm text-red-600">{(detailQuery.error as Error).message || "No se pudo abrir el documento."}</p>
+                ) : openedDocument ? (
               <>
                 <div className="rounded-md border p-3 text-sm">
                   <p><strong>recordId:</strong> {selectedRecordId}</p>
@@ -262,16 +364,31 @@ export function HistoryPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
-                    onClick={() => navigate(`/facturar?recordId=${encodeURIComponent(selectedRecordId)}`)}
+                    onClick={() => {
+                      const profileId = String(openedDocument.templateProfileId || "").trim();
+                      const query = profileId
+                        ? `recordId=${encodeURIComponent(selectedRecordId)}&templateProfileId=${encodeURIComponent(profileId)}`
+                        : `recordId=${encodeURIComponent(selectedRecordId)}`;
+                      navigate(`/facturar?${query}`);
+                    }}
                   >
                     Editar en Facturar
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => window.open(`/api/documents/rendered-html?recordId=${encodeURIComponent(selectedRecordId)}`, "_blank", "noopener,noreferrer")}
+                    onClick={() => openOfficialOutput("html")}
+                    disabled={officialOutputLoading !== null}
                   >
-                    Ver HTML oficial
+                    {officialOutputLoading === "html" ? "Abriendo HTML..." : "Ver HTML oficial"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openOfficialOutput("pdf")}
+                    disabled={officialOutputLoading !== null}
+                  >
+                    {officialOutputLoading === "pdf" ? "Abriendo PDF..." : "Abrir PDF oficial"}
                   </Button>
                   <Button
                     type="button"
@@ -282,9 +399,14 @@ export function HistoryPage() {
                     {archiveDocumentMutation.isPending ? "Archivando..." : "Archivar documento"}
                   </Button>
                 </div>
+                {outputFeedback ? (
+                  <p className="text-sm text-red-600">{outputFeedback.text}</p>
+                ) : null}
               </>
-            ) : (
-              <p className="text-sm text-muted-foreground">Sin datos de documento.</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sin datos de documento.</p>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
