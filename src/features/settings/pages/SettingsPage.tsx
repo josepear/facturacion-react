@@ -326,9 +326,9 @@ export function SettingsPage() {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Miembros / Emisor</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Miembros / Emisor</h1>
         <p className="text-sm text-muted-foreground">
           Datos fiscales, logo y textos por defecto del <strong>emisor activo</strong>. Al pulsar «Guardar datos del emisor» se
           guardan en el servidor (legacy pestaña Emisor). Es independiente de «Guardar documento» en Facturar.
@@ -695,6 +695,7 @@ export function SettingsPage() {
           </Card>
         </>
       )}
-    </main>
+    </div>
   );
 }
+

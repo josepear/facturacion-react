@@ -71,42 +71,40 @@ export function AppShell() {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="lg:hidden">
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur">
-          <div className="grid">
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">Facturación React</span>
-            <span className="text-sm font-semibold">{shellTitle}</span>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={() => setMobileOpen(true)} aria-label="Abrir menú">
-            <Menu className="h-4 w-4" />
-          </Button>
-        </header>
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <header className="sticky top-0 z-30 flex shrink-0 items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
+        <div className="grid">
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">Facturación React</span>
+          <span className="text-sm font-semibold">{shellTitle}</span>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={() => setMobileOpen(true)} aria-label="Abrir menú">
+          <Menu className="h-4 w-4" />
+        </Button>
+      </header>
 
-        {mobileOpen ? (
-          <div className="fixed inset-0 z-40 bg-black/35" onClick={() => setMobileOpen(false)}>
-            <aside
-              className="h-full w-72 bg-background shadow-xl"
-              onClick={(event) => event.stopPropagation()}
-              aria-label="Menú principal"
-            >
-              <div className="flex items-center justify-between border-b px-3 py-3">
-                <span className="text-sm font-semibold">Menú</span>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setMobileOpen(false)} aria-label="Cerrar menú">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <SidebarContent collapsed={false} onNavigate={() => setMobileOpen(false)} />
-            </aside>
-          </div>
-        ) : null}
-      </div>
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-40 bg-black/35 lg:hidden" onClick={() => setMobileOpen(false)}>
+          <aside
+            className="h-full w-72 bg-background shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+            aria-label="Menú principal"
+          >
+            <div className="flex items-center justify-between border-b px-3 py-3">
+              <span className="text-sm font-semibold">Menú</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setMobileOpen(false)} aria-label="Cerrar menú">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <SidebarContent collapsed={false} onNavigate={() => setMobileOpen(false)} />
+          </aside>
+        </div>
+      ) : null}
 
-      <div className="hidden min-h-screen lg:grid lg:grid-cols-[auto_1fr]">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <aside
           className={cn(
-            "sticky top-0 h-screen border-r bg-background transition-all",
-            collapsed ? "w-[76px]" : "w-[260px]",
+            "hidden shrink-0 border-r bg-background lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col",
+            collapsed ? "lg:w-[76px]" : "lg:w-[260px]",
           )}
           aria-label="Menú principal"
         >
@@ -124,13 +122,7 @@ export function AppShell() {
           <SidebarContent collapsed={collapsed} />
         </aside>
 
-        <main className="min-h-screen">
-          <Outlet />
-        </main>
-      </div>
-
-      <div className="lg:hidden">
-        <main className="min-h-[calc(100vh-57px)]">
+        <main className="min-h-[calc(100vh-57px)] w-full min-w-0 flex-1 lg:min-h-screen">
           <Outlet />
         </main>
       </div>
