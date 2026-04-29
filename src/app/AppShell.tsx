@@ -14,9 +14,9 @@ type ShellNavItem = {
 
 const navItems: ShellNavItem[] = [
   { to: "/facturar", label: "Facturar", icon: ReceiptText },
-  { to: "/clientes", label: "Clientes", icon: Users },
   { to: "/historial", label: "Historial", icon: LayoutGrid },
   { to: "/gastos", label: "Gastos", icon: WalletCards },
+  { to: "/clientes", label: "Clientes", icon: Users },
   { to: "/configuracion", label: "Miembros / Emisor", icon: Settings },
 ];
 

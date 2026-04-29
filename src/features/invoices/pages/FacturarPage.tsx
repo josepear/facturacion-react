@@ -85,6 +85,9 @@ export function FacturarPage() {
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">Facturar</h1>
+        <p className="text-sm text-muted-foreground">
+          Crea o edita documentos; también puedes reabrirlos desde Historial.
+        </p>
       </header>
 
       <form className="grid gap-6 lg:grid-cols-[2fr_1fr]" onSubmit={submit}>
