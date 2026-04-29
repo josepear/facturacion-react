@@ -16,7 +16,7 @@ Base limpia de frontend para facturación, iniciada en Fase 0.
 - `src/infrastructure`: APIs y adaptadores.
 - `src/features`: casos de uso de producto.
 - `src/components`: librería reutilizable.
-- `docs`: decisiones de Fase 0 (reutilización y guardrails).
+- `docs`: decisiones de Fase 0 (reutilización y guardrails); flujo Git en [`docs/git-workflow.md`](docs/git-workflow.md).
 - `scripts/legacy-html-field-inventory.mjs`: extrae todos los `name="..."` del `index.html` legacy agrupados por pestaña (`data-tab-panel`), para checklist antes de implementar en React.
 
 ## Paridad legacy → React (inventario automático)
