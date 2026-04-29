@@ -17,7 +17,7 @@ const navItems: ShellNavItem[] = [
   { to: "/clientes", label: "Clientes", icon: Users },
   { to: "/historial", label: "Historial", icon: LayoutGrid },
   { to: "/gastos", label: "Gastos", icon: WalletCards },
-  { to: "/configuracion", label: "Configuración", icon: Settings },
+  { to: "/configuracion", label: "Miembros / Emisor", icon: Settings },
 ];
 
 type SidebarContentProps = {
