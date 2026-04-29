@@ -133,6 +133,17 @@
 | HTML oficial | Abre documento renderizado | `officialHtmlUrl` → `/api/documents/rendered-html?recordId=` tras guardar | Ninguna obvia si `serverRecordId` existe | — | E2E / manual | **cerrado** | P0 |
 | PDF oficial | Abre PDF | `officialPdfUrl` → `/api/documents/pdf?recordId=` | Validar que el endpoint existe en todos los entornos | Manejo error 404 en UI | Botón PDF abre fichero | **parcial** | P1 |
 
+### Ciclo de vida `recordId` → HTML/PDF (diagnóstico 2026)
+
+| Momento | Legacy (ref.; validar en prod) | React (`useFacturarForm`) | Brecha |
+| --- | --- | --- | --- |
+| Tras **primer guardado** | Suele habilitar vista oficial con el id persistido | `saveMutation.onSuccess` → `setServerRecordId(recordId)`; URLs relativas `/api/documents/rendered-html` y `/api/documents/pdf` | Ninguna en habilitación de botones |
+| Tras **recarga por `recordId`** (URL o «Recargar») | Mismo documento, mismas acciones de salida | `loadMutation.onSuccess` → `setServerRecordId(recordId)` | Ninguna en habilitación |
+| Tras **editar y guardar de nuevo** | Salida oficial refleja revisión | Mismo `onSuccess` de guardado actualiza `serverRecordId` desde la respuesta | Ninguna en habilitación |
+| Documento **nuevo** (sin guardar) | No debería ofrecer salida «oficial» hasta persistir | `serverRecordId` vacío → botones deshabilitados (`canOpenOfficialOutput`) | Alineado |
+
+**Notas:** (1) Habilitar el botón no garantiza que el PDF exista en el backend (404 por entorno); la UI no muestra error antes de abrir la pestaña. (2) E2E crítico (`e2e/critical-flows.spec.ts`) comprueba que **Ver HTML oficial** y **Abrir PDF oficial** quedan **habilitados** tras crear, recargar y tras segunda guardada; no abre las URLs (evita depender del binario PDF en CI).
+
 ---
 
 ## 14. RecordId / recarga

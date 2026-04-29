@@ -90,6 +90,14 @@ async function canSaveFacturar(root: Locator) {
   return (await pendingSaveMessageCount(root)) === 0;
 }
 
+/** Salida oficial: misma condición que `canOpenOfficialOutput` en Facturar (`serverRecordId` no vacío). */
+async function expectOfficialOutputActionsEnabled(root: Locator) {
+  const htmlBtn = root.getByRole("button", { name: "Ver HTML oficial" });
+  const pdfBtn = root.getByRole("button", { name: "Abrir PDF oficial" });
+  await expect(htmlBtn).toBeEnabled();
+  await expect(pdfBtn).toBeEnabled();
+}
+
 async function chooseTemplateProfileInUi(root: Locator, preferredProfileId: string) {
   const profileSelect = root.locator('select[name="templateProfileId"]').first();
   await expect(profileSelect).toBeVisible({ timeout: 20000 });
@@ -169,6 +177,7 @@ async function openFacturarAndCreate(page: Page, id: string) {
   }
 
   const saved = await saveFromFacturar(page, root);
+  await expectOfficialOutputActionsEnabled(root);
   const savedTemplateProfileId = String(saved.payload?.document?.templateProfileId || templateProfileId).trim();
   const savedConcept = String(saved.payload?.document?.items?.[0]?.concept || "").trim();
   if (savedConcept && savedConcept !== `E2E Servicio ${id}`) {
@@ -199,6 +208,7 @@ test("Facturar: crear, guardar, recargar y editar", async ({ page }) => {
   await detailResponsePromise;
 
   const root = await waitForFacturarReady(page, recordId);
+  await expectOfficialOutputActionsEnabled(root);
   const concept = root.locator('input[name="items.0.concept"]').first();
   await expect(concept).toBeVisible();
   await ensureSaveableFacturar(root, id, templateProfileId || preferredProfileId);
@@ -211,6 +221,7 @@ test("Facturar: crear, guardar, recargar y editar", async ({ page }) => {
   await concept.fill(nextConcept);
 
   const edited = await saveFromFacturar(page, root);
+  await expectOfficialOutputActionsEnabled(root);
   const editedConcept = String(edited.payload?.document?.items?.[0]?.concept || "").trim();
   if (editedConcept && editedConcept !== nextConcept) {
     throw new Error(`El POST de edición no devolvió el concepto actualizado. Recibido: ${editedConcept}`);
