@@ -26,6 +26,21 @@ Base limpia de frontend para facturación, iniciada en Fase 0.
 - valida con Zod,
 - guarda/carga contra API existente.
 
+## API en desarrollo local (proxy Vite)
+
+Las llamadas del navegador van a rutas relativas (`/api/config`, etc.). Vite debe **reenviar** `/api` al backend; si no (p. ej. `vite preview` sin proxy), el servidor puede responder con **HTML de la SPA** (`index.html`) y la app verá perfiles/clientes vacíos.
+
+- **`npm run dev` y `npm run preview`:** ambos usan el mismo `proxy` en `vite.config.ts` hacia `E2E_API_TARGET` o, por defecto, el host de producción de referencia.
+- **Comprobación rápida** (con el servidor arrancado; el cuerpo debe ser JSON, no empezar por `<`):
+
+```bash
+npm run dev
+# En otra terminal, ajusta el puerto si Vite muestra otro (por defecto 5173; E2E suele usar 4173):
+curl -sS "http://127.0.0.1:5173/api/config" | head -c 80
+```
+
+**E2E:** Playwright reenvía además las peticiones `/api/*` del navegador al `E2E_API_TARGET` (ver `e2e/critical-flows.spec.ts` y el runbook); eso no sustituye el proxy en el día a día manual, pero garantiza el contrato bajo test.
+
 ## E2E real (Playwright)
 1. Copia `.env.e2e.example` a `.env.e2e`.
 2. Ajusta `E2E_API_TARGET` al backend válido para pruebas.
