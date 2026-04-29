@@ -16,7 +16,7 @@ type SaveDocumentPayload = {
   recordId?: string;
   document?: {
     templateProfileId?: string;
-    client?: { name?: string };
+    client?: { name?: string; contactPerson?: string };
     items?: Array<{ concept?: string; description?: string }>;
   };
 };
@@ -136,13 +136,14 @@ async function fillPositiveNumberIfBlank(locator: Locator, value: string) {
   }
 }
 
-async function ensureSaveableFacturar(root: Locator, id: string, preferredProfileId: string) {
+async function ensureSaveableFacturar(root: Locator, id: string, preferredProfileId: string, contactPerson: string) {
   await chooseTemplateProfileInUi(root, preferredProfileId);
 
   await fillInputIfBlank(root.locator('input[name="templateLayout"]'), "pear");
   await fillInputIfBlank(root.locator('input[name="paymentMethod"]'), "Transferencia");
   await fillInputIfBlank(root.locator('input[name="bankAccount"]'), "ES00 E2E 0000 0000 0000");
   await fillInputIfBlank(root.locator('input[name="client.name"]'), `E2E Cliente ${id}`);
+  await fillInputIfBlank(root.locator('input[name="client.contactPerson"]'), contactPerson);
   await fillInputIfBlank(root.locator('input[name="items.0.concept"]'), `E2E Servicio ${id}`);
   await fillInputIfBlank(root.locator('input[name="number"]'), `E2E-${Date.now()}`);
   await fillPositiveNumberIfBlank(root.locator('input[name="items.0.quantity"]'), "1");
@@ -165,11 +166,12 @@ async function ensureSaveableFacturar(root: Locator, id: string, preferredProfil
 async function openFacturarAndCreate(page: Page, id: string) {
   const { profile } = await fetchRuntimeConfigForE2E();
   const preferredProfileId = String(profile.id || "").trim();
+  const contactPerson = `E2E Contact ${id}`;
 
   await bootstrapAuthInBrowser(page);
   await page.goto("/facturar");
   const root = await waitForFacturarReady(page);
-  await ensureSaveableFacturar(root, id, preferredProfileId);
+  await ensureSaveableFacturar(root, id, preferredProfileId, contactPerson);
 
   const templateProfileId = String(await root.locator('select[name="templateProfileId"]').first().inputValue()).trim();
   if (!templateProfileId) {
@@ -178,12 +180,16 @@ async function openFacturarAndCreate(page: Page, id: string) {
 
   const saved = await saveFromFacturar(page, root);
   await expectOfficialOutputActionsEnabled(root);
+  const savedContactPerson = String(saved.payload?.document?.client?.contactPerson || "").trim();
+  if (savedContactPerson !== contactPerson) {
+    throw new Error(`El contacto del documento guardado no conserva el valor esperado. Recibido: ${savedContactPerson}`);
+  }
   const savedTemplateProfileId = String(saved.payload?.document?.templateProfileId || templateProfileId).trim();
   const savedConcept = String(saved.payload?.document?.items?.[0]?.concept || "").trim();
   if (savedConcept && savedConcept !== `E2E Servicio ${id}`) {
     throw new Error(`El documento guardado no conserva el concepto esperado. Recibido: ${savedConcept}`);
   }
-  return { recordId: saved.recordId, templateProfileId: savedTemplateProfileId || templateProfileId };
+  return { recordId: saved.recordId, templateProfileId: savedTemplateProfileId || templateProfileId, contactPerson };
 }
 
 test("Facturar: crear, guardar, recargar y editar", async ({ page }) => {
@@ -191,7 +197,7 @@ test("Facturar: crear, guardar, recargar y editar", async ({ page }) => {
   const { profile } = await fetchRuntimeConfigForE2E();
   const preferredProfileId = String(profile.id || "").trim();
 
-  const { recordId, templateProfileId } = await openFacturarAndCreate(page, id);
+  const { recordId, templateProfileId, contactPerson } = await openFacturarAndCreate(page, id);
   if (!recordId) throw new Error("No se pudo obtener recordId tras guardar en Facturar");
 
   const reloadUrl = templateProfileId
@@ -211,7 +217,8 @@ test("Facturar: crear, guardar, recargar y editar", async ({ page }) => {
   await expectOfficialOutputActionsEnabled(root);
   const concept = root.locator('input[name="items.0.concept"]').first();
   await expect(concept).toBeVisible();
-  await ensureSaveableFacturar(root, id, templateProfileId || preferredProfileId);
+  await ensureSaveableFacturar(root, id, templateProfileId || preferredProfileId, contactPerson);
+  await expect(root.locator('input[name="client.contactPerson"]').first()).toHaveValue(contactPerson);
 
   if (!(await canSaveFacturar(root))) {
     throw new Error("El documento cargado no queda guardable en este entorno (faltan perfil, cliente, número u otros módulos).");
@@ -223,6 +230,10 @@ test("Facturar: crear, guardar, recargar y editar", async ({ page }) => {
   const edited = await saveFromFacturar(page, root);
   await expectOfficialOutputActionsEnabled(root);
   const editedConcept = String(edited.payload?.document?.items?.[0]?.concept || "").trim();
+  const editedContactPerson = String(edited.payload?.document?.client?.contactPerson || "").trim();
+  if (editedContactPerson !== contactPerson) {
+    throw new Error(`El contacto del documento editado no conserva el valor esperado. Recibido: ${editedContactPerson}`);
+  }
   if (editedConcept && editedConcept !== nextConcept) {
     throw new Error(`El POST de edición no devolvió el concepto actualizado. Recibido: ${editedConcept}`);
   }

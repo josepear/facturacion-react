@@ -101,7 +101,7 @@
 | Dirección, ciudad, provincia | Típicamente en factura | Inputs presentes | — | — | Preview | **cerrado** | P1 |
 | País (`taxCountryCode`) | Código | Input | — | Select ISO si legacy usa lista | — | **parcial** | P2 |
 | Tipo NIF | Catálogo posible | Input libre | Si legacy es lista cerrada, hay brecha | Select alineado | — | **parcial** | P1 |
-| **Persona de contacto** | Si legacy lo muestra en factura | `client.contactPerson` en modelo, `replaceClientData`; **sin campo visible en FacturarPage** | No se puede editar desde pantalla Facturar | Añadir `Field` + `register("client.contactPerson")` | Preview oficial y PDF muestran contacto | **pendiente** | P1 |
+| **Persona de contacto** | Si legacy lo muestra en factura | `client.contactPerson` en modelo, `replaceClientData`; **campo visible y editable en FacturarPage** | No se puede editar desde pantalla Facturar | Añadir `Field` + `register("client.contactPerson")` | Preview oficial y PDF muestran contacto; E2E valida round-trip del valor | **cerrado** | P1 |
 
 ---
 
@@ -197,7 +197,7 @@
 ### P1 (paridad operativa / datos completos)
 
 1. Campos **contables extendidos** (`paymentDate`, y según legacy `quarter`, `invoiceId`, etc.) sin UI en Facturar.  
-2. **`client.contactPerson`**: en dominio y preview, sin input en Facturar.  
+2. **`client.contactPerson`**: ahora editable en Facturar (campo visible + se persiste tras guardar/recargar/editar).
 3. **Catálogos** alineados con legacy: `paymentMethod`, tipo documento si hay más tipos, tipo NIF, obligatoriedad NIF/fecha vencimiento.  
 4. **Histórico**: límite 40 ítems; puede ser insuficiente vs legacy.  
 5. **PDF**: confirmar disponibilidad endpoint en todos los despliegues.

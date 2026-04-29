@@ -287,6 +287,9 @@ export function FacturarPage() {
               <Field label="Email">
                 <Input placeholder="email@cliente.com" {...register("client.email")} />
               </Field>
+              <Field label="Persona de contacto">
+                <Input placeholder="Persona de contacto" {...register("client.contactPerson")} />
+              </Field>
               <Field label="Dirección">
                 <Input placeholder="Dirección fiscal" {...register("client.address")} />
               </Field>
