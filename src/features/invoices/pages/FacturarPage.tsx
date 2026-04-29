@@ -136,9 +136,6 @@ export function FacturarPage() {
               <Field label="Número">
                 <Input placeholder="Número factura" {...register("number")} />
               </Field>
-              <Field label="Serie">
-                <Input placeholder="Serie opcional" {...register("series")} />
-              </Field>
               <Field label="Estado" error={errors.accounting?.status?.message}>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -152,13 +149,50 @@ export function FacturarPage() {
               <Field label="Fecha emisión" error={errors.issueDate?.message}>
                 <Input type="date" {...register("issueDate")} />
               </Field>
-              <Field label="Vencimiento" error={errors.dueDate?.message}>
-                <Input type="date" {...register("dueDate")} />
-              </Field>
-              <Field label="Referencia" error={errors.reference?.message}>
-                <Input placeholder="Referencia documento" {...register("reference")} />
-              </Field>
             </div>
+
+            <details className="group mt-2">
+              <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
+                <span className="transition-transform group-open:rotate-90">▶</span>
+                <span>Más campos del documento</span>
+              </summary>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Field label="Serie">
+                  <Input placeholder="Serie opcional" {...register("series")} />
+                </Field>
+                <Field label="Vencimiento" error={errors.dueDate?.message}>
+                  <Input type="date" {...register("dueDate")} />
+                </Field>
+                <Field label="Referencia" error={errors.reference?.message}>
+                  <Input placeholder="Referencia documento" {...register("reference")} />
+                </Field>
+                <Field label="Fecha cobro" error={errors.accounting?.paymentDate?.message}>
+                  <Input type="date" {...register("accounting.paymentDate")} />
+                </Field>
+                <Field label="Trimestre contable">
+                  <Input placeholder="Q1 / 1T / 2026-Q1" {...register("accounting.quarter")} />
+                </Field>
+                <Field label="Referencia contable / ID">
+                  <Input placeholder="ID contable / Drive label" {...register("accounting.invoiceId")} />
+                </Field>
+                <Field label="Importe cobrado (neto)" error={errors.accounting?.netCollected?.message}>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    {...register("accounting.netCollected", {
+                      setValueAs: (value) => {
+                        if (value === "" || value === null || value === undefined) return 0;
+                        const parsed = Number(value);
+                        return Number.isFinite(parsed) ? parsed : 0;
+                      },
+                    })}
+                  />
+                </Field>
+                <Field label="Nota fiscal">
+                  <Input placeholder="Texto libre" {...register("accounting.taxes")} />
+                </Field>
+              </div>
+            </details>
 
             <div className="flex flex-wrap gap-3">
               <Button type="button" variant="outline" onClick={suggestNumber} disabled={suggestNumberMutation.isPending}>
@@ -286,6 +320,9 @@ export function FacturarPage() {
               </Field>
               <Field label="Email">
                 <Input placeholder="email@cliente.com" {...register("client.email")} />
+              </Field>
+              <Field label="Persona de contacto">
+                <Input placeholder="Persona de contacto" {...register("client.contactPerson")} />
               </Field>
               <Field label="Dirección">
                 <Input placeholder="Dirección fiscal" {...register("client.address")} />

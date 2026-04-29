@@ -2,6 +2,17 @@ import type { DocumentAccountingStatus, InvoiceDocument, InvoiceItem } from "@/d
 import { createEmptyDocument } from "@/domain/document/defaults";
 import { toNumber } from "@/lib/utils";
 
+function getQuarterLabel(dateString: string): string {
+  if (!dateString) return "";
+  const date = new Date(`${dateString}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  const month = date.getMonth() + 1;
+  if (month <= 3) return "1ER TRIMESTRE";
+  if (month <= 6) return "2º TRIMESTRE";
+  if (month <= 9) return "3ER TRIMESTRE";
+  return "4º TRIMESTRE";
+}
+
 type UnknownRecord = Record<string, unknown>;
 
 function asRecord(value: unknown): UnknownRecord {
@@ -72,8 +83,8 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
         return "ENVIADA";
       })(),
       paymentDate: asString(accounting.paymentDate),
-      quarter: asString(accounting.quarter),
-      invoiceId: asString(accounting.invoiceId || accounting.driveLabel),
+      quarter: asString(accounting.quarter) || getQuarterLabel(asString(accounting.paymentDate)),
+      invoiceId: asString(accounting.invoiceId || accounting.driveLabel) || (asString(record.type) === "presupuesto" ? "Presupuesto" : "Factura"),
       netCollected: toNumber(accounting.netCollected),
       taxes: asString(accounting.taxes || accounting.taxNote),
     },
@@ -135,8 +146,8 @@ export function mapFormToLegacyDocument(document: InvoiceDocument): InvoiceDocum
       ...document.accounting,
       status: accountingStatus,
       paymentDate: asString(document.accounting.paymentDate),
-      quarter: asString(document.accounting.quarter),
-      invoiceId: asString(document.accounting.invoiceId),
+      quarter: asString(document.accounting.quarter) || getQuarterLabel(asString(document.accounting.paymentDate)),
+      invoiceId: asString(document.accounting.invoiceId) || (document.type === "presupuesto" ? "Presupuesto" : "Factura"),
       netCollected: toNumber(document.accounting.netCollected),
       taxes: asString(document.accounting.taxes),
     },
