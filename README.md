@@ -17,6 +17,18 @@ Base limpia de frontend para facturación, iniciada en Fase 0.
 - `src/features`: casos de uso de producto.
 - `src/components`: librería reutilizable.
 - `docs`: decisiones de Fase 0 (reutilización y guardrails).
+- `scripts/legacy-html-field-inventory.mjs`: extrae todos los `name="..."` del `index.html` legacy agrupados por pestaña (`data-tab-panel`), para checklist antes de implementar en React.
+
+## Paridad legacy → React (inventario automático)
+
+Con el monorepo `facturacion` colocado junto a `facturacion-react` (ruta por defecto `../public/index.html`):
+
+```bash
+npm run inventory:legacy          # JSON en stdout (redirige a archivo si quieres snapshot)
+npm run inventory:legacy:md       # tablas Markdown en stdout
+```
+
+No sustituye revisar payloads en `app.js` ni el contrato `/api/*`, pero evita descubrir a medias campos que ya existen en el HTML.
 
 ## Vertical slice actual
 `InvoiceDraftPage` valida la base técnica:
