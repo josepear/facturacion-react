@@ -37,6 +37,8 @@ export type InvoiceDocument = {
   templateProfileId: string;
   tenantId: string;
   number: string;
+  /** Número final / rango (legacy `numberEnd`); opcional. */
+  numberEnd: string;
   series: string;
   issueDate: string;
   dueDate: string;
@@ -75,15 +77,27 @@ export type TemplateProfileConfig = {
     paymentMethod?: string;
     taxRate?: number;
     withholdingRate?: number;
+    /** Moneda por defecto (p. ej. EUR), alineado con legacy `defaultCurrency`. */
+    currency?: string;
   };
   business?: {
     brand?: string;
+    /** Responsable / nombre completo en factura (legacy `businessContactName`). */
+    contactName?: string;
+    /** Línea descriptiva corta (legacy `businessHeadline`). */
+    headline?: string;
     taxId?: string;
     email?: string;
     address?: string;
     phone?: string;
     website?: string;
+    /** Entidad bancaria (legacy `businessBankBrand`). */
+    bankBrand?: string;
     bankAccount?: string;
+    /** Ruta o URL de logo (legacy `businessBrandImage`). */
+    brandImage?: string;
+    /** Ruta o URL de firma (legacy `businessSignatureImage`). */
+    signatureImage?: string;
   };
   design?: {
     layout?: string;

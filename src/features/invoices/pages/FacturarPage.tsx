@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
@@ -19,8 +20,6 @@ export function FacturarPage() {
     totals,
     itemsArray,
     profileOptions,
-    selectedProfile,
-    activeTemplateProfileId,
     applyTemplateProfile,
     taxValidation,
     applyWithholdingMode,
@@ -60,16 +59,34 @@ export function FacturarPage() {
   } = useFacturarForm(initialRecordId, initialTemplateProfileId);
   const {
     register,
+    watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = form;
-  const selectedProfileLabel = selectedProfile?.label || selectedProfile?.id || "-";
+  const taxRateWatched = watch("taxRate");
+  const withholdingRateWatched = watch("withholdingRate");
+  const [historyYearFilter, setHistoryYearFilter] = useState("");
+
+  const historyYearOptions = useMemo(() => {
+    const years = new Set(
+      historyOptions
+        .map((o) => String(o.label.split("·").pop() || "").trim().slice(0, 4))
+        .filter((y) => /^\d{4}$/.test(y))
+    );
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [historyOptions]);
+
+  const yearFilteredHistoryOptions = useMemo(() => {
+    if (!historyYearFilter) return filteredHistoryOptions;
+    return filteredHistoryOptions.filter((o) => o.label.includes(historyYearFilter));
+  }, [filteredHistoryOptions, historyYearFilter]);
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">Facturar</h1>
         <p className="text-sm text-muted-foreground">
-          Paridad funcional base con legacy: edición, numeración, validación, guardado y recarga.
+          Crea o edita documentos; también puedes reabrirlos desde Historial.
         </p>
       </header>
 
@@ -100,7 +117,15 @@ export function FacturarPage() {
                 </select>
               </Field>
               <Field label="Plantilla/layout">
-                <Input placeholder="pear/editorial/voulita" {...register("templateLayout")} />
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register("templateLayout")}
+                >
+                  <option value="">Plantilla...</option>
+                  <option value="pear">Pear&amp;co. clásica</option>
+                  <option value="editorial">Editorial / Nacho</option>
+                  <option value="voulita">Eventos / La Jaulita</option>
+                </select>
               </Field>
               <Field label="Forma de pago">
                 <Input placeholder="Transferencia" {...register("paymentMethod")} />
@@ -108,12 +133,6 @@ export function FacturarPage() {
               <Field label="Cuenta bancaria">
                 <Input placeholder="ES..." {...register("bankAccount")} />
               </Field>
-            </div>
-            <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
-              <span>Perfil activo config: {activeTemplateProfileId || "-"}</span>
-              <span>Perfil aplicado: {selectedProfileLabel}</span>
-              <span>Default pago perfil: {selectedProfile?.defaults?.paymentMethod || "-"}</span>
-              <span>Default cuenta perfil: {selectedProfile?.business?.bankAccount || "-"}</span>
             </div>
           </WorkflowModule>
 
@@ -136,9 +155,6 @@ export function FacturarPage() {
               <Field label="Número">
                 <Input placeholder="Número factura" {...register("number")} />
               </Field>
-              <Field label="Serie">
-                <Input placeholder="Serie opcional" {...register("series")} />
-              </Field>
               <Field label="Estado" error={errors.accounting?.status?.message}>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -150,15 +166,65 @@ export function FacturarPage() {
                 </select>
               </Field>
               <Field label="Fecha emisión" error={errors.issueDate?.message}>
-                <Input type="date" {...register("issueDate")} />
-              </Field>
-              <Field label="Vencimiento" error={errors.dueDate?.message}>
-                <Input type="date" {...register("dueDate")} />
-              </Field>
-              <Field label="Referencia" error={errors.reference?.message}>
-                <Input placeholder="Referencia documento" {...register("reference")} />
+                <div className="flex gap-2">
+                  <Input type="date" {...register("issueDate")} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0"
+                    onClick={() => form.setValue("issueDate", new Date().toISOString().slice(0, 10))}
+                  >
+                    Hoy
+                  </Button>
+                </div>
               </Field>
             </div>
+
+            <details className="group mt-2">
+              <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
+                <span className="transition-transform group-open:rotate-90">▶</span>
+                <span>Más campos del documento</span>
+              </summary>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Field label="Serie">
+                  <Input placeholder="Serie opcional" {...register("series")} />
+                </Field>
+                <Field label="Número final" error={errors.numberEnd?.message}>
+                  <Input placeholder="Opcional (rango o número final)" {...register("numberEnd")} />
+                </Field>
+                <Field label="Vencimiento" error={errors.dueDate?.message}>
+                  <Input type="date" {...register("dueDate")} />
+                </Field>
+                <Field label="Referencia" error={errors.reference?.message}>
+                  <Input placeholder="Referencia documento" {...register("reference")} />
+                </Field>
+                <Field label="Fecha cobro" error={errors.accounting?.paymentDate?.message}>
+                  <Input type="date" {...register("accounting.paymentDate")} />
+                </Field>
+                <Field label="Trimestre contable">
+                  <Input placeholder="Q1 / 1T / 2026-Q1" {...register("accounting.quarter")} />
+                </Field>
+                <Field label="Referencia contable / ID">
+                  <Input placeholder="ID contable / Drive label" {...register("accounting.invoiceId")} />
+                </Field>
+                <Field label="Importe cobrado (neto)" error={errors.accounting?.netCollected?.message}>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    {...register("accounting.netCollected", {
+                      setValueAs: (value) => {
+                        if (value === "" || value === null || value === undefined) return 0;
+                        const parsed = Number(value);
+                        return Number.isFinite(parsed) ? parsed : 0;
+                      },
+                    })}
+                  />
+                </Field>
+                <Field label="Nota fiscal">
+                  <Input placeholder="Texto libre" {...register("accounting.taxes")} />
+                </Field>
+              </div>
+            </details>
 
             <div className="flex flex-wrap gap-3">
               <Button type="button" variant="outline" onClick={suggestNumber} disabled={suggestNumberMutation.isPending}>
@@ -203,13 +269,27 @@ export function FacturarPage() {
             help={workflowChecklist.history.tip}
           >
             <div className="grid gap-4">
-              <Field label="Buscar en recientes">
-                <Input
-                  placeholder="Número, cliente o recordId"
-                  value={historySearchTerm}
-                  onChange={(event) => setHistorySearchTerm(event.target.value)}
-                />
-              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Ejercicio">
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={historyYearFilter}
+                    onChange={(event) => setHistoryYearFilter(event.target.value)}
+                  >
+                    <option value="">Todos los ejercicios</option>
+                    {historyYearOptions.map((year) => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Buscar documento">
+                  <Input
+                    placeholder="Número, cliente o recordId"
+                    value={historySearchTerm}
+                    onChange={(event) => setHistorySearchTerm(event.target.value)}
+                  />
+                </Field>
+              </div>
               <Field label="Selección rápida (histórico)">
                 <div className="flex gap-2">
                   <select
@@ -218,7 +298,7 @@ export function FacturarPage() {
                     onChange={(event) => setSelectedHistoryRecordId(event.target.value)}
                   >
                     <option value="">Selecciona documento</option>
-                    {filteredHistoryOptions.map((option) => (
+                    {yearFilteredHistoryOptions.map((option) => (
                       <option key={option.recordId} value={option.recordId}>
                         {option.label}
                       </option>
@@ -236,7 +316,7 @@ export function FacturarPage() {
                 <span className="text-xs text-muted-foreground">
                   {loadingHistory
                     ? "Cargando histórico..."
-                    : `${filteredHistoryOptions.length} de ${historyOptions.length} documentos recientes`}
+                    : `${yearFilteredHistoryOptions.length} de ${historyOptions.length} documentos recientes`}
                 </span>
               </Field>
             </div>
@@ -284,25 +364,37 @@ export function FacturarPage() {
               <Field label="NIF/CIF">
                 <Input placeholder="NIF/CIF" {...register("client.taxId")} />
               </Field>
-              <Field label="Email">
-                <Input placeholder="email@cliente.com" {...register("client.email")} />
-              </Field>
-              <Field label="Dirección">
-                <Input placeholder="Dirección fiscal" {...register("client.address")} />
-              </Field>
-              <Field label="Ciudad">
-                <Input placeholder="Ciudad" {...register("client.city")} />
-              </Field>
-              <Field label="Provincia">
-                <Input placeholder="Provincia" {...register("client.province")} />
-              </Field>
-              <Field label="País (código)">
-                <Input placeholder="ES" {...register("client.taxCountryCode")} />
-              </Field>
-              <Field label="Tipo NIF">
-                <Input placeholder="NIF/CIF/VAT..." {...register("client.taxIdType")} />
-              </Field>
             </div>
+
+            <details className="group mt-2">
+              <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
+                <span className="transition-transform group-open:rotate-90">▶</span>
+                <span>Más datos del cliente</span>
+              </summary>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <Field label="Email">
+                  <Input placeholder="email@cliente.com" {...register("client.email")} />
+                </Field>
+                <Field label="Persona de contacto">
+                  <Input placeholder="Persona de contacto" {...register("client.contactPerson")} />
+                </Field>
+                <Field label="Dirección">
+                  <Input placeholder="Dirección fiscal" {...register("client.address")} />
+                </Field>
+                <Field label="Ciudad">
+                  <Input placeholder="Ciudad" {...register("client.city")} />
+                </Field>
+                <Field label="Provincia">
+                  <Input placeholder="Provincia" {...register("client.province")} />
+                </Field>
+                <Field label="País (código)">
+                  <Input placeholder="ES" {...register("client.taxCountryCode")} />
+                </Field>
+                <Field label="Tipo NIF">
+                  <Input placeholder="NIF/CIF/VAT..." {...register("client.taxIdType")} />
+                </Field>
+              </div>
+            </details>
           </WorkflowModule>
 
           <WorkflowModule
@@ -366,8 +458,11 @@ export function FacturarPage() {
           >
             <InvoiceTotalsPanel
               register={register}
+              taxRate={taxRateWatched}
+              withholdingRate={withholdingRateWatched}
               totals={totals}
               taxValidation={taxValidation}
+              onTaxRatePreset={(rate) => setValue("taxRate", rate, { shouldDirty: true, shouldValidate: true })}
               onWithholdingModeChange={applyWithholdingMode}
             />
           </WorkflowModule>

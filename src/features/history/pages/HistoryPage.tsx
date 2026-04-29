@@ -196,7 +196,7 @@ export function HistoryPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Historial</h1>
         <p className="text-sm text-muted-foreground">
-          Consulta documentos, reabre en Facturar y ejecuta operaciones de ciclo de vida.
+          Localiza documentos y reábrelos en Facturar para revisarlos o editarlos.
         </p>
       </header>
 

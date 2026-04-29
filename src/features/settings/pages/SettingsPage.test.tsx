@@ -50,13 +50,13 @@ describe("SettingsPage regression", () => {
 
     render(<SettingsPage />);
 
-    await screen.findByText("Perfil activo");
+    await screen.findByText("Perfil activo (servidor)");
 
-    const comboboxes = screen.getAllByRole("combobox");
-    await userEvent.selectOptions(comboboxes[0]!, "perfil-2");
-    await userEvent.clear(screen.getByPlaceholderText("Forma de pago default"));
-    await userEvent.type(screen.getByPlaceholderText("Forma de pago default"), "Bizum");
-    await userEvent.click(screen.getByRole("button", { name: "Guardar configuración" }));
+    await userEvent.selectOptions(screen.getByLabelText("Plantilla de emisor"), "perfil-2");
+    const paymentInput = screen.getByPlaceholderText("Transferencia bancaria");
+    await userEvent.clear(paymentInput);
+    await userEvent.type(paymentInput, "Bizum");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar datos del emisor" }));
 
     await waitFor(() => {
       expect(saveTemplateProfilesConfigMock).toHaveBeenCalledTimes(1);
@@ -76,9 +76,9 @@ describe("SettingsPage regression", () => {
     });
 
     render(<SettingsPage />);
-    await screen.findByText("Perfil activo");
+    await screen.findByText("Perfil activo (servidor)");
 
-    expect(screen.getByRole("button", { name: "Guardar configuración" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("button", { name: "Guardar datos del emisor" }).hasAttribute("disabled")).toBe(true);
   });
 });
 

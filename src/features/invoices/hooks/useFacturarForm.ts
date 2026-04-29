@@ -129,11 +129,13 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     const hasBankAccount = Boolean(String(watched.bankAccount || "").trim());
     const emitterComplete = hasTemplateProfile && hasPaymentMethod && hasBankAccount;
 
+    const accountingStatus = String(watched.accounting?.status || "").trim();
+
     const documentComplete =
       Boolean(String(watched.type || "").trim()) &&
       Boolean(String(watched.number || "").trim()) &&
       Boolean(String(watched.issueDate || "").trim()) &&
-      Boolean(String(watched.accounting?.status || "").trim());
+      Boolean(accountingStatus);
 
     const clientComplete = Boolean(String(watched.client?.name || "").trim());
 

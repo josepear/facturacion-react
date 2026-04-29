@@ -10,3 +10,6 @@ playwright-report
 test-results
 e2e/.auth/
 
+# Artefactos locales de sesión (no versionar)
+docs/cursor-session-handoff.md
+

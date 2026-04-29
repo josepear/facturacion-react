@@ -34,6 +34,7 @@ export const invoiceDocumentSchema = z.object({
   templateProfileId: z.string().trim().min(1, "Falta el perfil de plantilla."),
   tenantId: z.string().trim(),
   number: z.string().trim(),
+  numberEnd: z.string().trim(),
   series: z.string().trim(),
   issueDate: z.string().trim().min(1, "La fecha de emisión es obligatoria."),
   dueDate: z.string().trim(),
