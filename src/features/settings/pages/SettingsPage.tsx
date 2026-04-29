@@ -13,11 +13,53 @@ import { toNumber } from "@/lib/utils";
 /** Misma secuencia que legacy `PROFILE_COLOR_SEQUENCE` en `public/app.js`. */
 const PROFILE_COLOR_KEYS = ["teal", "pink", "amber", "violet", "lime", "blue", "coral"] as const;
 
+/** Mismas etiquetas que legacy `PROFILE_COLOR_LABELS`. */
+const PROFILE_COLOR_LABELS: Record<(typeof PROFILE_COLOR_KEYS)[number], string> = {
+  teal: "Turquesa",
+  pink: "Rosa",
+  amber: "Ámbar",
+  violet: "Violeta",
+  lime: "Lima",
+  blue: "Azul",
+  coral: "Coral",
+};
+
 const LAYOUT_OPTIONS = [
   { value: "pear", label: "Pear&co. clásica" },
   { value: "editorial", label: "Editorial / Nacho" },
   { value: "voulita", label: "Eventos / La Jaulita" },
 ] as const;
+
+function buildClientProfileId(label: string, usedIds: Set<string>): string {
+  const baseText =
+    String(label || "perfil")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "perfil";
+  let nextId = baseText;
+  let suffix = 2;
+  while (usedIds.has(nextId)) {
+    nextId = `${baseText}-${suffix}`;
+    suffix += 1;
+  }
+  return nextId;
+}
+
+/** Igual que legacy `getNextProfileColorKey()` (menos usado primero). */
+function getNextProfileColorKey(list: TemplateProfileConfig[]): (typeof PROFILE_COLOR_KEYS)[number] {
+  const counts = new Map<string, number>(PROFILE_COLOR_KEYS.map((k) => [k, 0]));
+  list.forEach((profile, index) => {
+    const raw = String(profile.colorKey || "").trim().toLowerCase();
+    const key = PROFILE_COLOR_KEYS.includes(raw as (typeof PROFILE_COLOR_KEYS)[number])
+      ? raw
+      : PROFILE_COLOR_KEYS[index % PROFILE_COLOR_KEYS.length];
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  const sorted = [...counts.entries()].sort((a, b) => a[1] - b[1]);
+  return (sorted[0]?.[0] as (typeof PROFILE_COLOR_KEYS)[number]) || PROFILE_COLOR_KEYS[0];
+}
 
 function safeValue(value: unknown): string {
   const normalized = String(value ?? "").trim();
@@ -54,7 +96,8 @@ function toProfileDraft(profile: TemplateProfileConfig | null): ProfileDraft {
     label: String(profile?.label || profile?.id || "").trim(),
     invoiceNumberTag: String(profile?.invoiceNumberTag || "").trim(),
     colorKey,
-    paymentMethod: String(profile?.defaults?.paymentMethod || "").trim(),
+    paymentMethod:
+      String(profile?.defaults?.paymentMethod || "").trim() || "Transferencia bancaria",
     taxRate: toNumber(profile?.defaults?.taxRate),
     withholdingRate: toNumber(profile?.defaults?.withholdingRate),
     currency: String(profile?.defaults?.currency || "EUR").trim(),
@@ -123,8 +166,10 @@ export function SettingsPage() {
   const [draftByProfileId, setDraftByProfileId] = useState<Record<string, ProfileDraft>>({});
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
+  const [profileListOverride, setProfileListOverride] = useState<TemplateProfileConfig[] | null>(null);
 
-  const profiles = useMemo(() => configQuery.data?.templateProfiles ?? [], [configQuery.data?.templateProfiles]);
+  const serverProfiles = configQuery.data?.templateProfiles ?? [];
+  const profiles = profileListOverride ?? serverProfiles;
   const currentUserRole = String(configQuery.data?.currentUser?.role || "").trim().toLowerCase();
   const canEdit = currentUserRole === "admin";
 
@@ -191,7 +236,8 @@ export function SettingsPage() {
       ]);
       setDraftByProfileId({});
       setActiveProfileIdDraft("");
-      setStatusMessage("Configuración guardada.");
+      setProfileListOverride(null);
+      setStatusMessage("Datos del emisor guardados.");
       setStatusTone("success");
     },
     onError: (error) => {
@@ -213,12 +259,79 @@ export function SettingsPage() {
     }));
   };
 
+  const syncLauncherSelection = (profileId: string) => {
+    const id = String(profileId || "").trim();
+    if (!id) {
+      return;
+    }
+    setActiveProfileIdDraft(id);
+    setEditingProfileId(id);
+  };
+
+  const handleNewTemplateProfile = () => {
+    if (!canEdit) {
+      return;
+    }
+    const source =
+      profiles.find((p) => p.id === effectiveActiveProfileId) || profiles.find((p) => p.id === effectiveEditingProfileId) || profiles[0];
+    if (!source) {
+      return;
+    }
+    const suggestedLabel = `${String(source.label || source.id || "Perfil").trim()} copia`;
+    const requested = window.prompt("Nombre del nuevo perfil", suggestedLabel);
+    if (requested === null) {
+      return;
+    }
+    const nextLabel = String(requested || "").trim() || suggestedLabel;
+    const used = new Set(profiles.map((p) => p.id));
+    const newId = buildClientProfileId(nextLabel, used);
+    const clone = JSON.parse(JSON.stringify(source)) as TemplateProfileConfig;
+    const nextProfile: TemplateProfileConfig = {
+      ...clone,
+      id: newId,
+      label: nextLabel,
+      colorKey: getNextProfileColorKey(profiles),
+    };
+    setProfileListOverride([...profiles, nextProfile]);
+    syncLauncherSelection(newId);
+    setDraftByProfileId({});
+    setStatusMessage("Perfil nuevo en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
+    setStatusTone("neutral");
+  };
+
+  const handleDeleteTemplateProfile = () => {
+    if (!canEdit || profiles.length <= 1) {
+      return;
+    }
+    const idToRemove = String(effectiveActiveProfileId || "").trim();
+    const victim = profiles.find((p) => p.id === idToRemove);
+    if (
+      !window.confirm(
+        `Se borrará el perfil «${victim?.label || idToRemove}». ¿Seguimos? (Igual que legacy: se elimina el perfil activo.)`,
+      )
+    ) {
+      return;
+    }
+    const idx = profiles.findIndex((p) => p.id === idToRemove);
+    const nextList = profiles.filter((p) => p.id !== idToRemove);
+    const fallback = nextList[Math.max(0, idx - 1)] || nextList[0];
+    if (!fallback) {
+      return;
+    }
+    setProfileListOverride(nextList);
+    setDraftByProfileId({});
+    syncLauncherSelection(fallback.id);
+    setStatusMessage("Perfil eliminado en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
+    setStatusTone("neutral");
+  };
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Configuración / Emisor</h1>
+        <h1 className="text-2xl font-semibold">Miembros / Emisor</h1>
         <p className="text-sm text-muted-foreground">
-          Gestión real de perfiles y defaults vía `GET/POST /api/template-profiles`, alineada con Facturar y Gastos.
+          Datos fiscales, logo y textos por defecto del <strong>emisor activo</strong>. Al pulsar «Guardar datos del emisor» se
+          guardan en el servidor (legacy pestaña Emisor). Es independiente de «Guardar documento» en Facturar.
         </p>
       </header>
 
@@ -237,29 +350,18 @@ export function SettingsPage() {
           <section className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Perfil activo</CardTitle>
-                <CardDescription>Perfil por defecto usado por Facturar, numeración y nuevos gastos.</CardDescription>
+                <CardTitle>Perfil activo (servidor)</CardTitle>
+                <CardDescription>
+                  El que publica <code className="text-xs">/api/config</code> como <code className="text-xs">activeTemplateProfileId</code>.
+                  Elige el usuario emisor en «Emisor activo» y guarda abajo.
+                </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm">
-                <select
-                  aria-label="Perfil activo"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={effectiveActiveProfileId}
-                  onChange={(event) => setActiveProfileIdDraft(event.target.value)}
-                  disabled={!canEdit || !profiles.length}
-                >
-                  <option value="">Selecciona perfil activo</option>
-                  {profiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.label || profile.id}
-                    </option>
-                  ))}
-                </select>
-                <p><strong>Id actual:</strong> {safeValue(activeProfile?.id)}</p>
-                <p><strong>Label:</strong> {safeValue(activeProfile?.label || activeProfile?.id)}</p>
-                <p><strong>Forma pago:</strong> {safeValue(activeProfile?.defaults?.paymentMethod)}</p>
+                <p><strong>Id:</strong> {safeValue(activeProfile?.id)}</p>
+                <p><strong>Nombre del usuario:</strong> {safeValue(activeProfile?.label || activeProfile?.id)}</p>
+                <p><strong>Forma de pago:</strong> {safeValue(activeProfile?.defaults?.paymentMethod)}</p>
                 <p><strong>Cuenta:</strong> {safeValue(activeProfile?.business?.bankAccount)}</p>
-                <p><strong>Layout:</strong> {safeValue(activeProfile?.design?.layout)}</p>
+                <p><strong>Plantilla PDF:</strong> {safeValue(activeProfile?.design?.layout)}</p>
                 <p><strong>IGIC:</strong> {safeValue(activeProfile?.defaults?.taxRate)}</p>
                 <p><strong>IRPF:</strong> {safeValue(activeProfile?.defaults?.withholdingRate)}</p>
                 <div className="flex flex-wrap gap-2 pt-1">
@@ -270,15 +372,7 @@ export function SettingsPage() {
                     }
                     disabled={!effectiveActiveProfileId}
                   >
-                    Abrir Facturar con perfil activo
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => saveConfigMutation.mutate()}
-                    disabled={!canEdit || saveConfigMutation.isPending || !profiles.length}
-                  >
-                    {saveConfigMutation.isPending ? "Guardando..." : "Guardar configuración"}
+                    Abrir Facturar con este perfil
                   </Button>
                 </div>
                 {!canEdit ? (
@@ -309,21 +403,23 @@ export function SettingsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Edición de perfil / emisor</CardTitle>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Emisor y PDF</p>
+              <CardTitle>Emisor activo</CardTitle>
               <CardDescription>
-                Ficha del emisor por perfil (legacy pestaña Emisor): numeración, datos fiscales, plantilla PDF y defaults de factura.
+                Orden habitual en legacy: primero guarda aquí el emisor; el constructor fino de módulos PDF sigue en la app legacy
+                (pestaña Plantilla).
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
               {profiles.length ? (
                 <>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Field label="Perfil a editar">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Plantilla de emisor">
                       <select
-                        aria-label="Perfil a editar"
+                        aria-label="Plantilla de emisor"
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={effectiveEditingProfileId}
-                        onChange={(event) => setEditingProfileId(event.target.value)}
+                        onChange={(event) => syncLauncherSelection(event.target.value)}
                       >
                         {profiles.map((profile) => (
                           <option key={profile.id} value={profile.id}>
@@ -332,28 +428,66 @@ export function SettingsPage() {
                         ))}
                       </select>
                     </Field>
-                    <div className="flex items-end">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full sm:w-auto"
-                        onClick={() =>
-                          navigate(`/facturar?templateProfileId=${encodeURIComponent(String(effectiveEditingProfileId || ""))}`)
+                    <Field label="Plantilla">
+                      <select
+                        aria-label="Plantilla"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={
+                          LAYOUT_OPTIONS.some((o) => o.value === editingDraft.layout) ? editingDraft.layout : ""
                         }
-                        disabled={!effectiveEditingProfileId}
+                        onChange={(event) => updateDraft({ layout: event.target.value })}
+                        disabled={!canEdit}
                       >
-                        Usar perfil en Facturar
-                      </Button>
-                    </div>
+                        <option value="">Plantilla...</option>
+                        {LAYOUT_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" disabled={!canEdit} onClick={handleNewTemplateProfile}>
+                      Nuevo usuario
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="text-destructive hover:text-destructive"
+                      disabled={!canEdit || profiles.length <= 1}
+                      onClick={handleDeleteTemplateProfile}
+                    >
+                      Borrar usuario
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={!canEdit || saveConfigMutation.isPending || !profiles.length}
+                      onClick={() => saveConfigMutation.mutate()}
+                    >
+                      {saveConfigMutation.isPending ? "Guardando..." : "Guardar datos del emisor"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() =>
+                        navigate(`/facturar?templateProfileId=${encodeURIComponent(String(effectiveEditingProfileId || ""))}`)
+                      }
+                      disabled={!effectiveEditingProfileId}
+                    >
+                      Abrir Facturar
+                    </Button>
                   </div>
 
                   <details className="group rounded-md border border-dashed p-3" open>
                     <summary className="cursor-pointer text-sm font-medium text-muted-foreground outline-none group-open:text-foreground">
-                      Básico del emisor
+                      Básico del usuario
                     </summary>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      <Field label="Nombre del perfil (etiqueta)">
+                      <Field label="Nombre del usuario">
                         <Input
+                          placeholder="Ejemplo: Pear&co."
                           value={editingDraft.label}
                           onChange={(event) => updateDraft({ label: event.target.value })}
                           disabled={!canEdit}
@@ -361,9 +495,10 @@ export function SettingsPage() {
                       </Field>
                       <Field
                         label="ID en el número de factura"
-                        hint="3–5 letras sin tilde (p. ej. JOS → JOS_1-2026). Debe ser distinto por perfil."
+                        hint="Obligatorio en legacy: 3 a 5 letras (sin tilde, sin números en el prefijo). Distinto en cada usuario."
                       >
                         <Input
+                          placeholder="Ej. JOS → JOS_1-2026"
                           value={editingDraft.invoiceNumberTag}
                           onChange={(event) => updateDraft({ invoiceNumberTag: event.target.value.toUpperCase() })}
                           maxLength={5}
@@ -372,9 +507,9 @@ export function SettingsPage() {
                           disabled={!canEdit}
                         />
                       </Field>
-                      <Field label="Color en listados">
+                      <Field label="Color en listados y vista previa">
                         <select
-                          aria-label="Color en listados"
+                          aria-label="Color del usuario"
                           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           value={editingDraft.colorKey}
                           onChange={(event) => updateDraft({ colorKey: event.target.value })}
@@ -382,13 +517,14 @@ export function SettingsPage() {
                         >
                           {PROFILE_COLOR_KEYS.map((key) => (
                             <option key={key} value={key}>
-                              {key}
+                              {PROFILE_COLOR_LABELS[key]}
                             </option>
                           ))}
                         </select>
                       </Field>
                       <Field label="Marca / empresa">
                         <Input
+                          placeholder="Nombre comercial"
                           value={editingDraft.brand}
                           onChange={(event) => updateDraft({ brand: event.target.value })}
                           disabled={!canEdit}
@@ -397,6 +533,7 @@ export function SettingsPage() {
                       <div className="lg:col-span-2">
                         <Field label="Nombre completo / responsable">
                           <Input
+                            placeholder="Persona que emite la factura"
                             value={editingDraft.contactName}
                             onChange={(event) => updateDraft({ contactName: event.target.value })}
                             disabled={!canEdit}
@@ -404,15 +541,16 @@ export function SettingsPage() {
                         </Field>
                       </div>
                       <div className="sm:col-span-2 lg:col-span-3">
-                        <Field label="Descripción corta">
+                        <Field label="Descripcion corta">
                           <Input
+                            placeholder="Linea descriptiva de la empresa"
                             value={editingDraft.headline}
                             onChange={(event) => updateDraft({ headline: event.target.value })}
                             disabled={!canEdit}
                           />
                         </Field>
                       </div>
-                      <Field label="NIF / CIF">
+                      <Field label="DNI / NIF / CIF">
                         <Input
                           value={editingDraft.taxId}
                           onChange={(event) => updateDraft({ taxId: event.target.value })}
@@ -427,7 +565,7 @@ export function SettingsPage() {
                           disabled={!canEdit}
                         />
                       </Field>
-                      <Field label="Teléfono">
+                      <Field label="Telefono">
                         <Input
                           value={editingDraft.phone}
                           onChange={(event) => updateDraft({ phone: event.target.value })}
@@ -436,13 +574,14 @@ export function SettingsPage() {
                       </Field>
                       <Field label="Web">
                         <Input
+                          placeholder="dominio.com"
                           value={editingDraft.website}
                           onChange={(event) => updateDraft({ website: event.target.value })}
                           disabled={!canEdit}
                         />
                       </Field>
                       <div className="sm:col-span-2 lg:col-span-3">
-                        <Field label="Dirección fiscal / postal">
+                        <Field label="Direccion fiscal / postal">
                           <Input
                             value={editingDraft.address}
                             onChange={(event) => updateDraft({ address: event.target.value })}
@@ -455,71 +594,39 @@ export function SettingsPage() {
 
                   <details className="group rounded-md border border-dashed p-3">
                     <summary className="cursor-pointer text-sm font-medium text-muted-foreground outline-none group-open:text-foreground">
-                      Plantilla PDF y valores por defecto
+                      Avanzado del usuario
                     </summary>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      <Field label="Plantilla del PDF">
-                        <select
-                          aria-label="Plantilla del PDF"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                          value={
-                            LAYOUT_OPTIONS.some((o) => o.value === editingDraft.layout)
-                              ? editingDraft.layout
-                              : ""
-                          }
-                          onChange={(event) => updateDraft({ layout: event.target.value })}
-                          disabled={!canEdit}
-                        >
-                          <option value="">Otro / heredado</option>
-                          {LAYOUT_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field label="Forma de pago por defecto">
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <Field label="Logo / imagen de marca">
+                          <Input
+                            placeholder="/assets/logo.svg o ruta absoluta (opcional)"
+                            value={editingDraft.brandImage}
+                            onChange={(event) => updateDraft({ brandImage: event.target.value })}
+                            disabled={!canEdit}
+                          />
+                        </Field>
+                      </div>
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <Field label="Ruta firma">
+                          <Input
+                            placeholder="/assets/firma.png o ruta absoluta"
+                            value={editingDraft.signatureImage}
+                            onChange={(event) => updateDraft({ signatureImage: event.target.value })}
+                            disabled={!canEdit}
+                          />
+                        </Field>
+                      </div>
+                      <Field label="Banco">
                         <Input
-                          placeholder="Forma de pago default"
-                          value={editingDraft.paymentMethod}
-                          onChange={(event) => updateDraft({ paymentMethod: event.target.value })}
-                          disabled={!canEdit}
-                        />
-                      </Field>
-                      <Field label="Moneda">
-                        <Input
-                          value={editingDraft.currency}
-                          onChange={(event) => updateDraft({ currency: event.target.value })}
-                          disabled={!canEdit}
-                        />
-                      </Field>
-                      <Field label="IGIC % por defecto">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={String(editingDraft.taxRate)}
-                          onChange={(event) => updateDraft({ taxRate: toNumber(event.target.value) })}
-                          disabled={!canEdit}
-                        />
-                      </Field>
-                      <Field label="IRPF % por defecto">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={String(editingDraft.withholdingRate)}
-                          onChange={(event) => updateDraft({ withholdingRate: toNumber(event.target.value) })}
-                          disabled={!canEdit}
-                        />
-                      </Field>
-                      <Field label="Entidad bancaria">
-                        <Input
+                          placeholder="ING, CaixaBank..."
                           value={editingDraft.bankBrand}
                           onChange={(event) => updateDraft({ bankBrand: event.target.value })}
                           disabled={!canEdit}
                         />
                       </Field>
                       <div className="sm:col-span-2">
-                        <Field label="IBAN / cuenta">
+                        <Field label="Cuenta bancaria / IBAN">
                           <Input
                             value={editingDraft.bankAccount}
                             onChange={(event) => updateDraft({ bankAccount: event.target.value })}
@@ -528,24 +635,45 @@ export function SettingsPage() {
                         </Field>
                       </div>
                       <div className="sm:col-span-2 lg:col-span-3">
-                        <Field label="Logo (ruta o URL)">
+                        <Field label="Forma de pago por defecto">
                           <Input
-                            value={editingDraft.brandImage}
-                            onChange={(event) => updateDraft({ brandImage: event.target.value })}
-                            placeholder="/assets/logo.svg o URL"
+                            placeholder="Transferencia bancaria"
+                            value={editingDraft.paymentMethod}
+                            onChange={(event) => updateDraft({ paymentMethod: event.target.value })}
                             disabled={!canEdit}
                           />
                         </Field>
                       </div>
-                      <div className="sm:col-span-2 lg:col-span-3">
-                        <Field label="Firma (ruta o URL)">
-                          <Input
-                            value={editingDraft.signatureImage}
-                            onChange={(event) => updateDraft({ signatureImage: event.target.value })}
-                            disabled={!canEdit}
-                          />
-                        </Field>
-                      </div>
+                      <Field label="Moneda">
+                        <Input
+                          placeholder="EUR"
+                          value={editingDraft.currency}
+                          onChange={(event) => updateDraft({ currency: event.target.value })}
+                          disabled={!canEdit}
+                        />
+                      </Field>
+                      <Field label="IGIC / IVA por defecto">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          inputMode="decimal"
+                          value={String(editingDraft.taxRate)}
+                          onChange={(event) => updateDraft({ taxRate: toNumber(event.target.value) })}
+                          disabled={!canEdit}
+                        />
+                      </Field>
+                      <Field label="IRPF por defecto">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          inputMode="decimal"
+                          value={String(editingDraft.withholdingRate)}
+                          onChange={(event) => updateDraft({ withholdingRate: toNumber(event.target.value) })}
+                          disabled={!canEdit}
+                        />
+                      </Field>
                     </div>
                   </details>
 
