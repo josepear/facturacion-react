@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
@@ -63,6 +64,21 @@ export function FacturarPage() {
     formState: { errors, isSubmitting },
   } = form;
   const selectedProfileLabel = selectedProfile?.label || selectedProfile?.id || "-";
+  const [historyYearFilter, setHistoryYearFilter] = useState("");
+
+  const historyYearOptions = useMemo(() => {
+    const years = new Set(
+      historyOptions
+        .map((o) => String(o.label.split("·").pop() || "").trim().slice(0, 4))
+        .filter((y) => /^\d{4}$/.test(y))
+    );
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [historyOptions]);
+
+  const yearFilteredHistoryOptions = useMemo(() => {
+    if (!historyYearFilter) return filteredHistoryOptions;
+    return filteredHistoryOptions.filter((o) => o.label.includes(historyYearFilter));
+  }, [filteredHistoryOptions, historyYearFilter]);
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
@@ -231,13 +247,27 @@ export function FacturarPage() {
             help={workflowChecklist.history.tip}
           >
             <div className="grid gap-4">
-              <Field label="Buscar en recientes">
-                <Input
-                  placeholder="Número, cliente o recordId"
-                  value={historySearchTerm}
-                  onChange={(event) => setHistorySearchTerm(event.target.value)}
-                />
-              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Ejercicio">
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={historyYearFilter}
+                    onChange={(event) => setHistoryYearFilter(event.target.value)}
+                  >
+                    <option value="">Todos los ejercicios</option>
+                    {historyYearOptions.map((year) => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Buscar documento">
+                  <Input
+                    placeholder="Número, cliente o recordId"
+                    value={historySearchTerm}
+                    onChange={(event) => setHistorySearchTerm(event.target.value)}
+                  />
+                </Field>
+              </div>
               <Field label="Selección rápida (histórico)">
                 <div className="flex gap-2">
                   <select
@@ -246,7 +276,7 @@ export function FacturarPage() {
                     onChange={(event) => setSelectedHistoryRecordId(event.target.value)}
                   >
                     <option value="">Selecciona documento</option>
-                    {filteredHistoryOptions.map((option) => (
+                    {yearFilteredHistoryOptions.map((option) => (
                       <option key={option.recordId} value={option.recordId}>
                         {option.label}
                       </option>
@@ -264,7 +294,7 @@ export function FacturarPage() {
                 <span className="text-xs text-muted-foreground">
                   {loadingHistory
                     ? "Cargando histórico..."
-                    : `${filteredHistoryOptions.length} de ${historyOptions.length} documentos recientes`}
+                    : `${yearFilteredHistoryOptions.length} de ${historyOptions.length} documentos recientes`}
                 </span>
               </Field>
             </div>
