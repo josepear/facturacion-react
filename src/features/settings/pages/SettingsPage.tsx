@@ -172,6 +172,7 @@ export function SettingsPage() {
   const profiles = profileListOverride ?? serverProfiles;
   const currentUserRole = String(configQuery.data?.currentUser?.role || "").trim().toLowerCase();
   const canEdit = currentUserRole === "admin";
+  const configuredRoleLabel = String(configQuery.data?.currentUser?.role ?? "").trim();
 
   const serverActiveProfileId = String(configQuery.data?.activeTemplateProfileId || "").trim();
   const effectiveActiveProfileId = activeProfileIdDraft || serverActiveProfileId;
@@ -411,6 +412,27 @@ export function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
+              {!canEdit ? (
+                <div
+                  role="status"
+                  className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm"
+                >
+                  <p className="font-medium text-foreground">Modo solo lectura</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Editar datos del emisor, crear un usuario nuevo y guardar en el servidor solo están habilitados para la
+                    sesión cuyo rol en <code className="rounded bg-muted px-1 text-xs">/api/config</code> es{" "}
+                    <strong>admin</strong>.
+                    {configuredRoleLabel ? (
+                      <>
+                        {" "}
+                        Tu sesión publica el rol: <strong>{configuredRoleLabel}</strong>.
+                      </>
+                    ) : (
+                      <> En esta carga no figura un valor de rol en la configuración.</>
+                    )}
+                  </p>
+                </div>
+              ) : null}
               {profiles.length ? (
                 <>
                   <div className="grid gap-4 sm:grid-cols-2">

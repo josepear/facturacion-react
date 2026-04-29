@@ -78,6 +78,9 @@ describe("SettingsPage regression", () => {
     render(<SettingsPage />);
     await screen.findByText("Perfil activo (servidor)");
 
+    const readOnlyBanner = screen.getByRole("status");
+    expect(readOnlyBanner.textContent).toContain("Modo solo lectura");
+    expect(readOnlyBanner.textContent).toContain("viewer");
     expect(screen.getByRole("button", { name: "Guardar datos del emisor" }).hasAttribute("disabled")).toBe(true);
   });
 });
