@@ -49,12 +49,12 @@ function buildClientProfileId(label: string, usedIds: Set<string>): string {
 
 /** Igual que legacy `getNextProfileColorKey()` (menos usado primero). */
 function getNextProfileColorKey(list: TemplateProfileConfig[]): (typeof PROFILE_COLOR_KEYS)[number] {
-  const counts = new Map<string, number>(PROFILE_COLOR_KEYS.map((k) => [k, 0]));
+  const counts = new Map<(typeof PROFILE_COLOR_KEYS)[number], number>(PROFILE_COLOR_KEYS.map((k) => [k, 0]));
   list.forEach((profile, index) => {
     const raw = String(profile.colorKey || "").trim().toLowerCase();
-    const key = PROFILE_COLOR_KEYS.includes(raw as (typeof PROFILE_COLOR_KEYS)[number])
-      ? raw
-      : PROFILE_COLOR_KEYS[index % PROFILE_COLOR_KEYS.length];
+    const key: (typeof PROFILE_COLOR_KEYS)[number] = PROFILE_COLOR_KEYS.includes(raw as (typeof PROFILE_COLOR_KEYS)[number])
+      ? (raw as (typeof PROFILE_COLOR_KEYS)[number])
+      : (PROFILE_COLOR_KEYS[index % PROFILE_COLOR_KEYS.length] || PROFILE_COLOR_KEYS[0]);
     counts.set(key, (counts.get(key) || 0) + 1);
   });
   const sorted = [...counts.entries()].sort((a, b) => a[1] - b[1]);
@@ -470,7 +470,7 @@ export function SettingsPage() {
                     </Button>
                     <Button
                       type="button"
-                      variant="secondary"
+                      variant="outline"
                       onClick={() =>
                         navigate(`/facturar?templateProfileId=${encodeURIComponent(String(effectiveEditingProfileId || ""))}`)
                       }
