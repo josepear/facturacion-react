@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import type { TemplateProfileConfig } from "@/domain/document/types";
 import { fetchRuntimeConfig, saveTemplateProfilesConfig } from "@/infrastructure/api/documentsApi";
+import { ApiError } from "@/infrastructure/api/httpClient";
 import { toNumber } from "@/lib/utils";
 
 /** Misma secuencia que legacy `PROFILE_COLOR_SEQUENCE` en `public/app.js`. */
@@ -115,6 +116,31 @@ function toProfileDraft(profile: TemplateProfileConfig | null): ProfileDraft {
     brandImage: String(profile?.business?.brandImage || "").trim(),
     signatureImage: String(profile?.business?.signatureImage || "").trim(),
   };
+}
+
+function SettingsConfigLoadError({ error }: { error: unknown }) {
+  if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+    return (
+      <div role="alert" className="space-y-2">
+        <p className="font-medium text-red-600">No se pudo cargar la configuración (HTTP {error.status})</p>
+        <p className="text-muted-foreground">
+          La petición a <code className="text-xs">GET /api/config</code> fue rechazada:{" "}
+          <span className="text-foreground">{error.message}</span>. Suele indicar sesión caducada, ausencia de token en este
+          origen o credenciales no aceptadas por el servidor.
+        </p>
+        <p className="text-muted-foreground">
+          Esto no es el modo solo lectura por rol: si <code className="text-xs">/api/config</code> devolviera datos y tu rol
+          no fuera <code className="text-xs">admin</code>, verías el formulario con campos deshabilitados y el aviso «Modo
+          solo lectura».
+        </p>
+      </div>
+    );
+  }
+  return (
+    <p role="alert" className="text-red-600">
+      {(error as Error)?.message || "No se pudo leer la configuración."}
+    </p>
+  );
 }
 
 function mergeProfileWithDraft(profile: TemplateProfileConfig, draft: ProfileDraft): TemplateProfileConfig {
@@ -342,8 +368,8 @@ export function SettingsPage() {
         </Card>
       ) : configQuery.error ? (
         <Card>
-          <CardContent className="pt-6 text-sm text-red-600">
-            {(configQuery.error as Error).message || "No se pudo leer la configuración."}
+          <CardContent className="pt-6 text-sm">
+            <SettingsConfigLoadError error={configQuery.error} />
           </CardContent>
         </Card>
       ) : (

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { SettingsPage } from "@/features/settings/pages/SettingsPage";
+import { ApiError } from "@/infrastructure/api/httpClient";
 
 const { fetchRuntimeConfigMock, saveTemplateProfilesConfigMock, navigateMock } = vi.hoisted(() => ({
   fetchRuntimeConfigMock: vi.fn(),
@@ -82,6 +83,19 @@ describe("SettingsPage regression", () => {
     expect(readOnlyBanner.textContent).toContain("Modo solo lectura");
     expect(readOnlyBanner.textContent).toContain("viewer");
     expect(screen.getByRole("button", { name: "Guardar datos del emisor" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("explains auth failure on /api/config separately from read-only role", async () => {
+    fetchRuntimeConfigMock.mockRejectedValue(new ApiError("No autorizado", 401));
+
+    render(<SettingsPage />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("HTTP 401");
+    expect(alert.textContent).toContain("GET /api/config");
+    expect(alert.textContent).toContain("No autorizado");
+    expect(alert.textContent).toContain("Modo solo lectura");
+    expect(screen.queryByText("Perfil activo (servidor)")).toBeNull();
   });
 });
 
