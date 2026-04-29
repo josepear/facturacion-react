@@ -351,6 +351,12 @@ export function ExpensesPage() {
             <CardDescription>Edición mínima operativa sobre el contrato actual.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
+            {String(draft.year || "").trim() ? (
+              <p className="sm:col-span-2 text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">Ejercicio (registro):</span>{" "}
+                {String(draft.year).trim()}
+              </p>
+            ) : null}
             <Field label="Perfil">
               <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -420,7 +426,7 @@ export function ExpensesPage() {
 
             <details className="sm:col-span-2 group rounded-md border border-dashed p-3">
               <summary className="cursor-pointer text-sm font-medium text-muted-foreground outline-none group-open:text-foreground">
-                Más campos del gasto
+                Gasto avanzado — devengo, rango, fiscal proveedor, trimestre, enlaces y concepto
               </summary>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field label="Fecha operación / devengo">

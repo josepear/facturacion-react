@@ -139,6 +139,7 @@
 | `expenseConcept` | Sí | **parcial** | P2 |
 | `quarter` | Sí (texto libre) | **parcial** | P1 |
 | `nextcloudUrl` | Sí (`type="url"`) | **parcial** | P1 |
+| `year` | Sí (solo lectura cuando el registro trae `year` del API) | **parcial** | P2 |
 | `tenantId`, `savedAt`, `updatedAt`, `id` | No (metadatos / servidor) | **parcial** (solo si legacy los edita) | P2 |
 
 ---
