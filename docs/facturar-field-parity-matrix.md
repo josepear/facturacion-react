@@ -15,6 +15,7 @@
 | Campo / bloque | Legacy (ref. prod.; validar) | React actual | Brecha exacta | Implementación sugerida | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Perfil plantilla (`templateProfileId`) | Selector de perfil de emisor; obligatorio para numerar y guardar | `select` + `register("templateProfileId")`; opciones desde `GET /api/config`; Zod `min(1)` | Ninguna funcional obvia si config carga bien | — | Crear doc nuevo: perfil elegido persiste en POST | **cerrado** | P0 |
+| Tenant (`tenantId`) | Contexto de tenant del documento (metadato) | Visible en Facturar como lectura (`Tenant documento`); valor mantenido por defaults + mapper | No editable en UI (intencional, sin reglas nuevas) | — | Guardar/recargar conserva tenant sin intervención manual | **cerrado** | P2 |
 | Aplicar defaults al cambiar perfil | Legacy ajusta forma de pago, cuenta, layout, impuestos según perfil | `applyTemplateProfile` en `useFacturarForm` | Validar si legacy aplica más campos (p. ej. texto legal) | Extender handler si el legacy expone más defaults en `/api/config` | Cambiar perfil: mismos campos que legacy | **parcial** | P1 |
 | Metadatos perfil (solo lectura) | Puede mostrar etiqueta/color/tag numeración | UI muestra «Perfil activo config», defaults en texto auxiliar | «validar en legacy» si hay más indicadores | Añadir hints si el contrato lo trae | Comparar pantalla legacy | **parcial** | P2 |
 
