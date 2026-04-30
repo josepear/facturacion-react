@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { ExpenseRecord } from "@/domain/expenses/types";
+import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
 import { archiveExpense, archiveExpenseYear, fetchExpenseOptions, fetchExpenses, saveExpense } from "@/infrastructure/api/expensesApi";
 import { deleteTrashEntries, fetchTrash } from "@/infrastructure/api/trashApi";
@@ -97,6 +98,8 @@ export function ExpensesPage() {
     queryFn: fetchRuntimeConfig,
   });
 
+  const sessionQuery = useSessionQuery();
+
   const expensesQuery = useQuery({
     queryKey: ["expenses"],
     queryFn: fetchExpenses,
@@ -117,7 +120,9 @@ export function ExpensesPage() {
 
   const availableYears = expensesQuery.data?.years ?? [];
   const profileOptions = configQuery.data?.templateProfiles ?? [];
-  const isAdmin = String(configQuery.data?.currentUser?.role || "").trim().toLowerCase() === "admin";
+  const isAdmin =
+    Boolean(sessionQuery.data?.authenticated) &&
+    String(sessionQuery.data.user.role || "").trim().toLowerCase() === "admin";
   const trashExpenseItems = useMemo(
     () => (trashQuery.data?.items ?? []).filter((item) => item.category === "gastos"),
     [trashQuery.data?.items],

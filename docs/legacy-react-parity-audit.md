@@ -26,6 +26,7 @@
 
 - React ya cubre **cinco módulos** con datos reales: Facturar, Clientes, Historial, Gastos, Configuración (`src/app/router.tsx`).
 - La paridad **no** es solo pantalla: depende de que el navegador reciba **JSON** de `/api/*` (auth + proxy). **P0-1 (proxy):** cerrado en repo: `vite.config.ts` aplica el mismo proxy a `server` (dev) y `preview`; el fallo típico era `vite preview` sin proxy (HTML de SPA en `/api/*`). Ver README «API en desarrollo local».
+- **Identidad vs configuración de negocio:** la SPA usa **`GET /api/session`** (misma cabecera `Authorization`) para **rol** en UI (admin / solo lectura) y **`tenantId` de sesión** donde aplica. **`GET /api/config`** cubre **perfiles plantilla**, perfil activo, defaults y metadatos de runtime; en React **no** se usa `currentUser` del JSON de config para permisos ni tenant.
 - **Gastos** y **Historial** declaran explícitamente límites de papelera (restauración no soportada por contrato actual en UI).
 - **Facturar — P0-2 (flujo diario):** el camino acordado *crear → guardar → recargar → editar → salida HTML/PDF* está cubierto por E2E y por el modelo actual; la **paridad campo a campo** frente al legacy está desglosada en `docs/facturar-field-parity-matrix.md` (estado global de esa matriz: **parcial**, pendiente validación manual en prod en filas marcadas).
 - **Facturar — brechas P1 destacadas (desde la matriz):** campos `accounting.*` con paridad aún parcial (p. ej. `paymentDate`, `quarter`, `invoiceId` y `netCollected` expuestos con round-trip pero sin regla estricta/formato/cálculo confirmados), catálogos texto libre vs legacy, histórico reciente capado a 40, comprobación PDF por entorno.
@@ -37,7 +38,7 @@
 
 **Legacy (referencia producción):** flujo único de emisión/edición de documentos (factura/presupuesto), con datos de emisor por perfil, cliente, líneas, fiscalidad, numeración, guardado, recarga por identificador y acceso a salida oficial (HTML/PDF según backend).
 
-**React actual:** `FacturarPage` + `useFacturarForm`: carga `GET /api/config`, clientes `GET /api/clients`, histórico reciente `GET /api/history`, detalle `GET /api/documents/detail`, guardado `POST /api/documents`, numeración `GET /api/next-number` y validación de número; checklist de módulos; preview en vivo; HTML/PDF oficial vía `openOfficialDocumentInNewTab` (Bearer + blob + feedback de error), alineado con Historial.
+**React actual:** `FacturarPage` + `useFacturarForm`: `GET /api/session` (identidad/tenant de sesión); `GET /api/config` (perfiles y defaults); clientes `GET /api/clients`, histórico reciente `GET /api/history`, detalle `GET /api/documents/detail`, guardado `POST /api/documents`, numeración `GET /api/next-number` y validación de número; checklist de módulos; preview en vivo; HTML/PDF oficial vía `openOfficialDocumentInNewTab` (Bearer + blob + feedback de error), alineado con Historial.
 
 | legacy (referencia) | React actual | Brecha exacta | Implementación para cerrar | Verificación de cierre | Estado |
 | --- | --- | --- | --- | --- | --- |
@@ -66,7 +67,7 @@
 
 **Legacy (referencia producción):** listado de documentos emitidos, apertura, re-edición, archivado y gestión de residuos según rol.
 
-**React actual:** `HistoryPage`: `GET /api/history`, detalle `GET /api/documents/detail`, filtros **en cliente** (tipo factura/presupuesto, ejercicio por `issueDate`, texto que coincide con número/cliente/recordId/tipo), contador «mostrando N de M», mensajes diferenciados si la API devuelve lista vacía vs ningún resultado con filtros vs error de carga; panel de detalle con **Seleccionado: recordId** y aviso si el documento abierto queda fuera de la lista filtrada; **Editar en Facturar** (`/facturar?recordId=` y `templateProfileId` si aplica); HTML/PDF vía `openOfficialDocumentInNewTab`. Archivado unitario y por ejercicio; papelera admin-only; restauración no soportada por contrato actual.
+**React actual:** `HistoryPage`: `GET /api/session` (rol admin para papelera); `GET /api/history`, detalle `GET /api/documents/detail`, filtros **en cliente** (tipo factura/presupuesto, ejercicio por `issueDate`, texto que coincide con número/cliente/recordId/tipo), contador «mostrando N de M», mensajes diferenciados si la API devuelve lista vacía vs ningún resultado con filtros vs error de carga; panel de detalle con **Seleccionado: recordId** y aviso si el documento abierto queda fuera de la lista filtrada; **Editar en Facturar** (`/facturar?recordId=` y `templateProfileId` si aplica); HTML/PDF vía `openOfficialDocumentInNewTab`. Archivado unitario y por ejercicio; papelera admin-only; restauración no soportada por contrato actual.
 
 | legacy (referencia) | React actual | Brecha exacta | Implementación para cerrar | Verificación de cierre | Estado |
 | --- | --- | --- | --- | --- | --- |
@@ -80,7 +81,7 @@
 
 **Legacy (referencia producción):** registro de gastos con proveedor, fiscalidad, vínculos (p. ej. Nextcloud), cuatrimestres, archivado y papelera coherente con documentos.
 
-**React actual:** `ExpensesPage`: listado `GET /api/expenses`, opciones `GET /api/expense-options`, guardado `POST /api/expenses`, archivar gasto y archivar ejercicio, papelera con borrado permanente para admin; perfiles desde `GET /api/config`. Detalle campo a campo y prioridades en **`docs/gastos-field-parity-matrix.md`**.
+**React actual:** `ExpensesPage`: listado `GET /api/expenses`, opciones `GET /api/expense-options`, guardado `POST /api/expenses`, archivar gasto y archivar ejercicio, papelera con borrado permanente para admin (rol desde `GET /api/session`); perfiles desde `GET /api/config`. Detalle campo a campo y prioridades en **`docs/gastos-field-parity-matrix.md`**.
 
 | legacy (referencia) | React actual | Brecha exacta | Implementación para cerrar | Verificación de cierre | Estado |
 | --- | --- | --- | --- | --- | --- |
@@ -100,7 +101,7 @@
 
 **Legacy (referencia producción):** ajuste de perfiles de emisor, perfil activo, defaults fiscales y datos de negocio visibles en facturación.
 
-**React actual:** `SettingsPage`: lectura `GET /api/config`, persistencia `POST /api/template-profiles`, selección de perfil activo y edición de campos principales del perfil; no-admin en solo lectura para guardar; distinción UI entre último perfil activo **guardado en servidor** y selección/borrador local; aviso de cambios pendientes de guardar; sincronización de perfil en URL vía `templateProfileId` (misma clave que Facturar) en `/configuracion`.
+**React actual:** `SettingsPage`: `GET /api/session` (rol / solo lectura), lectura `GET /api/config` (perfiles y defaults), persistencia `POST /api/template-profiles`, selección de perfil activo y edición de campos principales del perfil; no-admin en solo lectura para guardar; distinción UI entre último perfil activo **guardado en servidor** y selección/borrador local; aviso de cambios pendientes de guardar; sincronización de perfil en URL vía `templateProfileId` (misma clave que Facturar) en `/configuracion`.
 
 | legacy (referencia) | React actual | Brecha exacta | Implementación para cerrar | Verificación de cierre | Estado |
 | --- | --- | --- | --- | --- | --- |
@@ -115,7 +116,7 @@
 | --- | --- | --- | --- |
 | P0-1 | **Cerrado.** Antes: sin proxy en `preview`, `/api/*` podía devolver HTML de la SPA. Ahora: mismo `apiProxy` en `server` y `preview` (`vite.config.ts`); README describe smoke `curl` y `E2E_API_TARGET`. E2E: el navegador ya reenvía `/api/*` al backend vía Playwright (runbook). | Sin JSON en `/api/*` en local, Facturar parece “vacío” | `npm run dev` o `npm run preview` + `curl` (cuerpo no empieza por `<`); `npm run test:e2e` |
 | P0-2 | **Camino feliz cerrado** (create → save → reload → edit + HTML/PDF) vía E2E y modelo actual. **Paridad exhaustiva de campos:** seguir matriz Facturar (`docs/facturar-field-parity-matrix.md`); brechas restantes son sobre todo **P1** (UI contabilidad, contacto, catálogos), no el happy path | Datos incompletos vs legacy al editar campos no expuestos en UI | `npm run test:e2e` + matriz actualizada con checklist legacy |
-| P0-3 | Auth: token en `localStorage` y cabecera `Authorization` en todas las llamadas API | Listas vacías o 401 silenciosos | Interceptar request y confirmar Bearer |
+| P0-3 | Auth: token en `localStorage` y cabecera `Authorization` en todas las llamadas API (incluye `GET /api/session` y `GET /api/config`) | Listas vacías o 401 silenciosos | Interceptar request y confirmar Bearer |
 
 ---
 

@@ -1,11 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ExpensesPage } from "@/features/expenses/pages/ExpensesPage";
 
 const {
   fetchRuntimeConfigMock,
+  fetchSessionMock,
   fetchExpensesMock,
   fetchExpenseOptionsMock,
   saveExpenseMock,
@@ -13,8 +14,10 @@ const {
   archiveExpenseYearMock,
   fetchTrashMock,
   deleteTrashEntriesMock,
+  searchState,
 } = vi.hoisted(() => ({
   fetchRuntimeConfigMock: vi.fn(),
+  fetchSessionMock: vi.fn(),
   fetchExpensesMock: vi.fn(),
   fetchExpenseOptionsMock: vi.fn(),
   saveExpenseMock: vi.fn(),
@@ -22,10 +25,29 @@ const {
   archiveExpenseYearMock: vi.fn(),
   fetchTrashMock: vi.fn(),
   deleteTrashEntriesMock: vi.fn(),
+  searchState: { query: "" },
 }));
+
+vi.mock("react-router-dom", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-router-dom")>();
+  return {
+    ...actual,
+    useSearchParams: () => {
+      const params = new URLSearchParams(searchState.query);
+      const setSearchParams = (next: URLSearchParams) => {
+        searchState.query = next.toString();
+      };
+      return [params, setSearchParams];
+    },
+  };
+});
 
 vi.mock("@/infrastructure/api/documentsApi", () => ({
   fetchRuntimeConfig: fetchRuntimeConfigMock,
+}));
+
+vi.mock("@/infrastructure/api/sessionApi", () => ({
+  fetchSession: fetchSessionMock,
 }));
 
 vi.mock("@/infrastructure/api/expensesApi", () => ({
@@ -42,10 +64,17 @@ vi.mock("@/infrastructure/api/trashApi", () => ({
 }));
 
 describe("ExpensesPage regression", () => {
+  beforeEach(() => {
+    searchState.query = "";
+  });
+
   it("lists, filters and saves an expense", async () => {
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "Admin", email: "a@test", role: "admin", tenantId: "default" },
+    });
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-main",
-      currentUser: { role: "admin", tenantId: "default" },
       templateProfiles: [{ id: "perfil-main", label: "Main" }],
     });
     fetchExpensesMock.mockResolvedValue({

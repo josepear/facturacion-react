@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HistoryPage } from "@/features/history/pages/HistoryPage";
 
@@ -10,18 +10,22 @@ const {
   archiveDocumentMock,
   archiveDocumentYearMock,
   fetchRuntimeConfigMock,
+  fetchSessionMock,
   fetchTrashMock,
   deleteTrashEntriesMock,
   navigateMock,
+  searchState,
 } = vi.hoisted(() => ({
   fetchHistoryInvoicesMock: vi.fn(),
   fetchDocumentDetailMock: vi.fn(),
   archiveDocumentMock: vi.fn(),
   archiveDocumentYearMock: vi.fn(),
   fetchRuntimeConfigMock: vi.fn(),
+  fetchSessionMock: vi.fn(),
   fetchTrashMock: vi.fn(),
   deleteTrashEntriesMock: vi.fn(),
   navigateMock: vi.fn(),
+  searchState: { query: "" },
 }));
 
 vi.mock("react-router-dom", async () => {
@@ -29,6 +33,13 @@ vi.mock("react-router-dom", async () => {
   return {
     ...actual,
     useNavigate: () => navigateMock,
+    useSearchParams: () => {
+      const params = new URLSearchParams(searchState.query);
+      const setSearchParams = (next: URLSearchParams) => {
+        searchState.query = next.toString();
+      };
+      return [params, setSearchParams];
+    },
   };
 });
 
@@ -43,12 +54,20 @@ vi.mock("@/infrastructure/api/documentsApi", () => ({
   fetchRuntimeConfig: fetchRuntimeConfigMock,
 }));
 
+vi.mock("@/infrastructure/api/sessionApi", () => ({
+  fetchSession: fetchSessionMock,
+}));
+
 vi.mock("@/infrastructure/api/trashApi", () => ({
   fetchTrash: fetchTrashMock,
   deleteTrashEntries: deleteTrashEntriesMock,
 }));
 
 describe("HistoryPage regression", () => {
+  beforeEach(() => {
+    searchState.query = "";
+  });
+
   it("lists, filters and opens selected document in Facturar", async () => {
     fetchHistoryInvoicesMock.mockResolvedValue([
       {
@@ -84,8 +103,11 @@ describe("HistoryPage regression", () => {
     });
     archiveDocumentMock.mockResolvedValue({ ok: true });
     archiveDocumentYearMock.mockResolvedValue({ ok: true, archivedCount: 1 });
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "Admin", email: "a@test", role: "admin", tenantId: "default" },
+    });
     fetchRuntimeConfigMock.mockResolvedValue({
-      currentUser: { role: "admin", tenantId: "default" },
       templateProfiles: [{ id: "perfil-main", label: "Perfil Main" }],
     });
     fetchTrashMock.mockResolvedValue({
@@ -96,7 +118,7 @@ describe("HistoryPage regression", () => {
     render(<HistoryPage />);
 
     await screen.findByText("F-1");
-    await userEvent.type(screen.getByPlaceholderText("Buscar por número, cliente, tipo o recordId"), "Beta");
+    await userEvent.type(screen.getByPlaceholderText("Filtrar por número, cliente, recordId o texto del tipo"), "Beta");
     expect(screen.queryByText("F-1")).toBeNull();
     expect(screen.getByText("F-2")).toBeTruthy();
 
