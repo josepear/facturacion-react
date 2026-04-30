@@ -20,6 +20,9 @@ export function FacturarPage() {
     totals,
     itemsArray,
     profileOptions,
+    selectedProfile,
+    templateEmitterResolved,
+    activeTemplateProfileId,
     applyTemplateProfile,
     taxValidation,
     applyWithholdingMode,
@@ -143,10 +146,37 @@ export function FacturarPage() {
                 <Input placeholder="ES..." {...register("bankAccount")} />
               </Field>
             </div>
-            <p className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">Tenant documento:</span>{" "}
-              {String(watch("tenantId") || "").trim() || "-"}
-            </p>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p>
+                <span className="font-medium text-foreground">Tenant documento:</span>{" "}
+                {String(watch("tenantId") || "").trim() || "-"}
+              </p>
+              <p className="text-xs leading-relaxed">
+                <span className="font-medium text-foreground">Contexto perfil (solo lectura):</span>{" "}
+                {selectedProfile
+                  ? `${selectedProfile.label || selectedProfile.id} · id ${selectedProfile.id}${
+                      selectedProfile.invoiceNumberTag ? ` · tag ${selectedProfile.invoiceNumberTag}` : ""
+                    }${selectedProfile.colorKey ? ` · color ${String(selectedProfile.colorKey).trim()}` : ""}${
+                      selectedProfile.tenantId ? ` · tenant API ${String(selectedProfile.tenantId).trim()}` : ""
+                    }`
+                  : "Sin perfil resuelto (elige plantilla o espera a que cargue la config)."}
+              </p>
+              <p className="text-xs leading-relaxed">
+                <span className="font-medium text-foreground">Defaults efectivos (perfil + defaults globales config):</span>{" "}
+                pago {templateEmitterResolved.paymentMethod || "—"} · IGIC{" "}
+                {templateEmitterResolved.taxRate !== null ? `${templateEmitterResolved.taxRate}%` : "—"} · IRPF{" "}
+                {templateEmitterResolved.withholdingRate === ""
+                  ? "sin retención"
+                  : `${templateEmitterResolved.withholdingRate}%`}
+                {templateEmitterResolved.series ? ` · serie sugerida ${templateEmitterResolved.series}` : ""}
+                {templateEmitterResolved.currency ? ` · moneda config ${templateEmitterResolved.currency}` : ""}
+                {activeTemplateProfileId ? ` · activo servidor: ${activeTemplateProfileId}` : ""}
+              </p>
+              <p className="text-xs leading-relaxed">
+                <span className="font-medium text-foreground">Serie en el documento:</span>{" "}
+                {String(watch("series") || "").trim() || "—"}
+              </p>
+            </div>
           </WorkflowModule>
 
           <WorkflowModule

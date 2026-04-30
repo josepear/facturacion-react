@@ -15,9 +15,9 @@
 | Campo / bloque | Legacy (ref. prod.; validar) | React actual | Brecha exacta | Implementación sugerida | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Perfil plantilla (`templateProfileId`) | Selector de perfil de emisor; obligatorio para numerar y guardar | `select` + `register("templateProfileId")`; opciones desde `GET /api/config`; Zod `min(1)` | Ninguna funcional obvia si config carga bien | — | Crear doc nuevo: perfil elegido persiste en POST | **cerrado** | P0 |
-| Tenant (`tenantId`) | Contexto de tenant del documento (metadato) | Visible en Facturar como lectura (`Tenant documento`); valor mantenido por defaults + mapper | No editable en UI (intencional, sin reglas nuevas) | — | Guardar/recargar conserva tenant sin intervención manual | **cerrado** | P2 |
-| Aplicar defaults al cambiar perfil | Legacy ajusta forma de pago, cuenta, layout, impuestos según perfil | `applyTemplateProfile` en `useFacturarForm` | Validar si legacy aplica más campos (p. ej. texto legal) | Extender handler si el legacy expone más defaults en `/api/config` | Cambiar perfil: mismos campos que legacy | **parcial** | P1 |
-| Metadatos perfil (solo lectura) | Puede mostrar etiqueta/color/tag numeración | UI muestra «Perfil activo config», defaults en texto auxiliar | «validar en legacy» si hay más indicadores | Añadir hints si el contrato lo trae | Comparar pantalla legacy | **parcial** | P2 |
+| Tenant (`tenantId`) | Contexto de tenant del documento (metadato) | Visible en Facturar como lectura (`Tenant documento`); al aplicar plantilla, si **`templateProfiles[].tenantId`** viene en config se escribe en el documento (misma rutina unificada que el primer anillo); si no, no se inventa tenant | No editable en UI (intencional, sin reglas nuevas) | — | Guardar/recargar conserva tenant; cambio de perfil con `tenantId` en API actualiza borrador | **cerrado** | P2 |
+| Aplicar defaults al cambiar perfil | Legacy ajusta forma de pago, cuenta, layout, impuestos según perfil | `applyTemplateProfile` + `resolveEmitterFieldsFromTemplateProfile`: **perfil primero**, **`config.defaults` como capa** para `paymentMethod` / `taxRate` / `withholdingRate` / **`defaults.series`**; cuenta y layout desde perfil; `currency` y `colorKey` en hints UI; tres rutas unificadas (selector, `?templateProfileId=`, bootstrap si el borrador iba vacío) | Validar en legacy si al cambiar perfil se escriben **más** campos (texto legal, etc.) | Extender el resolver/handler cuando el contrato o el checklist lo documenten | Cambiar perfil: primer anillo = merge código; resto checklist prod | **parcial** | P1 |
+| Metadatos perfil (solo lectura) | Puede mostrar etiqueta/color/tag numeración | Facturar (Emisor): contexto **id**, **etiqueta**, **tag** de numeración, **tenantId del perfil** si existe en API, más línea **defaults efectivos** (merge perfil + `config.defaults` igual que `applyTemplateProfile`) y **perfil activo servidor** | «validar en legacy» copy y campos extra (color, etc.) | Ajustar según checklist prod | Comparar con legacy | **parcial** | P2 |
 
 ---
 
@@ -33,7 +33,7 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `paymentMethod` | Texto / lista según legacy | `Input` libre + relleno desde perfil | Si legacy usa catálogo cerrado, React permite texto libre | Select o datalist alineado a legacy | Mismos valores que prod | **parcial** | P1 |
+| `paymentMethod` | Texto / lista según legacy | `Input` libre; valor inicial al aplicar plantilla = **perfil `defaults` o, si falta, `config.defaults`** (`resolveEmitterFieldsFromTemplateProfile`) | Si legacy usa **catálogo cerrado**, React sigue siendo texto libre | Select o datalist alineado a legacy | Mismos valores que prod | **parcial** | P1 |
 
 ---
 
@@ -66,7 +66,7 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `series` | Opcional / obligatorio según política | `Input` `register("series")`; usado en numeración | Validar reglas legacy (obligatoriedad) | Reforzar validación Zod si legacy exige serie | Guardar sin serie: mismo error/éxito que legacy | **parcial** | P1 |
+| `series` | Opcional / obligatorio según política | `Input` `register("series")`; **al aplicar plantilla**, si `defaults.series` existe en perfil o `config.defaults`, se rellena con el **mismo merge** que pago/IGIC (sobrescribe al cambiar perfil si hay valor resuelto; solo rellena hueco en bootstrap vacío) | Validar obligatoriedad estricta legacy | Reforzar validación Zod solo con evidencia | Guardar sin serie: mismo error/éxito que legacy | **parcial** | P1 |
 
 ---
 
@@ -121,8 +121,8 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| IGIC (`taxRate`) | Porcentaje | Input numérico; Zod `nonnegative` | Validar topes/catálogo legacy | — | Total cuadra con legacy | **parcial** | P1 |
-| IRPF / sin IRPF | Típicamente 15/19/21 o ninguno | Atajos + input; Zod solo `"" \| 15 \| 19 \| 21`; `taxValidation` bloquea guardado | Input libre puede dejar valores inválidos hasta blur | Mejor UX: solo select o sincronizar con atajos | No guardar con IRPF inválido | **cerrado** | P0 |
+| IGIC (`taxRate`) | Porcentaje | Input numérico; Zod `nonnegative`; al aplicar plantilla: **perfil `defaults.taxRate` o, si no numérico finito, `config.defaults.taxRate`**; si ninguno aplica, no se sobrescribe el valor del formulario | Validar topes/catálogo legacy | — | Total cuadra con legacy | **parcial** | P1 |
+| IRPF / sin IRPF | Típicamente 15/19/21 o ninguno | Atajos + input; Zod solo `"" \| 15 \| 19 \| 21`; `taxValidation` bloquea guardado; al aplicar plantilla: **primer valor válido (15/19/21)** entre perfil y `config.defaults`, si no **vacío** | Input libre puede dejar valores inválidos hasta blur | Mejor UX: solo select o sincronizar con atajos | No guardar con IRPF inválido | **cerrado** | P0 |
 | Totales | Mostrados y coherentes | `calculateTotals` + `TotalsSummary`; guardado exige coherencia | Ninguna obvia | — | E2E + manual | **cerrado** | P0 |
 
 ---

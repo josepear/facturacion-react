@@ -115,5 +115,111 @@ describe("useFacturarForm regression", () => {
       expect(result.current.form.getValues("client.name")).toBe("Cliente Recargado");
     });
   });
+
+  it("applyTemplateProfile fills payment, IGIC and IRPF from config.defaults when profile omits them", async () => {
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "User", email: "u@test", role: "admin", tenantId: "default" },
+    });
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "p-empty",
+      defaults: { paymentMethod: "GlobalPay", taxRate: 10, withholdingRate: 21 },
+      templateProfiles: [
+        {
+          id: "p-empty",
+          label: "Perfil mínimo",
+          defaults: {},
+          business: {},
+          design: {},
+        },
+      ],
+    });
+    fetchClientsMock.mockResolvedValue([]);
+    fetchHistoryInvoicesMock.mockResolvedValue([]);
+
+    const { result } = renderHook(() => useFacturarForm(), { wrapper: createHookWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.profileOptions.length).toBeGreaterThan(0);
+    });
+
+    act(() => {
+      result.current.applyTemplateProfile("p-empty");
+    });
+
+    expect(result.current.form.getValues("paymentMethod")).toBe("GlobalPay");
+    expect(result.current.form.getValues("taxRate")).toBe(10);
+    expect(result.current.form.getValues("withholdingRate")).toBe(21);
+    expect(result.current.withoutWithholding).toBe(false);
+  });
+
+  it("applyTemplateProfile sets tenantId when profile exposes tenantId in config", async () => {
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "User", email: "u@test", role: "admin", tenantId: "session-tenant" },
+    });
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "p-a",
+      defaults: {},
+      templateProfiles: [
+        {
+          id: "p-a",
+          label: "Perfil A",
+          tenantId: "tenant-from-profile",
+          defaults: { paymentMethod: "Transferencia", taxRate: 7 },
+          business: { bankAccount: "ES00" },
+          design: { layout: "pear" },
+        },
+      ],
+    });
+    fetchClientsMock.mockResolvedValue([]);
+    fetchHistoryInvoicesMock.mockResolvedValue([]);
+
+    const { result } = renderHook(() => useFacturarForm(), { wrapper: createHookWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.profileOptions.length).toBeGreaterThan(0);
+    });
+
+    act(() => {
+      result.current.applyTemplateProfile("p-a");
+    });
+
+    expect(result.current.form.getValues("tenantId")).toBe("tenant-from-profile");
+  });
+
+  it("applyTemplateProfile sets series from merged defaults.series when present in config", async () => {
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "User", email: "u@test", role: "admin", tenantId: "default" },
+    });
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "p-ser",
+      defaults: { series: "GLOBAL-S", paymentMethod: "Transferencia", taxRate: 7 },
+      templateProfiles: [
+        {
+          id: "p-ser",
+          label: "Con serie",
+          defaults: { series: "FAC-2026", paymentMethod: "Bizum", taxRate: 3 },
+          business: { bankAccount: "ES99" },
+          design: { layout: "pear" },
+        },
+      ],
+    });
+    fetchClientsMock.mockResolvedValue([]);
+    fetchHistoryInvoicesMock.mockResolvedValue([]);
+
+    const { result } = renderHook(() => useFacturarForm(), { wrapper: createHookWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.profileOptions.length).toBeGreaterThan(0);
+    });
+
+    act(() => {
+      result.current.applyTemplateProfile("p-ser");
+    });
+
+    expect(result.current.form.getValues("series")).toBe("FAC-2026");
+  });
 });
 

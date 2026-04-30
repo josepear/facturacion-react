@@ -5,6 +5,7 @@ import { useFieldArray, useForm, useWatch } from "react-hook-form";
 
 import { calculateTotals } from "@/domain/document/calculateTotals";
 import { createEmptyDocument } from "@/domain/document/defaults";
+import { resolveEmitterFieldsFromTemplateProfile } from "@/domain/document/resolveTemplateProfileEmitterDefaults";
 import { getNextNumber, validateNumberAvailability } from "@/domain/numbering/usecases/getNextNumber";
 import { invoiceDocumentSchema } from "@/domain/document/schemas";
 import type { CalculatedTotals, InvoiceDocument } from "@/domain/document/types";
@@ -217,6 +218,11 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     [configQuery.data?.templateProfiles, effectiveTemplateProfileId],
   );
 
+  const templateEmitterResolved = useMemo(
+    () => resolveEmitterFieldsFromTemplateProfile(selectedProfile, configQuery.data?.defaults),
+    [selectedProfile, configQuery.data?.defaults],
+  );
+
   const clientOptions = useMemo(
     () =>
       (clientsQuery.data ?? []).map((client, index) => {
@@ -269,6 +275,66 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     });
   }, [historyOptions, historySearchTerm]);
 
+  const applyResolvedEmitterFields = useCallback(
+    (
+      resolved: ReturnType<typeof resolveEmitterFieldsFromTemplateProfile>,
+      options: { dirty: boolean; fillMode: "overwrite_from_template" | "only_empty" },
+    ) => {
+      const opts = { shouldDirty: options.dirty, shouldValidate: true } as const;
+      const current = form.getValues();
+      const applyPayment =
+        options.fillMode === "overwrite_from_template"
+          ? Boolean(resolved.paymentMethod)
+          : !String(current.paymentMethod || "").trim() && Boolean(resolved.paymentMethod);
+      if (applyPayment && resolved.paymentMethod) {
+        form.setValue("paymentMethod", resolved.paymentMethod, opts);
+      }
+      const applyBank =
+        options.fillMode === "overwrite_from_template"
+          ? Boolean(resolved.bankAccount)
+          : !String(current.bankAccount || "").trim() && Boolean(resolved.bankAccount);
+      if (applyBank && resolved.bankAccount) {
+        form.setValue("bankAccount", resolved.bankAccount, opts);
+      }
+      const applyLayout =
+        options.fillMode === "overwrite_from_template"
+          ? Boolean(resolved.templateLayout)
+          : !String(current.templateLayout || "").trim() && Boolean(resolved.templateLayout);
+      if (applyLayout && resolved.templateLayout) {
+        form.setValue("templateLayout", resolved.templateLayout, opts);
+      }
+      const applySeries =
+        options.fillMode === "overwrite_from_template"
+          ? Boolean(resolved.series)
+          : !String(current.series || "").trim() && Boolean(resolved.series);
+      if (applySeries && resolved.series) {
+        form.setValue("series", resolved.series, opts);
+      }
+      if (options.fillMode === "overwrite_from_template" && resolved.taxRate !== null) {
+        form.setValue("taxRate", resolved.taxRate, opts);
+      }
+      if (options.fillMode === "overwrite_from_template") {
+        if (resolved.withholdingRate === "") {
+          form.setValue("withholdingRate", "", opts);
+          setWithoutWithholding(true);
+        } else {
+          form.setValue("withholdingRate", resolved.withholdingRate, opts);
+          setWithoutWithholding(false);
+        }
+      }
+      if (resolved.documentTenantId) {
+        const applyTenant =
+          options.fillMode === "overwrite_from_template"
+            ? true
+            : !String(current.tenantId || "").trim();
+        if (applyTenant) {
+          form.setValue("tenantId", resolved.documentTenantId, opts);
+        }
+      }
+    },
+    [form],
+  );
+
   const ensureDefaults = () => {
     const current = form.getValues();
     const next = applyTotals(
@@ -301,16 +367,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
     const profile = (configQuery.data.templateProfiles ?? []).find((item) => item.id === fallbackProfileId);
     form.setValue("templateProfileId", fallbackProfileId, { shouldDirty: false, shouldValidate: true });
-    if (!String(current.paymentMethod || "").trim() && String(profile?.defaults?.paymentMethod || "").trim()) {
-      form.setValue("paymentMethod", String(profile?.defaults?.paymentMethod || "").trim(), { shouldDirty: false });
-    }
-    if (!String(current.bankAccount || "").trim() && String(profile?.business?.bankAccount || "").trim()) {
-      form.setValue("bankAccount", String(profile?.business?.bankAccount || "").trim(), { shouldDirty: false });
-    }
-    if (!String(current.templateLayout || "").trim() && String(profile?.design?.layout || "").trim()) {
-      form.setValue("templateLayout", String(profile?.design?.layout || "").trim(), { shouldDirty: false });
-    }
-  }, [configQuery.data, form]);
+    const resolved = resolveEmitterFieldsFromTemplateProfile(profile ?? null, configQuery.data.defaults);
+    applyResolvedEmitterFields(resolved, { dirty: false, fillMode: "only_empty" });
+  }, [configQuery.data, form, applyResolvedEmitterFields]);
 
   const applyTemplateProfile = (profileIdRaw: string) => {
     const profileId = String(profileIdRaw || "").trim();
@@ -321,35 +380,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       return;
     }
 
-    const profilePayment = String(profile.defaults?.paymentMethod || "").trim();
-    if (profilePayment) {
-      form.setValue("paymentMethod", profilePayment, { shouldDirty: true, shouldValidate: true });
-    }
-
-    const profileBank = String(profile.business?.bankAccount || "").trim();
-    if (profileBank) {
-      form.setValue("bankAccount", profileBank, { shouldDirty: true, shouldValidate: true });
-    }
-
-    const profileLayout = String(profile.design?.layout || "").trim();
-    if (profileLayout) {
-      form.setValue("templateLayout", profileLayout, { shouldDirty: true, shouldValidate: true });
-    }
-
-    const profileTaxRate = Number(profile.defaults?.taxRate);
-    if (Number.isFinite(profileTaxRate)) {
-      form.setValue("taxRate", profileTaxRate, { shouldDirty: true, shouldValidate: true });
-    }
-
-    const profileWithholding = Number(profile.defaults?.withholdingRate);
-    const validWithholding = profileWithholding === 15 || profileWithholding === 19 || profileWithholding === 21;
-    if (validWithholding) {
-      form.setValue("withholdingRate", profileWithholding, { shouldDirty: true, shouldValidate: true });
-      setWithoutWithholding(false);
-    } else {
-      form.setValue("withholdingRate", "", { shouldDirty: true, shouldValidate: true });
-      setWithoutWithholding(true);
-    }
+    const resolved = resolveEmitterFieldsFromTemplateProfile(profile, configQuery.data?.defaults);
+    applyResolvedEmitterFields(resolved, { dirty: true, fillMode: "overwrite_from_template" });
   };
 
   const applyWithholdingMode = (mode: "sin_irpf" | "irpf_15" | "irpf_19" | "irpf_21") => {
@@ -505,26 +537,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     }
     bootstrappedTemplateProfileRef.current = safeProfileId;
     form.setValue("templateProfileId", safeProfileId, { shouldDirty: false, shouldValidate: true });
-    const profilePayment = String(profile.defaults?.paymentMethod || "").trim();
-    if (profilePayment) {
-      form.setValue("paymentMethod", profilePayment, { shouldDirty: false, shouldValidate: true });
-    }
-    const profileBank = String(profile.business?.bankAccount || "").trim();
-    if (profileBank) {
-      form.setValue("bankAccount", profileBank, { shouldDirty: false, shouldValidate: true });
-    }
-    const profileLayout = String(profile.design?.layout || "").trim();
-    if (profileLayout) {
-      form.setValue("templateLayout", profileLayout, { shouldDirty: false, shouldValidate: true });
-    }
-    const profileTaxRate = Number(profile.defaults?.taxRate);
-    if (Number.isFinite(profileTaxRate)) {
-      form.setValue("taxRate", profileTaxRate, { shouldDirty: false, shouldValidate: true });
-    }
-    const profileWithholding = Number(profile.defaults?.withholdingRate);
-    const validWithholding = profileWithholding === 15 || profileWithholding === 19 || profileWithholding === 21;
-    form.setValue("withholdingRate", validWithholding ? profileWithholding : "", { shouldDirty: false, shouldValidate: true });
-  }, [initialTemplateProfileId, configQuery.data, serverRecordId, form]);
+    const resolved = resolveEmitterFieldsFromTemplateProfile(profile, configQuery.data.defaults);
+    applyResolvedEmitterFields(resolved, { dirty: false, fillMode: "overwrite_from_template" });
+  }, [initialTemplateProfileId, configQuery.data, serverRecordId, form, applyResolvedEmitterFields]);
 
   const replaceClientData = (selected: (typeof clientOptions)[number]["client"]) => {
     form.setValue("client.name", selected.name || "", { shouldDirty: true, shouldValidate: true });
@@ -620,6 +635,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     itemsArray,
     profileOptions,
     selectedProfile,
+    templateEmitterResolved,
     activeTemplateProfileId,
     applyTemplateProfile,
     taxValidation,

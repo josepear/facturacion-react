@@ -79,6 +79,8 @@ export type TemplateProfileConfig = {
     withholdingRate?: number;
     /** Moneda por defecto (p. ej. EUR), alineado con legacy `defaultCurrency`. */
     currency?: string;
+    /** Serie por defecto para numeración si el backend la publica en el perfil. */
+    series?: string;
   };
   business?: {
     brand?: string;
@@ -123,6 +125,8 @@ export type ConfigResponse = {
     taxRate?: number;
     withholdingRate?: number;
     currency?: string;
+    /** Serie por defecto a nivel tenant si el backend la publica. */
+    series?: string;
   };
   templateProfiles?: TemplateProfileConfig[];
 };

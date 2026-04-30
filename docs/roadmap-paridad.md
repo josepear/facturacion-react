@@ -44,13 +44,15 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
   - [x] búsqueda mejorada
   - [x] limpiar filtros
   - [x] selección rápida con más contexto (tipo, importe, fecha)
+- [x] **Plantilla → documento (primer anillo de emisor):** al cambiar perfil, al hidratar `?templateProfileId=` y al rellenar solo huecos del borrador nuevo, los campos **forma de pago**, **IGIC (`taxRate`)**, **IRPF (`withholdingRate`)**, **cuenta (`bankAccount`)**, **layout (`templateLayout`)** y **`series`** (si `defaults.series` existe en perfil o en `config.defaults`) se resuelven con **una sola regla de merge en código**: por cada clave fiscal/texto, valor del **perfil** si viene informado; si no, **`defaults` globales** de `GET /api/config` (`paymentMethod`, `taxRate`, `withholdingRate`, `series`). Cuenta y layout solo desde perfil. **`currency`** del merge se muestra en contexto UI (el modelo `InvoiceDocument` actual no persiste moneda). Sin tocar cliente, líneas ni número de factura.
+- [x] **`tenantId` del documento y plantilla:** si `templateProfiles[].tenantId` viene en el JSON de config, al aplicar plantilla (cambio explícito o misma ruta unificada que el primer anillo) se copia a **`tenantId`** del borrador; si no viene, no se fuerza valor inventado. En Facturar, bloque **solo lectura** con etiqueta/id/**tag numeración**/**`colorKey`** del perfil efectivo, **resumen de defaults efectivos** (misma función de merge que el formulario), **moneda de config** si existe, y **serie actual del documento** frente a la serie sugerida por capa merge.
 
 ### Parcial
 
-- [ ] (parcial) `applyTemplateProfile` alineado al 100% con defaults del legacy.
-- [ ] (parcial) Metadatos de perfil en solo lectura: confirmar si legacy muestra más contexto.
+- [ ] (parcial) **Más allá del primer anillo al cambiar perfil:** si el legacy rellena otros campos (p. ej. textos legales u otros metadatos no expuestos aún en `/api/config`) al elegir plantilla, falta inventario + checklist manual en prod.
+- [ ] (parcial) Metadatos de perfil en solo lectura: comparar con legacy (orden, etiquetas, campos extra); React ya muestra contexto mínimo + capa merge.
 - [ ] (parcial) `paymentMethod`: confirmar si debe ser catálogo cerrado.
-- [ ] (parcial) `series`: confirmar obligatoriedad/regla exacta.
+- [ ] (parcial) `series`: obligatoriedad/regla exacta frente a legacy (React solo aplica **default** desde JSON si existe; no exige serie en Zod).
 - [ ] (parcial) `accounting.paymentDate`: expuesto y con round-trip, pero sin regla estricta confirmada.
 - [ ] (parcial) `accounting.quarter`: expuesto y persistente, pendiente validación de formato/regla.
 - [ ] (parcial) `accounting.invoiceId`: expuesto y persistente, pendiente validación de formato/regla.
