@@ -1,14 +1,15 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SettingsPage } from "@/features/settings/pages/SettingsPage";
 import { ApiError } from "@/infrastructure/api/httpClient";
 
-const { fetchRuntimeConfigMock, saveTemplateProfilesConfigMock, navigateMock } = vi.hoisted(() => ({
+const { fetchRuntimeConfigMock, saveTemplateProfilesConfigMock, navigateMock, searchState } = vi.hoisted(() => ({
   fetchRuntimeConfigMock: vi.fn(),
   saveTemplateProfilesConfigMock: vi.fn(),
   navigateMock: vi.fn(),
+  searchState: { query: "" },
 }));
 
 vi.mock("react-router-dom", async () => {
@@ -16,6 +17,13 @@ vi.mock("react-router-dom", async () => {
   return {
     ...actual,
     useNavigate: () => navigateMock,
+    useSearchParams: () => {
+      const params = new URLSearchParams(searchState.query);
+      const setSearchParams = (next: URLSearchParams) => {
+        searchState.query = next.toString();
+      };
+      return [params, setSearchParams];
+    },
   };
 });
 
@@ -25,6 +33,10 @@ vi.mock("@/infrastructure/api/documentsApi", () => ({
 }));
 
 describe("SettingsPage regression", () => {
+  beforeEach(() => {
+    searchState.query = "";
+  });
+
   it("loads and saves active profile/defaults for admin", async () => {
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
@@ -54,6 +66,8 @@ describe("SettingsPage regression", () => {
     await screen.findByText("Perfil activo (servidor)");
 
     await userEvent.selectOptions(screen.getByLabelText("Plantilla de emisor"), "perfil-2");
+    expect(searchState.query).toContain("templateProfileId=perfil-2");
+    expect(screen.getByText(/Cambios locales pendientes de guardar/)).toBeTruthy();
     const paymentInput = screen.getByPlaceholderText("Transferencia bancaria");
     await userEvent.clear(paymentInput);
     await userEvent.type(paymentInput, "Bizum");
@@ -96,6 +110,38 @@ describe("SettingsPage regression", () => {
     expect(alert.textContent).toContain("No autorizado");
     expect(alert.textContent).toContain("Modo solo lectura");
     expect(screen.queryByText("Perfil activo (servidor)")).toBeNull();
+  });
+
+  it("selects profile from templateProfileId in URL after config loads", async () => {
+    searchState.query = "templateProfileId=perfil-2";
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-1",
+      currentUser: { role: "admin", tenantId: "default" },
+      defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
+      templateProfiles: [
+        {
+          id: "perfil-1",
+          label: "Perfil 1",
+          defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
+          business: { bankAccount: "ES11", brand: "Brand 1" },
+          design: { layout: "pear" },
+        },
+        {
+          id: "perfil-2",
+          label: "Perfil 2",
+          defaults: { paymentMethod: "Tarjeta", taxRate: 0, withholdingRate: 0 },
+          business: { bankAccount: "ES22", brand: "Brand 2" },
+          design: { layout: "editorial" },
+        },
+      ],
+    });
+
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Plantilla de emisor") as HTMLSelectElement).value).toBe("perfil-2");
+    });
+    expect(screen.getByText(/Cambios locales pendientes de guardar/)).toBeTruthy();
   });
 });
 

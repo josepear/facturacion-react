@@ -100,7 +100,7 @@
 
 **Legacy (referencia producción):** ajuste de perfiles de emisor, perfil activo, defaults fiscales y datos de negocio visibles en facturación.
 
-**React actual:** `SettingsPage`: lectura `GET /api/config`, persistencia `POST /api/template-profiles`, selección de perfil activo y edición de campos principales del perfil; no-admin en solo lectura para guardar.
+**React actual:** `SettingsPage`: lectura `GET /api/config`, persistencia `POST /api/template-profiles`, selección de perfil activo y edición de campos principales del perfil; no-admin en solo lectura para guardar; distinción UI entre último perfil activo **guardado en servidor** y selección/borrador local; aviso de cambios pendientes de guardar; sincronización de perfil en URL vía `templateProfileId` (misma clave que Facturar) en `/configuracion`.
 
 | legacy (referencia) | React actual | Brecha exacta | Implementación para cerrar | Verificación de cierre | Estado |
 | --- | --- | --- | --- | --- | --- |
