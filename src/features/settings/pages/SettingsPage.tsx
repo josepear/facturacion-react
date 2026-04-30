@@ -49,6 +49,35 @@ function buildClientProfileId(label: string, usedIds: Set<string>): string {
   return nextId;
 }
 
+/** Prefijo de numeración único (3–5 letras), alineado con validación legacy del servidor. */
+function suggestUniqueInvoiceNumberTag(newProfileId: string, existingProfiles: TemplateProfileConfig[]): string {
+  const taken = new Set(
+    existingProfiles.map((p) => String(p.invoiceNumberTag || "").trim().toUpperCase()).filter(Boolean),
+  );
+  const lettersOnly = newProfileId.replace(/[^A-Za-z]/g, "").toUpperCase();
+  let base = lettersOnly.length >= 3 ? lettersOnly.slice(0, 5) : `${lettersOnly}NEW`.replace(/[^A-Z]/g, "").slice(0, 5);
+  if (base.length < 3) {
+    base = "USR";
+  }
+  base = base.slice(0, 5);
+  for (let len = Math.min(5, base.length); len >= 3; len -= 1) {
+    const candidate = base.slice(0, len);
+    if (!taken.has(candidate)) {
+      return candidate;
+    }
+  }
+  const alphabet = "ABCDEFGHJKLMNOPQRSTUVWXYZ";
+  for (let i = 0; i < 26 * 26 * 8; i += 1) {
+    const a = alphabet[i % 26] ?? "X";
+    const b = alphabet[Math.floor(i / 26) % 26] ?? "X";
+    const candidate = `${base.slice(0, 3)}${a}${b}`.slice(0, 5);
+    if (!taken.has(candidate)) {
+      return candidate;
+    }
+  }
+  return `${base.slice(0, 2)}ZZZ`.slice(0, 5);
+}
+
 /** Igual que legacy `getNextProfileColorKey()` (menos usado primero). */
 function getNextProfileColorKey(list: TemplateProfileConfig[]): (typeof PROFILE_COLOR_KEYS)[number] {
   const counts = new Map<(typeof PROFILE_COLOR_KEYS)[number], number>(PROFILE_COLOR_KEYS.map((k) => [k, 0]));
@@ -255,8 +284,8 @@ export function SettingsPage() {
     if (configQuery.isLoading || !configQuery.data || !urlTemplateProfileId) {
       return;
     }
-    const list = configQuery.data.templateProfiles ?? [];
-    if (!list.some((p) => p.id === urlTemplateProfileId)) {
+    /** Incluye `profileListOverride` (perfiles solo en memoria), no solo el último JSON del servidor. */
+    if (!profiles.some((p) => p.id === urlTemplateProfileId)) {
       return;
     }
     const timeoutId = globalThis.setTimeout(() => {
@@ -266,7 +295,7 @@ export function SettingsPage() {
     return () => {
       globalThis.clearTimeout(timeoutId);
     };
-  }, [configQuery.data, configQuery.isLoading, urlTemplateProfileId]);
+  }, [configQuery.data, configQuery.isLoading, urlTemplateProfileId, profiles]);
 
   const editingProfile = useMemo(() => {
     if (!effectiveEditingProfileId) {
@@ -380,14 +409,17 @@ export function SettingsPage() {
     if (!canEdit) {
       return;
     }
-    const source =
+    const sourceBase =
       profiles.find((p) => p.id === newProfileSourceId)
       || profiles.find((p) => p.id === effectiveActiveProfileId)
       || profiles.find((p) => p.id === effectiveEditingProfileId)
       || profiles[0];
-    if (!source) {
+    if (!sourceBase) {
       return;
     }
+    /** Copiar lo que el usuario ve en el formulario del origen, no solo el objeto servidor sin borrador. */
+    const sourceDraft = draftByProfileId[sourceBase.id];
+    const source = sourceDraft ? mergeProfileWithDraft(sourceBase, sourceDraft) : sourceBase;
     const nextLabel = String(newProfileLabelDraft || "").trim();
     if (!nextLabel) {
       setStatusMessage("Indica un nombre para el nuevo perfil.");
@@ -397,15 +429,17 @@ export function SettingsPage() {
     const used = new Set(profiles.map((p) => p.id));
     const newId = buildClientProfileId(nextLabel, used);
     const clone = JSON.parse(JSON.stringify(source)) as TemplateProfileConfig;
+    const invoiceNumberTag = suggestUniqueInvoiceNumberTag(newId, profiles);
     const nextProfile: TemplateProfileConfig = {
       ...clone,
       id: newId,
       label: nextLabel,
       colorKey: getNextProfileColorKey(profiles),
+      invoiceNumberTag,
     };
-    setProfileListOverride([...profiles, nextProfile]);
+    const nextList = [...profiles, nextProfile];
+    setProfileListOverride(nextList);
     syncLauncherSelection(newId);
-    setDraftByProfileId({});
     setIsCreatingProfile(false);
     setNewProfileLabelDraft("");
     setNewProfileSourceId("");

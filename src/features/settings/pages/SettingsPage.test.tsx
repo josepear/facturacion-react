@@ -193,7 +193,55 @@ describe("SettingsPage regression", () => {
       expect(saveTemplateProfilesConfigMock).toHaveBeenCalledTimes(1);
     });
     const payload = saveTemplateProfilesConfigMock.mock.calls[0]?.[0];
-    expect(payload.templateProfiles.some((profile: { id: string; label?: string }) => profile.id === "perfil-nuevo" && profile.label === "Perfil Nuevo")).toBe(true);
+    const nuevo = payload.templateProfiles.find(
+      (profile: { id: string; label?: string }) => profile.id === "perfil-nuevo" && profile.label === "Perfil Nuevo",
+    );
+    expect(nuevo).toBeTruthy();
+    expect(nuevo.invoiceNumberTag).not.toBe("P1");
+    expect(nuevo.invoiceNumberTag).toBe("PERFI");
+  });
+
+  it("clones profile using merged draft (not stale server fields) and does not reuse source invoiceNumberTag", async () => {
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-1",
+      defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
+      templateProfiles: [
+        {
+          id: "perfil-1",
+          label: "Perfil 1",
+          invoiceNumberTag: "P1",
+          defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
+          business: { bankAccount: "ES11", brand: "Brand 1" },
+          design: { layout: "pear" },
+          colorKey: "teal",
+        },
+      ],
+    });
+    saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
+
+    render(<SettingsPage />);
+    await screen.findByText("Perfil activo (servidor)");
+
+    const paymentInput = screen.getByPlaceholderText("Transferencia bancaria");
+    await userEvent.clear(paymentInput);
+    await userEvent.type(paymentInput, "Bizum");
+
+    await userEvent.click(screen.getByRole("button", { name: "Nuevo usuario" }));
+    await screen.findByLabelText("Nombre del nuevo perfil");
+    await userEvent.click(screen.getByRole("button", { name: "Crear perfil" }));
+
+    expect((screen.getByLabelText("Plantilla de emisor") as HTMLSelectElement).value).toBe("perfil-1-copia");
+    expect((screen.getByPlaceholderText("Transferencia bancaria") as HTMLInputElement).value).toBe("Bizum");
+
+    await userEvent.click(screen.getByRole("button", { name: "Guardar datos del emisor" }));
+    await waitFor(() => {
+      expect(saveTemplateProfilesConfigMock).toHaveBeenCalledTimes(1);
+    });
+    const payload = saveTemplateProfilesConfigMock.mock.calls[0]?.[0];
+    const copia = payload.templateProfiles.find((p: { id: string }) => p.id === "perfil-1-copia");
+    expect(copia?.defaults?.paymentMethod).toBe("Bizum");
+    expect(copia?.invoiceNumberTag).not.toBe("P1");
+    expect(copia?.invoiceNumberTag).toBe("PERFI");
   });
 });
 
