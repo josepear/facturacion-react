@@ -41,7 +41,7 @@
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `issueDate` (fecha factura) | Obligatoria según política | `type="date"` | Validar obligatoriedad vs backend/legacy | Zod o validación previa a POST | Error claro si falta | **parcial** | P1 |
-| `operationDate` | Fecha de operación / devengo si aplica | `type="date"` en «Más campos del gasto» | «validar en legacy» obligatoriedad | — | Igual que legacy | **parcial** | P1 |
+| `operationDate` | Fecha de operación / devengo si aplica | `type="date"` en «Más campos del gasto» + lectura en listado cuando viene informado | «validar en legacy» obligatoriedad | — | Igual que legacy | **parcial** | P1 |
 
 ---
 
@@ -54,6 +54,14 @@
 
 ---
 
+## 5.1. Forma de pago
+
+| Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `paymentMethod` | Forma de pago informativa/operativa | Input en edición + lectura en listado cuando viene informada | Validar catálogo estricto solo si legacy/backend lo exige | — | Guardar/recargar conserva valor y se ve en lista | **parcial** | P1 |
+
+---
+
 ## 6. Subtotal / impuestos / retención / total
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
@@ -62,6 +70,7 @@
 | `taxRate` / `taxAmount` | IGIC u otro | Input %; `taxAmount` recalculado en `normalizeExpenseDraft` (no editable directo) | Si legacy permite importe impuesto manual | Campo o reglas explícitas | Mismo redondeo que prod | **parcial** | P1 |
 | `withholdingRate` / `withholdingAmount` | IRPF retención | Input %; importe derivado en normalización | Validar % permitidos vs legacy (catálogo) | Restringir como Facturar si aplica | — | **parcial** | P1 |
 | `total` | Resultado | Solo lectura en UI (derivado) | Si legacy permite editar total manual | — | — | **parcial** | P2 |
+| `deductible` | Marcado deducible/no deducible | Select en edición + lectura en listado (`Deducible` / `No deducible`) | Sin brecha funcional en contrato actual | — | Guardar/recargar mantiene estado y lectura visible | **parcial** | P1 |
 
 ---
 
@@ -78,8 +87,9 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Filtro por año | Por ejercicio | `yearFilter` vs `item.year` de `GET /api/expenses` | Si legacy filtra por más criterios | Ampliar filtros | — | **parcial** | P2 |
-| Búsqueda texto | Proveedor, etc. | Término en vendor, description, category, invoiceNumber, recordId | Cobertura distinta a legacy | Ajustar campos indexados | Mismos hallazgos | **parcial** | P2 |
+| Filtro por año | Por ejercicio | `yearFilter` vs `item.year` de `GET /api/expenses` + contador `mostrando N de M` + acción `Limpiar filtros` | Si legacy filtra por más criterios | Ampliar filtros | — | **parcial** | P2 |
+| Filtro por perfil | Si legacy discrimina por perfil emisor | Select de perfil en listado (`all` / por defecto / perfil concreto) usando `templateProfileId` cargado | Validar equivalencia exacta con filtros legacy | Ajustar copy o combinaciones según checklist manual | Cambiar perfil reduce listado de forma coherente | **parcial** | P2 |
+| Búsqueda texto | Proveedor, etc. | Término en vendor, description, category, invoiceNumber, recordId, paymentMethod y quarter + limpieza rápida de filtros | Cobertura distinta a legacy | Ajustar campos indexados | Mismos hallazgos | **parcial** | P2 |
 
 ---
 
@@ -97,7 +107,8 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Cargar gasto existente | Abrir por id / lista | Click en listado → `setDraft(normalizeExpenseDraft(item))` | Sin URL profunda `?recordId=` como Facturar | Deep link opcional | Bookmark/share igual que legacy | **pendiente** | P2 |
+| Cargar gasto existente | Abrir por id / lista | Click en listado → `setDraft(normalizeExpenseDraft(item))` + soporte `?recordId=` en URL para carga automática | Aún sin navegación cruzada desde otros módulos | Deep link desde Historial/otras pantallas si aplica | Bookmark/share carga el gasto cuando existe | **parcial** | P2 |
+| Persistencia de contexto de listado | Reabrir pantalla manteniendo filtros operativos | Sincroniza filtros en query string (`q`, `year`, `profile`) para mantener contexto al recargar/compartir URL | Validar si legacy persiste contexto igual | Ajustar solo si produce fricción | Recargar mantiene filtros y subconjunto visible | **parcial** | P2 |
 | Guardar create vs update | Distinción clara | `saveExpense` con `recordId` opcional; mensaje created/updated | — | — | Respuesta API coherente | **cerrado** | P1 |
 
 ---
@@ -132,13 +143,15 @@
 
 | Campo | En UI React | Estado matriz | Pri. |
 | --- | --- | --- | --- |
-| `operationDate` | Sí («Más campos del gasto») | **parcial** | P1 |
+| `operationDate` | Sí («Más campos del gasto») + lectura en listado cuando viene informada | **parcial** | P1 |
 | `taxIdType` | Sí («Más campos del gasto») | **parcial** | P2 |
 | `taxCountryCode` | Sí («Más campos del gasto») | **parcial** | P2 |
 | `invoiceNumberEnd` | Sí | **parcial** | P1 |
 | `expenseConcept` | Sí | **parcial** | P2 |
-| `quarter` | Sí (texto libre) | **parcial** | P1 |
+| `quarter` | Sí (texto libre en edición + lectura en listado cuando viene informado) | **parcial** | P1 |
 | `nextcloudUrl` | Sí (`type="url"`) | **parcial** | P1 |
+| `paymentMethod` | Sí (input en edición + lectura en listado cuando viene informado) | **parcial** | P1 |
+| `deductible` | Sí (select en edición + lectura en listado) | **parcial** | P1 |
 | `year` | Sí (solo lectura cuando el registro trae `year` del API) | **parcial** | P2 |
 | `tenantId`, `savedAt`, `updatedAt`, `id` | No (metadatos / servidor) | **parcial** (solo si legacy los edita) | P2 |
 

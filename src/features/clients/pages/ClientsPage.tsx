@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
@@ -40,16 +41,31 @@ function normalizeClientDraft(client: ClientRecord): ClientRecord {
 
 export function ClientsPage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialRecordId = String(searchParams.get("recordId") || "").trim();
+  const initialSearchTerm = String(searchParams.get("q") || "").trim();
+
   const clientsQuery = useQuery({
     queryKey: ["clients"],
     queryFn: fetchClients,
   });
 
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [selectedRecordId, setSelectedRecordId] = useState("");
   const [draft, setDraft] = useState<ClientRecord>(createEmptyClient());
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
+
+  const setRecordIdSearchParam = (recordId: string) => {
+    const next = new URLSearchParams(searchParams);
+    const safe = String(recordId || "").trim();
+    if (safe) {
+      next.set("recordId", safe);
+    } else {
+      next.delete("recordId");
+    }
+    setSearchParams(next, { replace: true });
+  };
 
   const filteredClients = useMemo(() => {
     const term = String(searchTerm || "").trim().toLowerCase();
@@ -61,9 +77,56 @@ export function ClientsPage() {
       const name = String(client.name || "").toLowerCase();
       const taxId = String(client.taxId || "").toLowerCase();
       const email = String(client.email || "").toLowerCase();
-      return name.includes(term) || taxId.includes(term) || email.includes(term);
+      const contactPerson = String(client.contactPerson || "").toLowerCase();
+      const city = String(client.city || "").toLowerCase();
+      const province = String(client.province || "").toLowerCase();
+      const recordId = String(client.recordId || "").toLowerCase();
+      return (
+        name.includes(term)
+        || taxId.includes(term)
+        || email.includes(term)
+        || contactPerson.includes(term)
+        || city.includes(term)
+        || province.includes(term)
+        || recordId.includes(term)
+      );
     });
   }, [clientsQuery.data, searchTerm]);
+
+  const allClients = useMemo(() => clientsQuery.data ?? [], [clientsQuery.data]);
+  const hasSearchFilter = Boolean(String(searchTerm || "").trim());
+
+  useEffect(() => {
+    if (!initialRecordId || selectedRecordId || !allClients.length) {
+      return;
+    }
+    const target = allClients.find((client) => String(client.recordId || "").trim() === initialRecordId);
+    if (!target) {
+      return;
+    }
+    const timeoutId = globalThis.setTimeout(() => {
+      setSelectedRecordId(initialRecordId);
+      setDraft(normalizeClientDraft(target));
+      setStatusMessage("Cliente cargado desde URL.");
+      setStatusTone("neutral");
+    }, 0);
+    return () => {
+      globalThis.clearTimeout(timeoutId);
+    };
+  }, [allClients, initialRecordId, selectedRecordId]);
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    const safeSearch = String(searchTerm || "").trim();
+    if (safeSearch) {
+      next.set("q", safeSearch);
+    } else {
+      next.delete("q");
+    }
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, searchTerm, setSearchParams]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -81,6 +144,7 @@ export function ClientsPage() {
       const nextRecordId = String(savedClient.recordId || "").trim();
       if (nextRecordId) {
         setSelectedRecordId(nextRecordId);
+        setRecordIdSearchParam(nextRecordId);
       }
       setDraft(normalizeClientDraft(savedClient));
       setStatusMessage("Cliente guardado.");
@@ -109,22 +173,42 @@ export function ClientsPage() {
           </CardHeader>
           <CardContent className="grid gap-3">
             <Input
-              placeholder="Buscar por nombre, NIF/CIF o email"
+              placeholder="Buscar por nombre, NIF/CIF, email, contacto, ciudad o recordId"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
             />
+            {hasSearchFilter ? (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setSearchTerm("");
+                  }}
+                >
+                  Limpiar búsqueda
+                </Button>
+              </div>
+            ) : null}
             <Button
               type="button"
               variant="outline"
               onClick={() => {
                 setSelectedRecordId("");
                 setDraft(createEmptyClient());
+                setRecordIdSearchParam("");
                 setStatusMessage("Nuevo cliente.");
                 setStatusTone("neutral");
               }}
             >
               Nuevo cliente
             </Button>
+            {!clientsQuery.isLoading && allClients.length ? (
+              <p className="text-xs text-muted-foreground">
+                Mostrando {filteredClients.length} de {allClients.length}
+                {hasSearchFilter ? " (filtro activo)" : ""}
+              </p>
+            ) : null}
             <div className="max-h-[480px] overflow-auto rounded-md border">
               {clientsQuery.isLoading ? (
                 <p className="p-3 text-sm text-muted-foreground">Cargando clientes...</p>
@@ -141,7 +225,9 @@ export function ClientsPage() {
                             isActive ? "bg-primary text-primary-foreground" : "hover:bg-accent",
                           )}
                           onClick={() => {
-                            setSelectedRecordId(String(client.recordId || ""));
+                            const nextId = String(client.recordId || "");
+                            setSelectedRecordId(nextId);
+                            setRecordIdSearchParam(nextId);
                             setDraft(normalizeClientDraft(client));
                             setStatusMessage("Cliente cargado para edición.");
                             setStatusTone("neutral");
@@ -151,6 +237,21 @@ export function ClientsPage() {
                           <p className={cn("text-xs", isActive ? "text-primary-foreground/85" : "text-muted-foreground")}>
                             {client.taxId || "Sin NIF/CIF"}
                           </p>
+                          {String(client.email || "").trim() ? (
+                            <p className={cn("text-xs", isActive ? "text-primary-foreground/85" : "text-muted-foreground")}>
+                              {String(client.email).trim()}
+                            </p>
+                          ) : null}
+                          {String(client.contactPerson || "").trim() ? (
+                            <p className={cn("text-xs", isActive ? "text-primary-foreground/85" : "text-muted-foreground")}>
+                              Contacto: {String(client.contactPerson).trim()}
+                            </p>
+                          ) : null}
+                          {(String(client.city || "").trim() || String(client.province || "").trim()) ? (
+                            <p className={cn("text-xs", isActive ? "text-primary-foreground/85" : "text-muted-foreground")}>
+                              {[String(client.city || "").trim(), String(client.province || "").trim()].filter(Boolean).join(" · ")}
+                            </p>
+                          ) : null}
                         </button>
                       </li>
                     );
@@ -169,6 +270,11 @@ export function ClientsPage() {
             <CardDescription>Edición mínima operativa con el mismo modelo que consume Facturar.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
+            {selectedRecordId ? (
+              <p className="sm:col-span-2 text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">recordId (Facturar / API):</span> {selectedRecordId}
+              </p>
+            ) : null}
             <Field label="Nombre o razón social">
               <Input value={draft.name || ""} onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))} />
             </Field>
@@ -223,6 +329,7 @@ export function ClientsPage() {
                   onClick={() => {
                     setSelectedRecordId("");
                     setDraft(createEmptyClient());
+                    setRecordIdSearchParam("");
                     setStatusMessage("Nuevo cliente.");
                     setStatusTone("neutral");
                   }}

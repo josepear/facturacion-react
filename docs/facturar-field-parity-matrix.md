@@ -162,7 +162,7 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Listado recientes | Lista documentos recientes | `GET /api/history`; últimos 40 ordenados; búsqueda texto | Límite 40 vs legacy ilimitado/paginado | Paginación o «cargar más» | Usuario encuentra mismo doc que legacy | **parcial** | P1 |
+| Listado recientes | Lista documentos recientes | `GET /api/history`; últimos 40 ordenados; búsqueda texto + filtros por ejercicio y tipo + selector con contexto (tipo/importe) | Límite 40 vs legacy ilimitado/paginado | Paginación o «cargar más» | Usuario encuentra mismo doc que legacy | **parcial** | P1 |
 | Cargar desde select | Abre en editor | `loadBySelectedHistory` | — | — | — | **cerrado** | P1 |
 
 ---
@@ -182,9 +182,9 @@
 
 | Acción | Legacy (ref.; validar) | React (`HistoryPage`) | Brecha exacta | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- |
-| Localizar documento | Listado + filtros/búsqueda según legacy | Lista `GET /api/history` + **tipo** (todos/factura/presupuesto) + **ejercicio** (`issueDate` YYYY) + texto (número, cliente, recordId, etiqueta/código tipo); conteo N/M; error de API explícito | Filtro por estado contable, perfil, rangos de fecha u otros criterios legacy sin contrato en `GET /api/history` | Encontrar doc con mismos criterios que en legacy cuando aplique | **parcial** | P1 |
+| Localizar documento | Listado + filtros/búsqueda según legacy | Lista `GET /api/history` + **tipo** (todos/factura/presupuesto) + **ejercicio** (`issueDate` YYYY) + texto (número, cliente, recordId, etiqueta/código tipo); conteo N/M; limpieza de filtros visible y persistencia de filtros en URL (`q`, `type`, `year`) | Filtro por estado contable, perfil, rangos de fecha u otros criterios legacy sin contrato en `GET /api/history` | Encontrar doc con mismos criterios que en legacy cuando aplique | **parcial** | P1 |
 | Estado contable en detalle | Suele visible al revisar documento en legacy | Panel «Documento abierto» muestra `accounting.status` del detalle (`GET /api/documents/detail`) con etiqueta legible (solo lectura) | Filtro por estado en listado sigue sin contrato | Abrir documento y comprobar coherencia con Facturar | **cerrado** | P1 |
-| Selección clara | Resaltado fila / contexto | Resaltado + `recordId` en cabecera del panel; aviso si la fila no está en lista filtrada | — | — | **cerrado** | P1 |
+| Selección clara | Resaltado fila / contexto | Resaltado + `recordId` en cabecera del panel; aviso si la fila no está en lista filtrada; deep link por `recordId` en URL para reabrir selección | — | Abrir `/historial?recordId=...` carga el detalle de ese documento si existe | **cerrado** | P1 |
 | Abrir en Facturar | Navegación a edición con id | `navigate` a `/facturar?recordId=` y `templateProfileId` si viene en el documento | Ninguna obvia | Editar y guardar como en flujo Facturar | **cerrado** | P0 |
 | HTML/PDF oficial | Abrir render y PDF para el id | Mismo helper `openOfficialDocumentInNewTab` que Facturar | — | Éxito o mensaje claro | **cerrado** | P0 |
 

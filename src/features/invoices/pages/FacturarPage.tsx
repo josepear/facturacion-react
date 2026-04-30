@@ -66,20 +66,29 @@ export function FacturarPage() {
   const taxRateWatched = watch("taxRate");
   const withholdingRateWatched = watch("withholdingRate");
   const [historyYearFilter, setHistoryYearFilter] = useState("");
+  const [historyTypeFilter, setHistoryTypeFilter] = useState("");
 
   const historyYearOptions = useMemo(() => {
     const years = new Set(
       historyOptions
-        .map((o) => String(o.label.split("·").pop() || "").trim().slice(0, 4))
+        .map((o) => String(o.issueDate || "").trim().slice(0, 4))
         .filter((y) => /^\d{4}$/.test(y))
     );
     return Array.from(years).sort((a, b) => b.localeCompare(a));
   }, [historyOptions]);
 
   const yearFilteredHistoryOptions = useMemo(() => {
-    if (!historyYearFilter) return filteredHistoryOptions;
-    return filteredHistoryOptions.filter((o) => o.label.includes(historyYearFilter));
-  }, [filteredHistoryOptions, historyYearFilter]);
+    return filteredHistoryOptions.filter((option) => {
+      if (historyYearFilter && !String(option.issueDate || "").startsWith(historyYearFilter)) {
+        return false;
+      }
+      if (historyTypeFilter && option.type !== historyTypeFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [filteredHistoryOptions, historyTypeFilter, historyYearFilter]);
+  const hasHistoryFilters = Boolean(historyYearFilter || historyTypeFilter || historySearchTerm.trim());
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
@@ -273,7 +282,7 @@ export function FacturarPage() {
             help={workflowChecklist.history.tip}
           >
             <div className="grid gap-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-3">
                 <Field label="Ejercicio">
                   <select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -286,14 +295,41 @@ export function FacturarPage() {
                     ))}
                   </select>
                 </Field>
+                <Field label="Tipo">
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={historyTypeFilter}
+                    onChange={(event) => setHistoryTypeFilter(event.target.value)}
+                  >
+                    <option value="">Todos los tipos</option>
+                    <option value="factura">Factura</option>
+                    <option value="presupuesto">Presupuesto</option>
+                  </select>
+                </Field>
                 <Field label="Buscar documento">
                   <Input
-                    placeholder="Número, cliente o recordId"
+                    placeholder="Número, cliente, tipo o recordId"
                     value={historySearchTerm}
                     onChange={(event) => setHistorySearchTerm(event.target.value)}
                   />
                 </Field>
               </div>
+              {hasHistoryFilters ? (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setHistoryYearFilter("");
+                      setHistoryTypeFilter("");
+                      setHistorySearchTerm("");
+                    }}
+                  >
+                    Limpiar filtros histórico
+                  </Button>
+                </div>
+              ) : null}
               <Field label="Selección rápida (histórico)">
                 <div className="flex gap-2">
                   <select

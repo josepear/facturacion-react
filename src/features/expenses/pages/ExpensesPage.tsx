@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
@@ -76,9 +77,15 @@ function normalizeExpenseDraft(expense: ExpenseRecord): ExpenseRecord {
 }
 
 export function ExpensesPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialRecordId = String(searchParams.get("recordId") || "").trim();
+  const initialSearchTerm = String(searchParams.get("q") || "").trim();
+  const initialYearFilter = String(searchParams.get("year") || "all").trim() || "all";
+  const initialProfileFilter = String(searchParams.get("profile") || "all").trim() || "all";
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [yearFilter, setYearFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [yearFilter, setYearFilter] = useState(initialYearFilter);
+  const [profileFilter, setProfileFilter] = useState(initialProfileFilter);
   const [selectedRecordId, setSelectedRecordId] = useState("");
   const [archiveYear, setArchiveYear] = useState("");
   const [archiveProfileId, setArchiveProfileId] = useState("");
@@ -123,6 +130,16 @@ export function ExpensesPage() {
       if (yearFilter !== "all" && String(item.year || "").trim() !== yearFilter) {
         return false;
       }
+      if (profileFilter !== "all") {
+        const itemProfileId = String(item.templateProfileId || "").trim();
+        if (profileFilter === "__default__") {
+          if (itemProfileId) {
+            return false;
+          }
+        } else if (itemProfileId !== profileFilter) {
+          return false;
+        }
+      }
       if (!term) {
         return true;
       }
@@ -131,15 +148,29 @@ export function ExpensesPage() {
       const category = String(item.category || "").toLowerCase();
       const invoiceNumber = String(item.invoiceNumber || "").toLowerCase();
       const recordId = String(item.recordId || "").toLowerCase();
+      const paymentMethod = String(item.paymentMethod || "").toLowerCase();
+      const quarter = String(item.quarter || "").toLowerCase();
       return (
         vendor.includes(term)
         || description.includes(term)
         || category.includes(term)
         || invoiceNumber.includes(term)
         || recordId.includes(term)
+        || paymentMethod.includes(term)
+        || quarter.includes(term)
       );
     });
-  }, [expensesQuery.data?.items, yearFilter, searchTerm]);
+  }, [expensesQuery.data?.items, yearFilter, profileFilter, searchTerm]);
+  const hasActiveFilters = yearFilter !== "all" || profileFilter !== "all" || String(searchTerm || "").trim().length > 0;
+  const setRecordIdSearchParam = (recordId: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (recordId) {
+      next.set("recordId", recordId);
+    } else {
+      next.delete("recordId");
+    }
+    setSearchParams(next, { replace: true });
+  };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -223,6 +254,48 @@ export function ExpensesPage() {
 
   const computedDraft = useMemo(() => normalizeExpenseDraft(draft), [draft]);
 
+  useEffect(() => {
+    if (!initialRecordId || selectedRecordId || !expensesQuery.data?.items?.length) {
+      return;
+    }
+    const target = expensesQuery.data.items.find((item) => String(item.recordId || "").trim() === initialRecordId);
+    if (!target) {
+      return;
+    }
+    const timeoutId = globalThis.setTimeout(() => {
+      setSelectedRecordId(initialRecordId);
+      setDraft(normalizeExpenseDraft(target));
+      setStatusMessage(`Gasto ${initialRecordId} cargado desde URL.`);
+      setStatusTone("neutral");
+    }, 0);
+    return () => {
+      globalThis.clearTimeout(timeoutId);
+    };
+  }, [expensesQuery.data?.items, initialRecordId, selectedRecordId]);
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    const safeSearch = String(searchTerm || "").trim();
+    if (safeSearch) {
+      next.set("q", safeSearch);
+    } else {
+      next.delete("q");
+    }
+    if (yearFilter && yearFilter !== "all") {
+      next.set("year", yearFilter);
+    } else {
+      next.delete("year");
+    }
+    if (profileFilter && profileFilter !== "all") {
+      next.set("profile", profileFilter);
+    } else {
+      next.delete("profile");
+    }
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [profileFilter, searchParams, searchTerm, setSearchParams, yearFilter]);
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-1">
@@ -239,7 +312,7 @@ export function ExpensesPage() {
             <CardDescription>Consulta y filtro básico de gastos existentes.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-3">
               <Input
                 placeholder="Buscar proveedor, descripción, categoría o factura"
                 value={searchTerm}
@@ -257,12 +330,45 @@ export function ExpensesPage() {
                   </option>
                 ))}
               </select>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={profileFilter}
+                onChange={(event) => setProfileFilter(event.target.value)}
+              >
+                <option value="all">Todos los perfiles</option>
+                <option value="__default__">Perfil por defecto</option>
+                {profileOptions.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.label || profile.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                Mostrando {filteredItems.length} de {(expensesQuery.data?.items ?? []).length} gastos
+              </span>
+              {hasActiveFilters ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setYearFilter("all");
+                    setProfileFilter("all");
+                  }}
+                >
+                  Limpiar filtros
+                </Button>
+              ) : null}
             </div>
             <Button
               type="button"
               variant="outline"
               onClick={() => {
                 setSelectedRecordId("");
+                setRecordIdSearchParam("");
                 setDraft(createEmptyExpense(activeProfileId));
                 setStatusMessage("Nuevo gasto.");
                 setStatusTone("neutral");
@@ -317,7 +423,11 @@ export function ExpensesPage() {
                             isActive ? "bg-primary text-primary-foreground" : "hover:bg-accent"
                           }`}
                           onClick={() => {
-                            setSelectedRecordId(String(item.recordId || ""));
+                            const nextRecordId = String(item.recordId || "");
+                            setSelectedRecordId(nextRecordId);
+                            if (nextRecordId) {
+                              setRecordIdSearchParam(nextRecordId);
+                            }
                             setDraft(normalizeExpenseDraft(item));
                             setStatusMessage("Gasto cargado para edición.");
                             setStatusTone("neutral");
@@ -329,6 +439,20 @@ export function ExpensesPage() {
                           </p>
                           <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
                             {formatCurrency(Number(item.total || 0))} · {item.recordId}
+                          </p>
+                          {String(item.quarter || "").trim() ? (
+                            <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                              Trimestre: {String(item.quarter).trim()}
+                            </p>
+                          ) : null}
+                          {(String(item.operationDate || "").trim() || String(item.paymentMethod || "").trim()) ? (
+                            <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                              {String(item.operationDate || "").trim() ? `Devengo: ${String(item.operationDate).trim()}` : "Devengo: -"}
+                              {String(item.paymentMethod || "").trim() ? ` · Pago: ${String(item.paymentMethod).trim()}` : ""}
+                            </p>
+                          ) : null}
+                          <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                            {item.deductible ? "Deducible" : "No deducible"}
                           </p>
                           <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
                             Perfil: {item.templateProfileLabel || item.templateProfileId || "por defecto"}
@@ -548,6 +672,7 @@ export function ExpensesPage() {
                   variant="outline"
                   onClick={() => {
                     setSelectedRecordId("");
+                    setRecordIdSearchParam("");
                     setDraft(createEmptyExpense(activeProfileId));
                     setStatusMessage("Nuevo gasto.");
                     setStatusTone("neutral");

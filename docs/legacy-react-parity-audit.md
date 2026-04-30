@@ -52,11 +52,11 @@
 
 **Legacy (referencia producción):** mantenimiento de clientes reutilizables en facturación (alta, edición, listado, búsqueda).
 
-**React actual:** `ClientsPage`: listado + búsqueda local, selección, formulario con campos alineados a `ClientRecord`, guardado vía API de clientes (`fetchClients` / `saveClient` en `clientsApi.ts`).
+**React actual:** `ClientsPage`: listado + búsqueda local en memoria (nombre, NIF/CIF, email, contacto, ciudad, provincia, `recordId`), filas con contexto visible opcional (email, contacto, ciudad/provincia), contador «mostrando N de M» y limpieza de búsqueda; persistencia de contexto en URL (`q`, `recordId`) y carga por `?recordId=`; `recordId` visible al editar para alinear con Facturar; formulario alineado a `ClientRecord`; guardado vía `fetchClients` / `saveClient` en `clientsApi.ts`.
 
 | legacy (referencia) | React actual | Brecha exacta | Implementación para cerrar | Verificación de cierre | Estado |
 | --- | --- | --- | --- | --- | --- |
-| CRUD y búsqueda operativa | CRUD mínimo + filtro en memoria | Paginación, ordenación, filtros avanzados o acciones masivas si legacy las tiene | Replicar comportamiento tras inventario en legacy | Probar volúmenes y filtros equivalentes | **pendiente** |
+| CRUD y búsqueda operativa | CRUD mínimo + filtro en memoria + URL `q`/`recordId` + contexto en listado | Paginación, ordenación, filtros en servidor o acciones masivas si legacy las tiene | Replicar comportamiento tras inventario en legacy | Probar volúmenes y filtros equivalentes | **parcial** |
 | Eliminación / archivo / merge de duplicados (si aplica en legacy) | No hay acciones de borrado o fusión visibles en la página | Brecha de ciclo de vida respecto a legacy | Exponer las mismas operaciones que el backend permita | Misma operación en legacy y React con mismo resultado en datos | **pendiente** |
 | Coherencia con Facturar (autocompletar, IDs) | Facturar consume el mismo listado de clientes vía React Query | Paridad rota si el legacy usa otro criterio de matching (p. ej. normalización de nombre) | Ajustar mapeo `applyClientByName` / opciones según comportamiento legacy | Crear cliente en módulo y usarlo en Facturar como en legacy | **parcial** |
 

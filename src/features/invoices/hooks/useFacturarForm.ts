@@ -240,9 +240,15 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
           const dateLabel = issueDate || "sin fecha";
           const numberLabel = String(item.number || "").trim() || "sin número";
           const clientLabel = String(item.clientName || "").trim() || "sin cliente";
+          const typeLabel = String(item.typeLabel || item.type || "").trim();
+          const totalLabel = Number.isFinite(Number(item.total))
+            ? Number(item.total).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : "";
           return {
             recordId: item.recordId,
-            label: `${numberLabel} · ${clientLabel} · ${dateLabel}`,
+            type: item.type,
+            issueDate,
+            label: `${numberLabel} · ${clientLabel} · ${dateLabel}${typeLabel ? ` · ${typeLabel}` : ""}${totalLabel ? ` · ${totalLabel} €` : ""}`,
           };
         }),
     [historyQuery.data],
