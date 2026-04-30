@@ -34,6 +34,7 @@ vi.mock("@/infrastructure/api/documentsApi", () => ({
 
 describe("SettingsPage regression", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     searchState.query = "";
   });
 
@@ -142,6 +143,46 @@ describe("SettingsPage regression", () => {
       expect((screen.getByLabelText("Plantilla de emisor") as HTMLSelectElement).value).toBe("perfil-2");
     });
     expect(screen.getByText(/Cambios locales pendientes de guardar/)).toBeTruthy();
+  });
+
+  it("creates new profile inline without window.prompt and persists on save", async () => {
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-1",
+      currentUser: { role: "admin", tenantId: "default" },
+      defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
+      templateProfiles: [
+        {
+          id: "perfil-1",
+          label: "Perfil 1",
+          invoiceNumberTag: "P1",
+          defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
+          business: { bankAccount: "ES11", brand: "Brand 1" },
+          design: { layout: "pear" },
+          colorKey: "teal",
+        },
+      ],
+    });
+    saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
+
+    render(<SettingsPage />);
+    await screen.findByText("Perfil activo (servidor)");
+
+    await userEvent.click(screen.getByRole("button", { name: "Nuevo usuario" }));
+    const inlineNameInput = await screen.findByLabelText("Nombre del nuevo perfil");
+    await userEvent.clear(inlineNameInput);
+    await userEvent.type(inlineNameInput, "Perfil Nuevo");
+    await userEvent.click(screen.getByRole("button", { name: "Crear perfil" }));
+
+    expect(screen.getByText(/Perfil nuevo en memoria/)).toBeTruthy();
+    expect((screen.getByLabelText("Plantilla de emisor") as HTMLSelectElement).value).toContain("perfil-nuevo");
+    expect(searchState.query).toContain("templateProfileId=perfil-nuevo");
+
+    await userEvent.click(screen.getByRole("button", { name: "Guardar datos del emisor" }));
+    await waitFor(() => {
+      expect(saveTemplateProfilesConfigMock).toHaveBeenCalledTimes(1);
+    });
+    const payload = saveTemplateProfilesConfigMock.mock.calls[0]?.[0];
+    expect(payload.templateProfiles.some((profile: { id: string; label?: string }) => profile.id === "perfil-nuevo" && profile.label === "Perfil Nuevo")).toBe(true);
   });
 });
 
