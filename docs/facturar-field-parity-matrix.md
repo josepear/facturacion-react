@@ -162,7 +162,7 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Listado recientes | Lista documentos recientes | `GET /api/history`; últimos 40 ordenados; búsqueda texto | Límite 40 vs legacy ilimitado/paginado | Paginación o «cargar más» | Usuario encuentra mismo doc que legacy | **parcial** | P1 |
+| Listado recientes | Lista documentos recientes | `GET /api/history`; últimos 40 ordenados; búsqueda texto + filtros por ejercicio y tipo + selector con contexto (tipo/importe) | Límite 40 vs legacy ilimitado/paginado | Paginación o «cargar más» | Usuario encuentra mismo doc que legacy | **parcial** | P1 |
 | Cargar desde select | Abre en editor | `loadBySelectedHistory` | — | — | — | **cerrado** | P1 |
 
 ---
