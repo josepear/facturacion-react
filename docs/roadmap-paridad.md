@@ -150,6 +150,9 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] Deep link y contexto en URL:
   - [x] `?recordId=...`
   - [x] persistencia de `q`, `year`, `profile`
+- [x] **`GET /api/expense-options`:** adaptador único en cliente que normaliza variantes de JSON (raíz, `expenseOptions`, `data`) a listas estables de proveedores y categorías para datalists.
+- [x] **Perfil en alta de gasto:** borrador alineado con `activeTemplateProfileId` de `/api/config` cuando el usuario no ha elegido otro perfil; copy del selector y texto de ayuda que enlazan con Configuración; valor vacío = perfil activo del servidor.
+- [x] **Errores al guardar:** mensajes de fallo de `POST /api/expenses` reutilizan `ApiError` y campos típicos del cuerpo (`message`, `detail`) para mostrar el texto del backend cuando existe.
 
 ### Parcial
 
@@ -163,7 +166,7 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [ ] (parcial) `taxRate` / `taxAmount`: pendiente confirmar si legacy permite importe manual.
 - [ ] (parcial) `withholdingRate` / `withholdingAmount`: pendiente confirmar catálogo/regla.
 - [ ] (parcial) `total`: confirmar si legacy permite edición manual.
-- [ ] (parcial) `templateProfileId`: pendiente afinar default/copy frente a legacy.
+- [ ] (parcial) `templateProfileId`: checklist legacy frente a comportamiento exacto al guardar con perfil vacío vs explícito (React ya documenta y alinea con `activeTemplateProfileId`).
 - [ ] (parcial) Filtros adicionales si legacy los exige.
 - [ ] (parcial) Permisos de archivar vs política legacy.
 - [ ] (parcial) `/api/expense-options`: confirmar riqueza/normalización frente a legacy.

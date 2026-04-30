@@ -1,4 +1,5 @@
 import type { ExpenseOptions, ExpenseRecord } from "@/domain/expenses/types";
+import { parseExpenseOptionsPayload } from "@/domain/expenses/parseExpenseOptionsPayload";
 import { request } from "@/infrastructure/api/httpClient";
 
 type ExpensesResponse = {
@@ -11,10 +12,6 @@ type SaveExpenseResponse = {
   id: string;
   recordId: string;
   expense: ExpenseRecord;
-};
-
-type ExpenseOptionsResponse = {
-  expenseOptions?: ExpenseOptions;
 };
 
 type SaveExpenseInput = {
@@ -36,9 +33,9 @@ export async function saveExpense(input: SaveExpenseInput) {
   });
 }
 
-export async function fetchExpenseOptions() {
-  const payload = await request<ExpenseOptionsResponse>("/api/expense-options");
-  return payload.expenseOptions ?? {};
+export async function fetchExpenseOptions(): Promise<ExpenseOptions> {
+  const payload = await request<unknown>("/api/expense-options");
+  return parseExpenseOptionsPayload(payload);
 }
 
 type ArchiveExpenseYearInput = {

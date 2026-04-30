@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
@@ -10,6 +10,7 @@ import type { ExpenseRecord } from "@/domain/expenses/types";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
 import { archiveExpense, archiveExpenseYear, fetchExpenseOptions, fetchExpenses, saveExpense } from "@/infrastructure/api/expensesApi";
+import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { deleteTrashEntries, fetchTrash } from "@/infrastructure/api/trashApi";
 import { formatCurrency, toNumber } from "@/lib/utils";
 
@@ -92,6 +93,7 @@ export function ExpensesPage() {
   const [archiveProfileId, setArchiveProfileId] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
+  const didHydrateDefaultTemplateProfile = useRef(false);
 
   const configQuery = useQuery({
     queryKey: ["runtime-config"],
@@ -120,6 +122,7 @@ export function ExpensesPage() {
 
   const availableYears = expensesQuery.data?.years ?? [];
   const profileOptions = configQuery.data?.templateProfiles ?? [];
+  const activeProfileLabel = profileOptions.find((p) => p.id === activeProfileId)?.label || activeProfileId;
   const isAdmin =
     Boolean(sessionQuery.data?.authenticated) &&
     String(sessionQuery.data.user.role || "").trim().toLowerCase() === "admin";
@@ -196,7 +199,7 @@ export function ExpensesPage() {
       setStatusTone("success");
     },
     onError: (error) => {
-      setStatusMessage((error as Error).message || "No se pudo guardar el gasto.");
+      setStatusMessage(getErrorMessageFromUnknown(error) || "No se pudo guardar el gasto.");
       setStatusTone("error");
     },
   });
@@ -277,6 +280,33 @@ export function ExpensesPage() {
       globalThis.clearTimeout(timeoutId);
     };
   }, [expensesQuery.data?.items, initialRecordId, selectedRecordId]);
+
+  /**
+   * Alta sin `recordId`: una vez que llega `/api/config`, si el borrador sigue sin `templateProfileId`,
+   * rellena con el activo del servidor. No se re-ejecuta al cambiar solo el borrador (p. ej. usuario elige
+   * «Perfil por defecto» con valor vacío explícito).
+   */
+  useEffect(() => {
+    if (selectedRecordId) {
+      didHydrateDefaultTemplateProfile.current = false;
+      return;
+    }
+    if (!configQuery.data || didHydrateDefaultTemplateProfile.current) {
+      return;
+    }
+    const active = String(configQuery.data.activeTemplateProfileId || "").trim();
+    if (!active) {
+      return;
+    }
+    setDraft((prev) => {
+      if (String(prev.templateProfileId || "").trim()) {
+        didHydrateDefaultTemplateProfile.current = true;
+        return prev;
+      }
+      didHydrateDefaultTemplateProfile.current = true;
+      return { ...prev, templateProfileId: active };
+    });
+  }, [configQuery.data, selectedRecordId]);
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
@@ -374,6 +404,7 @@ export function ExpensesPage() {
               onClick={() => {
                 setSelectedRecordId("");
                 setRecordIdSearchParam("");
+                didHydrateDefaultTemplateProfile.current = false;
                 setDraft(createEmptyExpense(activeProfileId));
                 setStatusMessage("Nuevo gasto.");
                 setStatusTone("neutral");
@@ -492,13 +523,22 @@ export function ExpensesPage() {
                 value={draft.templateProfileId || ""}
                 onChange={(event) => setDraft((prev) => ({ ...prev, templateProfileId: event.target.value }))}
               >
-                <option value="">Perfil por defecto</option>
+                <option value="">
+                  {activeProfileId
+                    ? `Perfil por defecto (servidor: ${activeProfileLabel || activeProfileId})`
+                    : "Perfil por defecto"}
+                </option>
                 {(configQuery.data?.templateProfiles ?? []).map((profile) => (
                   <option key={profile.id} value={profile.id}>
                     {profile.label || profile.id}
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                El perfil activo de Configuración es <span className="font-medium text-foreground">{activeProfileId || "—"}</span>
+                {activeProfileLabel && activeProfileLabel !== activeProfileId ? ` (${activeProfileLabel})` : ""}. Vacío = el
+                servidor aplica ese activo; puedes forzar un perfil concreto de la lista.
+              </p>
             </Field>
             <Field label="Fecha factura">
               <Input
@@ -678,6 +718,7 @@ export function ExpensesPage() {
                   onClick={() => {
                     setSelectedRecordId("");
                     setRecordIdSearchParam("");
+                    didHydrateDefaultTemplateProfile.current = false;
                     setDraft(createEmptyExpense(activeProfileId));
                     setStatusMessage("Nuevo gasto.");
                     setStatusTone("neutral");

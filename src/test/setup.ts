@@ -86,7 +86,9 @@ vi.mock("@tanstack/react-query", async () => {
 
     return {
       mutate: (arg: TArg) => {
-        void mutateAsync(arg);
+        void mutateAsync(arg).catch(() => {
+          /* `onError` ya se invocó; `mutate` en producción no propaga la promesa al llamador. */
+        });
       },
       mutateAsync,
       isPending,
