@@ -194,6 +194,9 @@ export function SettingsPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
   const [profileListOverride, setProfileListOverride] = useState<TemplateProfileConfig[] | null>(null);
+  const [isCreatingProfile, setIsCreatingProfile] = useState(false);
+  const [newProfileLabelDraft, setNewProfileLabelDraft] = useState("");
+  const [newProfileSourceId, setNewProfileSourceId] = useState("");
 
   const serverProfiles = useMemo(
     () => configQuery.data?.templateProfiles ?? [],
@@ -343,7 +346,7 @@ export function SettingsPage() {
     setSearchParams(next, { replace: true });
   };
 
-  const handleNewTemplateProfile = () => {
+  const startNewTemplateProfile = () => {
     if (!canEdit) {
       return;
     }
@@ -353,11 +356,37 @@ export function SettingsPage() {
       return;
     }
     const suggestedLabel = `${String(source.label || source.id || "Perfil").trim()} copia`;
-    const requested = window.prompt("Nombre del nuevo perfil", suggestedLabel);
-    if (requested === null) {
+    setNewProfileSourceId(source.id);
+    setNewProfileLabelDraft(suggestedLabel);
+    setIsCreatingProfile(true);
+    setStatusMessage("Indica el nombre del nuevo perfil y confirma para crearlo en memoria.");
+    setStatusTone("neutral");
+  };
+
+  const cancelNewTemplateProfile = () => {
+    setIsCreatingProfile(false);
+    setNewProfileLabelDraft("");
+    setNewProfileSourceId("");
+  };
+
+  const confirmNewTemplateProfile = () => {
+    if (!canEdit) {
       return;
     }
-    const nextLabel = String(requested || "").trim() || suggestedLabel;
+    const source =
+      profiles.find((p) => p.id === newProfileSourceId)
+      || profiles.find((p) => p.id === effectiveActiveProfileId)
+      || profiles.find((p) => p.id === effectiveEditingProfileId)
+      || profiles[0];
+    if (!source) {
+      return;
+    }
+    const nextLabel = String(newProfileLabelDraft || "").trim();
+    if (!nextLabel) {
+      setStatusMessage("Indica un nombre para el nuevo perfil.");
+      setStatusTone("error");
+      return;
+    }
     const used = new Set(profiles.map((p) => p.id));
     const newId = buildClientProfileId(nextLabel, used);
     const clone = JSON.parse(JSON.stringify(source)) as TemplateProfileConfig;
@@ -370,6 +399,9 @@ export function SettingsPage() {
     setProfileListOverride([...profiles, nextProfile]);
     syncLauncherSelection(newId);
     setDraftByProfileId({});
+    setIsCreatingProfile(false);
+    setNewProfileLabelDraft("");
+    setNewProfileSourceId("");
     setStatusMessage("Perfil nuevo en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
     setStatusTone("neutral");
   };
@@ -567,7 +599,12 @@ export function SettingsPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" disabled={!canEdit} onClick={handleNewTemplateProfile}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!canEdit || isCreatingProfile}
+                      onClick={startNewTemplateProfile}
+                    >
                       Nuevo usuario
                     </Button>
                     <Button
@@ -597,6 +634,23 @@ export function SettingsPage() {
                       Abrir Facturar
                     </Button>
                   </div>
+                  {isCreatingProfile ? (
+                    <div className="grid gap-2 rounded-md border border-dashed p-3 sm:grid-cols-[1fr_auto_auto]">
+                      <Input
+                        aria-label="Nombre del nuevo perfil"
+                        placeholder="Nombre del nuevo perfil"
+                        value={newProfileLabelDraft}
+                        onChange={(event) => setNewProfileLabelDraft(event.target.value)}
+                        disabled={!canEdit}
+                      />
+                      <Button type="button" onClick={confirmNewTemplateProfile} disabled={!canEdit}>
+                        Crear perfil
+                      </Button>
+                      <Button type="button" variant="outline" onClick={cancelNewTemplateProfile}>
+                        Cancelar
+                      </Button>
+                    </div>
+                  ) : null}
 
                   <details className="group rounded-md border border-dashed p-3" open>
                     <summary className="cursor-pointer text-sm font-medium text-muted-foreground outline-none group-open:text-foreground">
