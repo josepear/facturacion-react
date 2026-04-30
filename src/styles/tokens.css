@@ -9,8 +9,9 @@
   --muted-foreground: 215 16% 47%;
   --accent: 210 40% 96%;
   --accent-foreground: 222 47% 11%;
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
+  /* Borde base UI: #1e1e1e (equiv. HSL sin función; consumo en hsl(var(--border))) */
+  --border: 0 0% 11.76%;
+  --input: 0 0% 11.76%;
   --ring: 222 84% 5%;
   --radius: 0.625rem;
 }
