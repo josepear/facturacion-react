@@ -106,6 +106,10 @@ export type TemplateProfileConfig = {
 
 export type ConfigResponse = {
   activeTemplateProfileId?: string;
+  /**
+   * Opcional en JSON legacy; la SPA no debe usarlo para rol/tenant.
+   * Identidad: `GET /api/session`.
+   */
   currentUser?: {
     id?: string;
     email?: string;

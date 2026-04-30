@@ -9,6 +9,7 @@ import { getNextNumber, validateNumberAvailability } from "@/domain/numbering/us
 import { invoiceDocumentSchema } from "@/domain/document/schemas";
 import type { CalculatedTotals, InvoiceDocument } from "@/domain/document/types";
 import { fetchClients } from "@/infrastructure/api/clientsApi";
+import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { fetchDocumentDetail, fetchRuntimeConfig, saveDocument } from "@/infrastructure/api/documentsApi";
 import {
   openOfficialDocumentInNewTab,
@@ -68,6 +69,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     queryKey: ["runtime-config"],
     queryFn: fetchRuntimeConfig,
   });
+
+  const sessionQuery = useSessionQuery();
 
   const clientsQuery = useQuery({
     queryKey: ["clients"],
@@ -272,7 +275,10 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       mapLegacyDocumentToForm({
         ...current,
         templateProfileId: current.templateProfileId || configQuery.data?.activeTemplateProfileId || "",
-        tenantId: current.tenantId || configQuery.data?.currentUser?.tenantId || "default",
+        tenantId:
+          current.tenantId
+          || (sessionQuery.data?.authenticated ? sessionQuery.data.user.tenantId : undefined)
+          || "default",
       }),
     );
     form.reset(next);

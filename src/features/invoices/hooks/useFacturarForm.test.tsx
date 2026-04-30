@@ -7,6 +7,7 @@ import { createHookWrapper } from "@/test/test-utils";
 
 const {
   fetchRuntimeConfigMock,
+  fetchSessionMock,
   fetchDocumentDetailMock,
   saveDocumentMock,
   fetchClientsMock,
@@ -15,6 +16,7 @@ const {
   validateNumberAvailabilityMock,
 } = vi.hoisted(() => ({
   fetchRuntimeConfigMock: vi.fn(),
+  fetchSessionMock: vi.fn(),
   fetchDocumentDetailMock: vi.fn(),
   saveDocumentMock: vi.fn(),
   fetchClientsMock: vi.fn(),
@@ -27,6 +29,10 @@ vi.mock("@/infrastructure/api/documentsApi", () => ({
   fetchRuntimeConfig: fetchRuntimeConfigMock,
   fetchDocumentDetail: fetchDocumentDetailMock,
   saveDocument: saveDocumentMock,
+}));
+
+vi.mock("@/infrastructure/api/sessionApi", () => ({
+  fetchSession: fetchSessionMock,
 }));
 
 vi.mock("@/infrastructure/api/clientsApi", () => ({
@@ -47,9 +53,12 @@ describe("useFacturarForm regression", () => {
     const document = createEmptyDocument();
     document.templateProfileId = "perfil-main";
 
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "User", email: "u@test", role: "admin", tenantId: "default" },
+    });
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-main",
-      currentUser: { tenantId: "default" },
       templateProfiles: [
         {
           id: "perfil-main",
