@@ -183,6 +183,9 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
   - [x] fallo real de autenticación/config (`401/403` en `GET /api/config`)
 - [x] Flujo de “Nuevo usuario” verificado como existente cuando hay sesión válida y rol admin.
 - [x] Mejor copy operativo para el estado de solo lectura.
+- [x] Aviso explícito de **cambios locales pendientes de guardar** (campos editados, perfil activo distinto del último guardado, altas/bajas de perfil solo en memoria).
+- [x] Resumen **Perfil activo (servidor)** alineado al último `activeTemplateProfileId` guardado; aviso si la selección de activo en el formulario aún no está fijada en servidor.
+- [x] **Deep link / URL:** `GET /configuracion?templateProfileId=…` abre ese perfil en el formulario; al cambiar perfil se sincroniza el mismo parámetro que usa Facturar.
 
 ### Parcial
 

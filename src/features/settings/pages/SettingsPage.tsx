@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
@@ -182,6 +182,7 @@ function mergeProfileWithDraft(profile: TemplateProfileConfig, draft: ProfileDra
 
 export function SettingsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const configQuery = useQuery({
     queryKey: ["runtime-config"],
@@ -194,8 +195,12 @@ export function SettingsPage() {
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
   const [profileListOverride, setProfileListOverride] = useState<TemplateProfileConfig[] | null>(null);
 
-  const serverProfiles = configQuery.data?.templateProfiles ?? [];
+  const serverProfiles = useMemo(
+    () => configQuery.data?.templateProfiles ?? [],
+    [configQuery.data?.templateProfiles],
+  );
   const profiles = profileListOverride ?? serverProfiles;
+  const urlTemplateProfileId = String(searchParams.get("templateProfileId") || "").trim();
   const currentUserRole = String(configQuery.data?.currentUser?.role || "").trim().toLowerCase();
   const canEdit = currentUserRole === "admin";
   const configuredRoleLabel = String(configQuery.data?.currentUser?.role ?? "").trim();
@@ -214,12 +219,44 @@ export function SettingsPage() {
     return String(profiles[0]?.id || "").trim();
   }, [editingProfileId, effectiveActiveProfileId, profiles]);
 
-  const activeProfile = useMemo(() => {
+  /** Perfil marcado como activo en el último JSON de servidor (no incluye borradores locales). */
+  const serverActiveProfile = useMemo(() => {
+    const id = String(serverActiveProfileId || "").trim();
+    if (!id) {
+      return null;
+    }
+    return serverProfiles.find((profile) => profile.id === id) || null;
+  }, [serverActiveProfileId, serverProfiles]);
+
+  const activeProfileForNextSave = useMemo(() => {
     if (!effectiveActiveProfileId) {
       return null;
     }
     return profiles.find((profile) => profile.id === effectiveActiveProfileId) || null;
   }, [effectiveActiveProfileId, profiles]);
+
+  const hasUnsavedLocalChanges = Boolean(
+    profileListOverride !== null
+    || Object.keys(draftByProfileId).length > 0
+    || String(serverActiveProfileId || "").trim() !== String(effectiveActiveProfileId || "").trim(),
+  );
+
+  useEffect(() => {
+    if (configQuery.isLoading || !configQuery.data || !urlTemplateProfileId) {
+      return;
+    }
+    const list = configQuery.data.templateProfiles ?? [];
+    if (!list.some((p) => p.id === urlTemplateProfileId)) {
+      return;
+    }
+    const timeoutId = globalThis.setTimeout(() => {
+      setActiveProfileIdDraft(urlTemplateProfileId);
+      setEditingProfileId(urlTemplateProfileId);
+    }, 0);
+    return () => {
+      globalThis.clearTimeout(timeoutId);
+    };
+  }, [configQuery.data, configQuery.isLoading, urlTemplateProfileId]);
 
   const editingProfile = useMemo(() => {
     if (!effectiveEditingProfileId) {
@@ -264,6 +301,14 @@ export function SettingsPage() {
       setDraftByProfileId({});
       setActiveProfileIdDraft("");
       setProfileListOverride(null);
+      const savedActiveId = String(savedConfig.activeTemplateProfileId || "").trim();
+      if (savedActiveId) {
+        const next = new URLSearchParams(searchParams);
+        next.set("templateProfileId", savedActiveId);
+        if (next.toString() !== searchParams.toString()) {
+          setSearchParams(next, { replace: true });
+        }
+      }
       setStatusMessage("Datos del emisor guardados.");
       setStatusTone("success");
     },
@@ -293,6 +338,9 @@ export function SettingsPage() {
     }
     setActiveProfileIdDraft(id);
     setEditingProfileId(id);
+    const next = new URLSearchParams(searchParams);
+    next.set("templateProfileId", id);
+    setSearchParams(next, { replace: true });
   };
 
   const handleNewTemplateProfile = () => {
@@ -379,18 +427,27 @@ export function SettingsPage() {
               <CardHeader>
                 <CardTitle>Perfil activo (servidor)</CardTitle>
                 <CardDescription>
-                  El que publica <code className="text-xs">/api/config</code> como <code className="text-xs">activeTemplateProfileId</code>.
-                  Elige el usuario emisor en «Emisor activo» y guarda abajo.
+                  El que publica <code className="text-xs">/api/config</code> como <code className="text-xs">activeTemplateProfileId</code>{" "}
+                  en el <strong>último guardado</strong>. La selección para el próximo guardado se hace en «Emisor activo»; el parámetro de URL{" "}
+                  <code className="text-xs">templateProfileId</code> usa la misma clave que Facturar.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm">
-                <p><strong>Id:</strong> {safeValue(activeProfile?.id)}</p>
-                <p><strong>Nombre del usuario:</strong> {safeValue(activeProfile?.label || activeProfile?.id)}</p>
-                <p><strong>Forma de pago:</strong> {safeValue(activeProfile?.defaults?.paymentMethod)}</p>
-                <p><strong>Cuenta:</strong> {safeValue(activeProfile?.business?.bankAccount)}</p>
-                <p><strong>Plantilla PDF:</strong> {safeValue(activeProfile?.design?.layout)}</p>
-                <p><strong>IGIC:</strong> {safeValue(activeProfile?.defaults?.taxRate)}</p>
-                <p><strong>IRPF:</strong> {safeValue(activeProfile?.defaults?.withholdingRate)}</p>
+                <p><strong>Id (servidor):</strong> {safeValue(serverActiveProfile?.id)}</p>
+                <p><strong>Nombre del usuario:</strong> {safeValue(serverActiveProfile?.label || serverActiveProfile?.id)}</p>
+                <p><strong>Forma de pago:</strong> {safeValue(serverActiveProfile?.defaults?.paymentMethod)}</p>
+                <p><strong>Cuenta:</strong> {safeValue(serverActiveProfile?.business?.bankAccount)}</p>
+                <p><strong>Plantilla PDF:</strong> {safeValue(serverActiveProfile?.design?.layout)}</p>
+                <p><strong>IGIC:</strong> {safeValue(serverActiveProfile?.defaults?.taxRate)}</p>
+                <p><strong>IRPF:</strong> {safeValue(serverActiveProfile?.defaults?.withholdingRate)}</p>
+                {String(effectiveActiveProfileId || "").trim()
+                && String(effectiveActiveProfileId || "").trim() !== String(serverActiveProfileId || "").trim() ? (
+                  <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-900 dark:text-amber-100">
+                    La selección de perfil activo en el formulario (
+                    <strong>{safeValue(activeProfileForNextSave?.label || effectiveActiveProfileId)}</strong>
+                    ) aún no está guardada en el servidor; pulsa «Guardar datos del emisor» para fijarla.
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2 pt-1">
                   <Button
                     type="button"
@@ -434,10 +491,23 @@ export function SettingsPage() {
               <CardTitle>Emisor activo</CardTitle>
               <CardDescription>
                 Orden habitual en legacy: primero guarda aquí el emisor; el constructor fino de módulos PDF sigue en la app legacy
-                (pestaña Plantilla).
+                (pestaña Plantilla). Puedes abrir directamente un perfil con{" "}
+                <code className="text-xs">/configuracion?templateProfileId=…</code> (mismo nombre de parámetro que en Facturar).
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
+              {hasUnsavedLocalChanges ? (
+                <div
+                  role="status"
+                  className="rounded-md border border-border bg-muted/60 px-3 py-2 text-sm text-foreground"
+                >
+                  <p className="font-medium">Cambios locales pendientes de guardar</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Hay ediciones o un perfil activo distinto del último guardado en servidor; nada de esto se aplica en el backend
+                    hasta pulsar «Guardar datos del emisor».
+                  </p>
+                </div>
+              ) : null}
               {!canEdit ? (
                 <div
                   role="status"
