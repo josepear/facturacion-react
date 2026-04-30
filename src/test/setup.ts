@@ -50,7 +50,9 @@ vi.mock("@tanstack/react-query", async () => {
       };
     }, [enabled, queryFn]);
 
-    return { data, isLoading, error };
+    const isSuccess = Boolean(!isLoading && !error && data !== undefined);
+
+    return { data, isLoading, error, isSuccess };
   };
 
   const useMutation = <TArg, TData>({

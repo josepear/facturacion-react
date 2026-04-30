@@ -5,12 +5,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsPage } from "@/features/settings/pages/SettingsPage";
 import { ApiError } from "@/infrastructure/api/httpClient";
 
-const { fetchRuntimeConfigMock, saveTemplateProfilesConfigMock, navigateMock, searchState } = vi.hoisted(() => ({
-  fetchRuntimeConfigMock: vi.fn(),
-  saveTemplateProfilesConfigMock: vi.fn(),
-  navigateMock: vi.fn(),
-  searchState: { query: "" },
-}));
+const { fetchRuntimeConfigMock, fetchSessionMock, saveTemplateProfilesConfigMock, navigateMock, searchState } = vi.hoisted(
+  () => ({
+    fetchRuntimeConfigMock: vi.fn(),
+    fetchSessionMock: vi.fn(),
+    saveTemplateProfilesConfigMock: vi.fn(),
+    navigateMock: vi.fn(),
+    searchState: { query: "" },
+  }),
+);
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -32,16 +35,23 @@ vi.mock("@/infrastructure/api/documentsApi", () => ({
   saveTemplateProfilesConfig: saveTemplateProfilesConfigMock,
 }));
 
+vi.mock("@/infrastructure/api/sessionApi", () => ({
+  fetchSession: fetchSessionMock,
+}));
+
 describe("SettingsPage regression", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     searchState.query = "";
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "Admin", email: "admin@test", role: "admin", tenantId: "default" },
+    });
   });
 
   it("loads and saves active profile/defaults for admin", async () => {
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
-      currentUser: { role: "admin", tenantId: "default" },
       defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
       templateProfiles: [
         {
@@ -85,9 +95,12 @@ describe("SettingsPage regression", () => {
   });
 
   it("keeps readonly mode for non-admin users", async () => {
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u2", name: "Editor", email: "ed@test", role: "editor", tenantId: "default" },
+    });
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
-      currentUser: { role: "viewer", tenantId: "default" },
       templateProfiles: [{ id: "perfil-1", label: "Perfil 1", defaults: { paymentMethod: "Transferencia" } }],
     });
 
@@ -96,7 +109,7 @@ describe("SettingsPage regression", () => {
 
     const readOnlyBanner = screen.getByRole("status");
     expect(readOnlyBanner.textContent).toContain("Modo solo lectura");
-    expect(readOnlyBanner.textContent).toContain("viewer");
+    expect(readOnlyBanner.textContent).toContain("editor");
     expect(screen.getByRole("button", { name: "Guardar datos del emisor" }).hasAttribute("disabled")).toBe(true);
   });
 
@@ -117,7 +130,6 @@ describe("SettingsPage regression", () => {
     searchState.query = "templateProfileId=perfil-2";
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
-      currentUser: { role: "admin", tenantId: "default" },
       defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
       templateProfiles: [
         {
@@ -148,7 +160,6 @@ describe("SettingsPage regression", () => {
   it("creates new profile inline without window.prompt and persists on save", async () => {
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
-      currentUser: { role: "admin", tenantId: "default" },
       defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
       templateProfiles: [
         {

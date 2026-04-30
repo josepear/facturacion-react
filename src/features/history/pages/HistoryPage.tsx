@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
+import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { archiveDocument, archiveDocumentYear, fetchDocumentDetail, fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
 import { openOfficialDocumentInNewTab } from "@/infrastructure/api/openOfficialDocumentOutput";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
@@ -77,6 +78,8 @@ export function HistoryPage() {
     queryKey: ["runtime-config"],
     queryFn: fetchRuntimeConfig,
   });
+
+  const sessionQuery = useSessionQuery();
 
   const trashQuery = useQuery({
     queryKey: ["trash"],
@@ -153,7 +156,9 @@ export function HistoryPage() {
     return label ? `${label} (${id})` : id;
   }, [openedDocument, profileOptions]);
 
-  const isAdmin = String(configQuery.data?.currentUser?.role || "").trim().toLowerCase() === "admin";
+  const isAdmin =
+    Boolean(sessionQuery.data?.authenticated) &&
+    String(sessionQuery.data.user.role || "").trim().toLowerCase() === "admin";
   const trashDocumentItems = useMemo(
     () => (trashQuery.data?.items ?? []).filter((item) => item.category === "documentos"),
     [trashQuery.data?.items],

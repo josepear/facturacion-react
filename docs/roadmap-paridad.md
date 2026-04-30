@@ -21,6 +21,7 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] Proxy `/api/*` unificado en local para `dev` y `preview`.
 - [x] Flujo feliz de Facturar cerrado: crear -> guardar -> recargar -> editar -> HTML/PDF.
 - [x] Smoke E2E de Gastos contra backend real.
+- [x] **Identidad y permisos en React** vía `GET /api/session` (rol, `tenantId` de sesión). **`GET /api/config`** solo para datos de negocio compartidos (`templateProfiles`, `activeTemplateProfileId`, defaults, metadatos de runtime); la SPA no usa `currentUser` del JSON de config para rol ni tenant.
 - [ ] Checklist manual sistemático contra legacy en producción para cerrar filas marcadas como parciales.
 
 ---
@@ -179,8 +180,8 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 ### Hecho
 
 - [x] La pantalla distingue claramente:
-  - [x] modo solo lectura por rol no admin
-  - [x] fallo real de autenticación/config (`401/403` en `GET /api/config`)
+  - [x] modo solo lectura por rol no admin (rol desde `GET /api/session`)
+  - [x] fallo real de autenticación (`401/403` en `GET /api/config` o `GET /api/session`)
 - [x] Flujo de “Nuevo usuario” verificado como existente cuando hay sesión válida y rol admin.
 - [x] Mejor copy operativo para el estado de solo lectura.
 - [x] Aviso explícito de **cambios locales pendientes de guardar** (campos editados, perfil activo distinto del último guardado, altas/bajas de perfil solo en memoria).

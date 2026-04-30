@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import type { TemplateProfileConfig } from "@/domain/document/types";
 import { fetchRuntimeConfig, saveTemplateProfilesConfig } from "@/infrastructure/api/documentsApi";
 import { ApiError } from "@/infrastructure/api/httpClient";
+import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { toNumber } from "@/lib/utils";
 
 /** Misma secuencia que legacy `PROFILE_COLOR_SEQUENCE` en `public/app.js`. */
@@ -124,14 +125,14 @@ function SettingsConfigLoadError({ error }: { error: unknown }) {
       <div role="alert" className="space-y-2">
         <p className="font-medium text-red-600">No se pudo cargar la configuración (HTTP {error.status})</p>
         <p className="text-muted-foreground">
-          La petición a <code className="text-xs">GET /api/config</code> fue rechazada:{" "}
-          <span className="text-foreground">{error.message}</span>. Suele indicar sesión caducada, ausencia de token en este
-          origen o credenciales no aceptadas por el servidor.
+          Una petición a <code className="text-xs">GET /api/config</code> o <code className="text-xs">GET /api/session</code>{" "}
+          fue rechazada: <span className="text-foreground">{error.message}</span>. Suele indicar sesión caducada, ausencia de
+          token en este origen o credenciales no aceptadas por el servidor.
         </p>
         <p className="text-muted-foreground">
-          Esto no es el modo solo lectura por rol: si <code className="text-xs">/api/config</code> devolviera datos y tu rol
-          no fuera <code className="text-xs">admin</code>, verías el formulario con campos deshabilitados y el aviso «Modo
-          solo lectura».
+          Esto no es el modo solo lectura por rol: si la configuración cargara y tu rol en{" "}
+          <code className="text-xs">GET /api/session</code> no fuera <code className="text-xs">admin</code>, verías el
+          formulario con campos deshabilitados y el aviso «Modo solo lectura».
         </p>
       </div>
     );
@@ -188,6 +189,7 @@ export function SettingsPage() {
     queryKey: ["runtime-config"],
     queryFn: fetchRuntimeConfig,
   });
+  const sessionQuery = useSessionQuery();
   const [activeProfileIdDraft, setActiveProfileIdDraft] = useState("");
   const [editingProfileId, setEditingProfileId] = useState("");
   const [draftByProfileId, setDraftByProfileId] = useState<Record<string, ProfileDraft>>({});
@@ -204,9 +206,14 @@ export function SettingsPage() {
   );
   const profiles = profileListOverride ?? serverProfiles;
   const urlTemplateProfileId = String(searchParams.get("templateProfileId") || "").trim();
-  const currentUserRole = String(configQuery.data?.currentUser?.role || "").trim().toLowerCase();
-  const canEdit = currentUserRole === "admin";
-  const configuredRoleLabel = String(configQuery.data?.currentUser?.role ?? "").trim();
+  const sessionRole = sessionQuery.data?.authenticated
+    ? String(sessionQuery.data.user.role || "").trim().toLowerCase()
+    : "";
+  const sessionReady = !sessionQuery.isLoading && !sessionQuery.error;
+  const canEdit = sessionReady && sessionRole === "admin";
+  const configuredRoleLabel = sessionQuery.data?.authenticated
+    ? String(sessionQuery.data.user.role ?? "").trim()
+    : "";
 
   const serverActiveProfileId = String(configQuery.data?.activeTemplateProfileId || "").trim();
   const effectiveActiveProfileId = activeProfileIdDraft || serverActiveProfileId;
@@ -442,14 +449,14 @@ export function SettingsPage() {
         </p>
       </header>
 
-      {configQuery.isLoading ? (
+      {configQuery.isLoading || sessionQuery.isLoading ? (
         <Card>
           <CardContent className="pt-6 text-sm text-muted-foreground">Cargando configuración...</CardContent>
         </Card>
-      ) : configQuery.error ? (
+      ) : configQuery.error || sessionQuery.error ? (
         <Card>
           <CardContent className="pt-6 text-sm">
-            <SettingsConfigLoadError error={configQuery.error} />
+            <SettingsConfigLoadError error={configQuery.error ?? sessionQuery.error} />
           </CardContent>
         </Card>
       ) : (
@@ -505,8 +512,8 @@ export function SettingsPage() {
                 <CardDescription>Valores efectivos publicados por `/api/config`.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-1 text-sm">
-                <p><strong>Tenant:</strong> {safeValue(configQuery.data?.currentUser?.tenantId)}</p>
-                <p><strong>Rol usuario:</strong> {safeValue(configQuery.data?.currentUser?.role)}</p>
+                <p><strong>Tenant:</strong> {safeValue(sessionQuery.data?.authenticated ? sessionQuery.data.user.tenantId : "")}</p>
+                <p><strong>Rol usuario:</strong> {safeValue(sessionQuery.data?.authenticated ? sessionQuery.data.user.role : "")}</p>
                 <p><strong>Forma de pago:</strong> {safeValue(configQuery.data?.defaults?.paymentMethod)}</p>
                 <p><strong>IGIC:</strong> {safeValue(configQuery.data?.defaults?.taxRate)}</p>
                 <p><strong>IRPF:</strong> {safeValue(configQuery.data?.defaults?.withholdingRate)}</p>
@@ -548,7 +555,7 @@ export function SettingsPage() {
                   <p className="font-medium text-foreground">Modo solo lectura</p>
                   <p className="mt-1 text-muted-foreground">
                     Editar datos del emisor, crear un usuario nuevo y guardar en el servidor solo están habilitados para la
-                    sesión cuyo rol en <code className="rounded bg-muted px-1 text-xs">/api/config</code> es{" "}
+                    sesión cuyo rol en <code className="rounded bg-muted px-1 text-xs">GET /api/session</code> es{" "}
                     <strong>admin</strong>.
                     {configuredRoleLabel ? (
                       <>
@@ -556,7 +563,7 @@ export function SettingsPage() {
                         Tu sesión publica el rol: <strong>{configuredRoleLabel}</strong>.
                       </>
                     ) : (
-                      <> En esta carga no figura un valor de rol en la configuración.</>
+                      <> En esta carga no figura un valor de rol en la sesión.</>
                     )}
                   </p>
                 </div>
