@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,12 +33,19 @@ function formatAccountingStatusLabel(status: string): string {
 }
 
 export function HistoryPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialSearch = String(searchParams.get("q") || "").trim();
+  const initialType = String(searchParams.get("type") || "").trim();
+  const initialYear = String(searchParams.get("year") || "").trim();
+  const initialRecordId = String(searchParams.get("recordId") || "").trim();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState<"" | "factura" | "presupuesto">("");
-  const [filterYear, setFilterYear] = useState("");
-  const [selectedRecordId, setSelectedRecordId] = useState("");
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
+  const [filterType, setFilterType] = useState<"" | "factura" | "presupuesto">(
+    initialType === "factura" || initialType === "presupuesto" ? initialType : "",
+  );
+  const [filterYear, setFilterYear] = useState(initialYear);
+  const [selectedRecordId, setSelectedRecordId] = useState(initialRecordId);
   const [archiveYear, setArchiveYear] = useState("");
   const [archiveProfileId, setArchiveProfileId] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
@@ -49,6 +56,14 @@ export function HistoryPage() {
 
   const selectRecord = (recordId: string) => {
     setSelectedRecordId(recordId);
+    const next = new URLSearchParams(searchParams);
+    const safeRecordId = String(recordId || "").trim();
+    if (safeRecordId) {
+      next.set("recordId", safeRecordId);
+    } else {
+      next.delete("recordId");
+    }
+    setSearchParams(next, { replace: true });
     setOutputFeedback(null);
     setRecordIdCopyFeedback(null);
   };
@@ -145,9 +160,35 @@ export function HistoryPage() {
   );
 
   const rawHistoryCount = historyQuery.data?.length ?? 0;
+  const hasActiveFilters = Boolean(filterType || filterYear || String(searchTerm || "").trim());
   const selectionHiddenByFilters = Boolean(
     selectedRecordId && !filteredItems.some((item) => item.recordId === selectedRecordId),
   );
+  const syncFiltersToUrl = (
+    nextSearch: string,
+    nextType: "" | "factura" | "presupuesto",
+    nextYear: string,
+  ) => {
+    const next = new URLSearchParams(searchParams);
+    const safeSearch = String(nextSearch || "").trim();
+    const safeYear = String(nextYear || "").trim();
+    if (safeSearch) {
+      next.set("q", safeSearch);
+    } else {
+      next.delete("q");
+    }
+    if (nextType) {
+      next.set("type", nextType);
+    } else {
+      next.delete("type");
+    }
+    if (safeYear) {
+      next.set("year", safeYear);
+    } else {
+      next.delete("year");
+    }
+    setSearchParams(next, { replace: true });
+  };
 
   const copySelectedRecordId = async () => {
     const id = String(selectedRecordId || "").trim();
@@ -273,7 +314,11 @@ export function HistoryPage() {
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterType}
-                  onChange={(event) => setFilterType(event.target.value as "" | "factura" | "presupuesto")}
+                  onChange={(event) => {
+                    const nextType = event.target.value as "" | "factura" | "presupuesto";
+                    setFilterType(nextType);
+                    syncFiltersToUrl(searchTerm, nextType, filterYear);
+                  }}
                   aria-label="Filtrar por tipo de documento"
                 >
                   <option value="">Todos</option>
@@ -286,7 +331,11 @@ export function HistoryPage() {
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterYear}
-                  onChange={(event) => setFilterYear(event.target.value)}
+                  onChange={(event) => {
+                    const nextYear = event.target.value;
+                    setFilterYear(nextYear);
+                    syncFiltersToUrl(searchTerm, filterType, nextYear);
+                  }}
                   aria-label="Filtrar por año de emisión"
                 >
                   <option value="">Todos</option>
@@ -301,9 +350,30 @@ export function HistoryPage() {
             <Input
               placeholder="Filtrar por número, cliente, recordId o texto del tipo"
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              onChange={(event) => {
+                const nextSearch = event.target.value;
+                setSearchTerm(nextSearch);
+                syncFiltersToUrl(nextSearch, filterType, filterYear);
+              }}
               aria-label="Filtrar listado de historial"
             />
+            {hasActiveFilters ? (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setFilterType("");
+                    setFilterYear("");
+                    setSearchTerm("");
+                    syncFiltersToUrl("", "", "");
+                  }}
+                >
+                  Limpiar filtros
+                </Button>
+              </div>
+            ) : null}
             {historyQuery.isSuccess ? (
               <p className="text-xs text-muted-foreground">
                 Mostrando {filteredItems.length} de {rawHistoryCount} documento{rawHistoryCount === 1 ? "" : "s"}
@@ -358,6 +428,7 @@ export function HistoryPage() {
                       setFilterType("");
                       setFilterYear("");
                       setSearchTerm("");
+                      syncFiltersToUrl("", "", "");
                     }}
                   >
                     Limpiar filtros
