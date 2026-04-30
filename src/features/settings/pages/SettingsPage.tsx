@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import type { TemplateProfileConfig } from "@/domain/document/types";
 import { fetchRuntimeConfig, saveTemplateProfilesConfig } from "@/infrastructure/api/documentsApi";
+import { ApiError } from "@/infrastructure/api/httpClient";
 import { toNumber } from "@/lib/utils";
 
 /** Misma secuencia que legacy `PROFILE_COLOR_SEQUENCE` en `public/app.js`. */
@@ -117,6 +118,31 @@ function toProfileDraft(profile: TemplateProfileConfig | null): ProfileDraft {
   };
 }
 
+function SettingsConfigLoadError({ error }: { error: unknown }) {
+  if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+    return (
+      <div role="alert" className="space-y-2">
+        <p className="font-medium text-red-600">No se pudo cargar la configuración (HTTP {error.status})</p>
+        <p className="text-muted-foreground">
+          La petición a <code className="text-xs">GET /api/config</code> fue rechazada:{" "}
+          <span className="text-foreground">{error.message}</span>. Suele indicar sesión caducada, ausencia de token en este
+          origen o credenciales no aceptadas por el servidor.
+        </p>
+        <p className="text-muted-foreground">
+          Esto no es el modo solo lectura por rol: si <code className="text-xs">/api/config</code> devolviera datos y tu rol
+          no fuera <code className="text-xs">admin</code>, verías el formulario con campos deshabilitados y el aviso «Modo
+          solo lectura».
+        </p>
+      </div>
+    );
+  }
+  return (
+    <p role="alert" className="text-red-600">
+      {(error as Error)?.message || "No se pudo leer la configuración."}
+    </p>
+  );
+}
+
 function mergeProfileWithDraft(profile: TemplateProfileConfig, draft: ProfileDraft): TemplateProfileConfig {
   const tag = draft.invoiceNumberTag.trim().toUpperCase();
   const color = draft.colorKey.trim().toLowerCase();
@@ -172,6 +198,7 @@ export function SettingsPage() {
   const profiles = profileListOverride ?? serverProfiles;
   const currentUserRole = String(configQuery.data?.currentUser?.role || "").trim().toLowerCase();
   const canEdit = currentUserRole === "admin";
+  const configuredRoleLabel = String(configQuery.data?.currentUser?.role ?? "").trim();
 
   const serverActiveProfileId = String(configQuery.data?.activeTemplateProfileId || "").trim();
   const effectiveActiveProfileId = activeProfileIdDraft || serverActiveProfileId;
@@ -341,8 +368,8 @@ export function SettingsPage() {
         </Card>
       ) : configQuery.error ? (
         <Card>
-          <CardContent className="pt-6 text-sm text-red-600">
-            {(configQuery.error as Error).message || "No se pudo leer la configuración."}
+          <CardContent className="pt-6 text-sm">
+            <SettingsConfigLoadError error={configQuery.error} />
           </CardContent>
         </Card>
       ) : (
@@ -411,6 +438,27 @@ export function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
+              {!canEdit ? (
+                <div
+                  role="status"
+                  className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm"
+                >
+                  <p className="font-medium text-foreground">Modo solo lectura</p>
+                  <p className="mt-1 text-muted-foreground">
+                    Editar datos del emisor, crear un usuario nuevo y guardar en el servidor solo están habilitados para la
+                    sesión cuyo rol en <code className="rounded bg-muted px-1 text-xs">/api/config</code> es{" "}
+                    <strong>admin</strong>.
+                    {configuredRoleLabel ? (
+                      <>
+                        {" "}
+                        Tu sesión publica el rol: <strong>{configuredRoleLabel}</strong>.
+                      </>
+                    ) : (
+                      <> En esta carga no figura un valor de rol en la configuración.</>
+                    )}
+                  </p>
+                </div>
+              ) : null}
               {profiles.length ? (
                 <>
                   <div className="grid gap-4 sm:grid-cols-2">

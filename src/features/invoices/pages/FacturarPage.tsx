@@ -134,6 +134,10 @@ export function FacturarPage() {
                 <Input placeholder="ES..." {...register("bankAccount")} />
               </Field>
             </div>
+            <p className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Tenant documento:</span>{" "}
+              {String(watch("tenantId") || "").trim() || "-"}
+            </p>
           </WorkflowModule>
 
           <WorkflowModule
