@@ -1,3 +1,4 @@
+import { Calendar } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
@@ -168,7 +169,11 @@ export function FacturarPage() {
               <Field label="Número">
                 <Input placeholder="Número factura" {...register("number")} />
               </Field>
-              <Field label="Estado" error={errors.accounting?.status?.message}>
+              <Field
+                label="Estado contable"
+                hint="Por defecto «Enviada». Elige otro valor solo si el documento ya está cobrado o cancelado."
+                error={errors.accounting?.status?.message}
+              >
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register("accounting.status")}
@@ -179,37 +184,43 @@ export function FacturarPage() {
                 </select>
               </Field>
               <Field label="Fecha emisión" error={errors.issueDate?.message}>
-                <div className="flex gap-2">
-                  <Input type="date" {...register("issueDate")} />
+                <div className="flex items-stretch gap-1">
+                  <Input type="date" className="min-w-0 flex-1" {...register("issueDate")} />
                   <Button
                     type="button"
-                    variant="outline"
-                    className="shrink-0"
-                    onClick={() => form.setValue("issueDate", new Date().toISOString().slice(0, 10))}
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
+                    title="Usar la fecha de hoy"
+                    aria-label="Poner fecha de emisión a hoy"
+                    onClick={() => form.setValue("issueDate", new Date().toISOString().slice(0, 10), { shouldDirty: true })}
                   >
-                    Hoy
+                    <Calendar className="h-4 w-4" aria-hidden />
                   </Button>
                 </div>
+              </Field>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Field label="Serie">
+                <Input placeholder="Opcional" {...register("series")} />
+              </Field>
+              <Field label="Vencimiento" error={errors.dueDate?.message}>
+                <Input type="date" {...register("dueDate")} />
+              </Field>
+              <Field label="Referencia interna" error={errors.reference?.message}>
+                <Input placeholder="Tu referencia / código interno" {...register("reference")} />
               </Field>
             </div>
 
             <details className="group mt-2">
               <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
                 <span className="transition-transform group-open:rotate-90">▶</span>
-                <span>Más campos del documento</span>
+                <span>Otros campos del documento (contabilidad, rango…)</span>
               </summary>
               <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Field label="Serie">
-                  <Input placeholder="Serie opcional" {...register("series")} />
-                </Field>
                 <Field label="Número final" error={errors.numberEnd?.message}>
                   <Input placeholder="Opcional (rango o número final)" {...register("numberEnd")} />
-                </Field>
-                <Field label="Vencimiento" error={errors.dueDate?.message}>
-                  <Input type="date" {...register("dueDate")} />
-                </Field>
-                <Field label="Referencia" error={errors.reference?.message}>
-                  <Input placeholder="Referencia documento" {...register("reference")} />
                 </Field>
                 <Field label="Fecha cobro" error={errors.accounting?.paymentDate?.message}>
                   <Input type="date" {...register("accounting.paymentDate")} />
@@ -369,10 +380,10 @@ export function FacturarPage() {
             help={workflowChecklist.client.tip}
           >
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Cliente guardado">
+              <Field label="Cliente guardado" hint="Si eliges uno, se rellenan los datos. «Quitar cliente» deja el bloque listo para otro.">
                 <div className="flex gap-2">
                   <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={selectedClientOptionId}
                     onChange={(event) => applyClientByOptionId(event.target.value)}
                   >
@@ -383,15 +394,22 @@ export function FacturarPage() {
                       </option>
                     ))}
                   </select>
-                  <Button type="button" variant="outline" onClick={clearClientData}>
-                    Limpiar cliente
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 px-3 text-muted-foreground hover:text-foreground"
+                    onClick={clearClientData}
+                    title="Vaciar cliente seleccionado y campos asociados"
+                  >
+                    Quitar cliente
                   </Button>
                 </div>
               </Field>
               <Field label="Nombre cliente" error={errors.client?.name?.message}>
                 <Input
                   list="client-options"
-                  placeholder="Nombre cliente"
+                  placeholder="Nombre o razón social"
                   {...register("client.name")}
                   onBlur={(event) => applyClientByName(event.target.value)}
                 />
@@ -401,17 +419,20 @@ export function FacturarPage() {
                   ))}
                 </datalist>
               </Field>
-              <Field label="NIF/CIF">
-                <Input placeholder="NIF/CIF" {...register("client.taxId")} />
-              </Field>
             </div>
 
             <details className="group mt-2">
               <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
                 <span className="transition-transform group-open:rotate-90">▶</span>
-                <span>Más datos del cliente</span>
+                <span>Más datos del cliente (NIF, dirección, contacto…)</span>
               </summary>
               <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <Field label="NIF/CIF" error={errors.client?.taxId?.message}>
+                  <Input placeholder="NIF/CIF" {...register("client.taxId")} />
+                </Field>
+                <Field label="Tipo NIF">
+                  <Input placeholder="NIF/CIF/VAT..." {...register("client.taxIdType")} />
+                </Field>
                 <Field label="Email">
                   <Input placeholder="email@cliente.com" {...register("client.email")} />
                 </Field>
@@ -429,9 +450,6 @@ export function FacturarPage() {
                 </Field>
                 <Field label="País (código)">
                   <Input placeholder="ES" {...register("client.taxCountryCode")} />
-                </Field>
-                <Field label="Tipo NIF">
-                  <Input placeholder="NIF/CIF/VAT..." {...register("client.taxIdType")} />
                 </Field>
               </div>
             </details>

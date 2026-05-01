@@ -78,7 +78,7 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `templateProfileId` | Gasto asociado a perfil / tenant | Select desde `GET /api/config` (`templateProfiles`); opción vacía «Perfil por defecto» | Coherencia con **Configuración** (`activeTemplateProfileId`): nuevo gasto usa `activeProfileId` en `createEmptyExpense` | Alinear copy y default con legacy | Mismo perfil por defecto que prod | **parcial** | P1 |
+| `templateProfileId` | Gasto asociado a perfil / tenant | Select desde `GET /api/config`; opción vacía con **etiqueta del activo**; hidratación única del borrador con `activeTemplateProfileId` si iba vacío; ayuda textual al activo del servidor | Checklist legacy vacío vs id explícito al guardar | Ajustar solo con evidencia prod | Mismo perfil por defecto que prod | **parcial** | P1 |
 | `templateProfileLabel` | Solo lectura en listados legacy | Mostrado en listado (`Perfil: ...`) con fallback a `templateProfileId` | Informativo | — | Ver listado con datos API | **parcial** | P2 |
 
 ---
@@ -117,7 +117,7 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Vendors / categories | Listas sugeridas | `fetchExpenseOptions` → `expenseOptions` anidado | Runbook/global-setup: respuesta a veces **no estándar** (`expenseOptions` wrapper) | Normalizar en backend o adaptador único | E2E/setup tolerante documentado | **parcial** | P1 |
+| Vendors / categories | Listas sugeridas | `fetchExpenseOptions` → **`parseExpenseOptionsPayload`** (raíz / `expenseOptions` / `data`) | Si el backend cambia el contrato o añade listas nuevas | Extender parser + tipos | E2E + unit tests del parser | **parcial** | P1 |
 | Otros ejes (si legacy) | Métodos pago, proveedores bloqueados, etc. | Solo `vendors` y `categories` en tipo `ExpenseOptions` | Si legacy expone más listas | Ampliar tipo + UI | — | **pendiente** | P2 |
 
 ---
@@ -126,7 +126,7 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Errores de guardado | Mensajes claros | `statusMessage` + `ApiError` vía `request()` | Mapeo 4xx/5xx a texto usuario | Mejorar mensajes desde payload | — | **parcial** | P2 |
+| Errores de guardado | Mensajes claros | `statusMessage` + `getErrorMessageFromUnknown` (`message` / `detail` / mensaje `ApiError`) | Mapeo 4xx/5xx rico si el backend envía más campos | Ampliar extractor si el contrato lo documenta | — | **parcial** | P2 |
 | Rol admin | Restricciones en papelera | `currentUser.role === "admin"` para borrar papelera | Archivar gasto/ejercicio **no** comprueba admin en UI (solo papelera) | Alinear con política legacy | Usuario no-admin no archiva si no debe | **parcial** | P1 |
 
 ---

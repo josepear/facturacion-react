@@ -23,6 +23,33 @@ export class ApiError extends Error {
   }
 }
 
+/** Mensaje legible para UI: prioriza cuerpo JSON típico (`message`, `detail`) y cae al mensaje de `ApiError`. */
+export function getErrorMessageFromUnknown(error: unknown): string {
+  if (error instanceof ApiError) {
+    const payload = error.payload;
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+      const rec = payload as Record<string, unknown>;
+      const fromMessage = typeof rec.message === "string" ? rec.message.trim() : "";
+      if (fromMessage) {
+        return fromMessage;
+      }
+      const fromDetail = typeof rec.detail === "string" ? rec.detail.trim() : "";
+      if (fromDetail) {
+        return fromDetail;
+      }
+    }
+    const base = String(error.message || "").trim();
+    if (base) {
+      return base;
+    }
+    return `HTTP ${error.status}`;
+  }
+  if (error instanceof Error) {
+    return String(error.message || "").trim() || "Error desconocido.";
+  }
+  return "Error desconocido.";
+}
+
 export async function request<TResponse>(
   path: string,
   options: {

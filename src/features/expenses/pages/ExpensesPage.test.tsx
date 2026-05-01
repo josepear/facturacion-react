@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ExpensesPage } from "@/features/expenses/pages/ExpensesPage";
+import { ApiError } from "@/infrastructure/api/httpClient";
 
 const {
   fetchRuntimeConfigMock,
@@ -135,6 +136,33 @@ describe("ExpensesPage regression", () => {
     await waitFor(() => {
       expect(deleteTrashEntriesMock).toHaveBeenCalledWith(["_papelera/gastos/2026/g-1.json"]);
     });
+  });
+
+  it("shows server validation message when saveExpense rejects with ApiError payload", async () => {
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "Admin", email: "a@test", role: "admin", tenantId: "default" },
+    });
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-main",
+      templateProfiles: [{ id: "perfil-main", label: "Main" }],
+    });
+    fetchExpensesMock.mockResolvedValue({ items: [], years: [] });
+    fetchExpenseOptionsMock.mockResolvedValue({ vendors: [], categories: [] });
+    saveExpenseMock.mockImplementation(() =>
+      Promise.reject(new ApiError("Bad Request", 400, { message: "Error fiscal del servidor" })),
+    );
+
+    render(<ExpensesPage />);
+
+    await screen.findByRole("button", { name: "Nuevo gasto" });
+    await userEvent.type(screen.getByLabelText("Proveedor"), "Proveedor X");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
+
+    await waitFor(() => {
+      expect(saveExpenseMock).toHaveBeenCalled();
+    });
+    expect(await screen.findByText("Error fiscal del servidor")).toBeTruthy();
   });
 });
 
