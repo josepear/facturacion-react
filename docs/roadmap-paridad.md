@@ -22,7 +22,9 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] Flujo feliz de Facturar cerrado: crear -> guardar -> recargar -> editar -> HTML/PDF.
 - [x] Smoke E2E de Gastos contra backend real.
 - [x] **Identidad y permisos en React** vía `GET /api/session` (rol, `tenantId` de sesión). **`GET /api/config`** solo para datos de negocio compartidos (`templateProfiles`, `activeTemplateProfileId`, defaults, metadatos de runtime); la SPA no usa `currentUser` del JSON de config para rol ni tenant.
-- [ ] Checklist manual sistemático contra legacy en producción para cerrar filas marcadas como parciales.
+- [x] Checklist manual sistemático contra legacy en producción para cerrar filas marcadas como parciales.
+- [x] **App React desplegada en producción** en `https://facturacion.pearandco.es/react/` servida por el mismo servidor Node legacy (`serveReactApp` en `server.mjs`, ruta pública `/react/*`). Deploy integrado en `deploy-to-macmini.sh --local`.
+- [x] **Gestión de miembros del sistema** en Configuración: lista de usuarios, crear, editar y borrar vía `GET/POST /api/users`.
 
 ---
 
