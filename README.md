@@ -42,7 +42,7 @@ No sustituye revisar payloads en `app.js` ni el contrato `/api/*`, pero evita de
 
 Las llamadas del navegador van a rutas relativas (`/api/config`, etc.). Vite debe **reenviar** `/api` al backend; si no (p. ej. `vite preview` sin proxy), el servidor puede responder con **HTML de la SPA** (`index.html`) y la app verá perfiles/clientes vacíos.
 
-- **`npm run dev` y `npm run preview`:** ambos usan el mismo `proxy` en `vite.config.ts` hacia `E2E_API_TARGET` o, por defecto, el host de producción de referencia.
+- **`npm run dev` y `npm run preview`:** el `proxy` de `vite.config.ts` reenvía **`/api/*`** y **`POST /login`** hacia `E2E_API_TARGET` o, por defecto, el host de producción de referencia.
 - **Comprobación rápida** (con el servidor arrancado; el cuerpo debe ser JSON, no empezar por `<`):
 
 ```bash

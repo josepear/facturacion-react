@@ -4,6 +4,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ExpensesPage } from "@/features/expenses/pages/ExpensesPage";
 import { ApiError } from "@/infrastructure/api/httpClient";
+import { createPageWrapper } from "@/test/test-utils";
+
+vi.mock("@/features/shared/hooks/useSessionQuery", () => ({
+  SESSION_QUERY_KEY: ["session"],
+  useSessionQuery: () => ({
+    data: {
+      authenticated: true as const,
+      user: { id: "u1", name: "Admin", email: "a@test", role: "admin", tenantId: "default" },
+    },
+    isLoading: false,
+    error: null,
+    isSuccess: true,
+  }),
+}));
 
 const {
   fetchRuntimeConfigMock,
@@ -102,7 +116,7 @@ describe("ExpensesPage regression", () => {
     });
     deleteTrashEntriesMock.mockResolvedValue({ ok: true });
 
-    render(<ExpensesPage />);
+    render(<ExpensesPage />, { wrapper: createPageWrapper() });
 
     await screen.findByText("Proveedor Uno");
     await userEvent.type(screen.getByPlaceholderText("Buscar proveedor, descripción, categoría o factura"), "Dos");
@@ -153,7 +167,7 @@ describe("ExpensesPage regression", () => {
       Promise.reject(new ApiError("Bad Request", 400, { message: "Error fiscal del servidor" })),
     );
 
-    render(<ExpensesPage />);
+    render(<ExpensesPage />, { wrapper: createPageWrapper() });
 
     await screen.findByRole("button", { name: "Nuevo gasto" });
     await userEvent.type(screen.getByLabelText("Proveedor"), "Proveedor X");

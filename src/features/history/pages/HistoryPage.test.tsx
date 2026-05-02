@@ -3,6 +3,20 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HistoryPage } from "@/features/history/pages/HistoryPage";
+import { createPageWrapper } from "@/test/test-utils";
+
+vi.mock("@/features/shared/hooks/useSessionQuery", () => ({
+  SESSION_QUERY_KEY: ["session"],
+  useSessionQuery: () => ({
+    data: {
+      authenticated: true as const,
+      user: { id: "u1", name: "Admin", email: "a@test", role: "admin", tenantId: "default" },
+    },
+    isLoading: false,
+    error: null,
+    isSuccess: true,
+  }),
+}));
 
 const {
   fetchHistoryInvoicesMock,
@@ -115,7 +129,7 @@ describe("HistoryPage regression", () => {
     });
     deleteTrashEntriesMock.mockResolvedValue({ ok: true });
 
-    render(<HistoryPage />);
+    render(<HistoryPage />, { wrapper: createPageWrapper() });
 
     await screen.findByText("F-1");
     await userEvent.type(screen.getByPlaceholderText("Filtrar por número, cliente, recordId o texto del tipo"), "Beta");
