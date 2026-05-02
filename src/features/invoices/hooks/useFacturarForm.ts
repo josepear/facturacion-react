@@ -675,5 +675,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     canOpenOfficialOutput: Boolean(serverRecordId),
     loadingConfig: configQuery.isLoading,
     liveDocument,
+    isDirty: form.formState.isDirty,
   };
 }

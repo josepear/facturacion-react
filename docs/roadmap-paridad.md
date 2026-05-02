@@ -51,6 +51,7 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] **Duplicar documento:** botón "Duplicar documento" (visible solo cuando hay un documento cargado); copia todos los datos, borra número y `recordId` para guardar como nuevo.
 - [x] **`lineTotal` manual por línea:** campo "Total línea" en cada concepto; cuando se informa, prevalece sobre cantidad × precio.
 - [x] **Tipos de documento adicionales:** no aplican por contrato actual (backend legacy resuelve solo `factura` y `presupuesto`).
+- [x] **Aviso de cambios no guardados:** useBlocker (navegación interna) + beforeunload (pestaña/refresco).
 
 ### Parcial
 

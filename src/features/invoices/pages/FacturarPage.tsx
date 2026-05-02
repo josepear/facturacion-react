@@ -1,6 +1,6 @@
 import { Calendar } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, unstable_useBlocker as useBlocker, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,7 @@ export function FacturarPage() {
     loadingConfig,
     liveDocument,
     duplicateDocument,
+    isDirty,
   } = useFacturarForm(initialRecordId, initialTemplateProfileId);
   const {
     register,
@@ -92,6 +93,34 @@ export function FacturarPage() {
     });
   }, [filteredHistoryOptions, historyTypeFilter, historyYearFilter]);
   const hasHistoryFilters = Boolean(historyYearFilter || historyTypeFilter || historySearchTerm.trim());
+  const shouldBlockNavigation = isDirty && !saveMutation.isPending && !saveMutation.isSuccess;
+  const blocker = useBlocker(shouldBlockNavigation);
+
+  useEffect(() => {
+    if (blocker.state !== "blocked") {
+      return;
+    }
+    const confirmed = window.confirm("Hay cambios sin guardar. ¿Salir de todas formas?");
+    if (confirmed) {
+      blocker.proceed();
+      return;
+    }
+    blocker.reset();
+  }, [blocker]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!shouldBlockNavigation) {
+        return;
+      }
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [shouldBlockNavigation]);
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
