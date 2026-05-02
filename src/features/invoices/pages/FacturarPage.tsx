@@ -58,6 +58,7 @@ export function FacturarPage() {
     canOpenOfficialOutput,
     loadingConfig,
     liveDocument,
+    duplicateDocument,
   } = useFacturarForm(initialRecordId, initialTemplateProfileId);
   const {
     register,
@@ -593,6 +594,15 @@ export function FacturarPage() {
                 >
                   {officialOutputLoading === "pdf" ? "Abriendo PDF..." : "Abrir PDF oficial"}
                 </Button>
+                {canOpenOfficialOutput && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={duplicateDocument}
+                  >
+                    Duplicar documento
+                  </Button>
+                )}
               </div>
               {officialOutputError ? <p className="text-sm text-red-600">{officialOutputError}</p> : null}
               <span className="text-sm text-muted-foreground">

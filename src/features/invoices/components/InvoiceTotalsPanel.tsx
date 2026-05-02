@@ -58,8 +58,17 @@ export function InvoiceTotalsPanel({
                 className="min-w-[6rem] flex-1"
                 {...register("taxRate", { valueAsNumber: true })}
               />
+              <button type="button" className={chipClass(Number(taxRate) === 0)} onClick={() => onTaxRatePreset(0)}>
+                0%
+              </button>
+              <button type="button" className={chipClass(Number(taxRate) === 3)} onClick={() => onTaxRatePreset(3)}>
+                3%
+              </button>
               <button type="button" className={chipClass(Number(taxRate) === 7)} onClick={() => onTaxRatePreset(7)}>
                 7%
+              </button>
+              <button type="button" className={chipClass(Number(taxRate) === 15)} onClick={() => onTaxRatePreset(15)}>
+                15%
               </button>
             </div>
           </Field>

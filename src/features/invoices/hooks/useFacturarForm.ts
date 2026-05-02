@@ -613,6 +613,18 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     [serverRecordId],
   );
 
+  const duplicateDocument = () => {
+    const current = form.getValues();
+    const copy = { ...current, number: "" };
+    setServerRecordId("");
+    setRecordIdInput("");
+    setSelectedHistoryRecordId("");
+    setOfficialOutputError(null);
+    form.reset(copy);
+    setNumberAvailabilityText("Copia lista. Edita el número y guarda para crear nuevo documento.");
+    setNumberAvailabilityTone("neutral");
+  };
+
   return {
     form,
     submit,
@@ -622,6 +634,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     selectedProfile,
     activeTemplateProfileId,
     applyTemplateProfile,
+    duplicateDocument,
     taxValidation,
     withoutWithholding,
     setWithoutWithholding,

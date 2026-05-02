@@ -46,6 +46,9 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
   - [x] búsqueda mejorada
   - [x] limpiar filtros
   - [x] selección rápida con más contexto (tipo, importe, fecha)
+  - [x] límite ampliado a 100 recientes con enlace al Historial completo
+- [x] **Presets IGIC:** botones 0 %, 3 %, 7 %, 15 % junto al campo IGIC (%) en el panel de impuestos.
+- [x] **Duplicar documento:** botón "Duplicar documento" (visible solo cuando hay un documento cargado); copia todos los datos, borra número y `recordId` para guardar como nuevo.
 
 ### Parcial
 
@@ -63,14 +66,13 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [ ] (parcial) `client.taxCountryCode`: confirmar si debe ser lista/ISO cerrada.
 - [ ] (parcial) `client.taxIdType`: confirmar si debe ser catálogo.
 - [ ] (parcial) `totalsBasis`: confirmar etiquetas y reglas exactas frente a legacy.
-- [ ] (parcial) `taxRate`: confirmar topes/catálogo.
+- [ ] (parcial) `taxRate`: confirmar topes/catálogo — presets IGIC añadidos (0 %, 3 %, 7 %, 15 %); valor libre sigue disponible.
 - [ ] (parcial) Preview local frente a HTML oficial/pixel-perfect.
 - [ ] (parcial) PDF oficial: confirmar disponibilidad estable en todos los entornos.
-- [ ] (parcial) Histórico de Facturar: límite de 40 recientes frente a legacy.
 
 ### Pendiente
 
-- [ ] Acciones post-guardado del legacy si existen (enviar, duplicar, anular, etc.).
+- [x] **Duplicar documento:** implementado en cliente (ver Hecho arriba).
 - [ ] `lineTotal` manual por línea si el legacy lo soporta.
 - [ ] Cualquier tipo de documento adicional si el legacy usa más que factura/presupuesto.
 
