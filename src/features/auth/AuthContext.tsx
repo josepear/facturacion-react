@@ -37,7 +37,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const { token } = await loginWithPassword(email, password);
         setAuthToken(token);
         setAuthVersion((value) => value + 1);
-        await queryClient.invalidateQueries({ queryKey: [...SESSION_QUERY_KEY] });
+        /** No esperar refetch: la app entra ya; `/api/session` valida en segundo plano (paridad con legacy). */
+        void queryClient.invalidateQueries({ queryKey: [...SESSION_QUERY_KEY] });
       } catch (error) {
         const message = error instanceof Error ? error.message : "No se pudo iniciar sesión.";
         setLoginError(message);

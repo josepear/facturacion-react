@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useLayoutEffect, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
@@ -27,23 +27,15 @@ export function LoginPage() {
 
   const hasToken = Boolean(getAuthToken());
   const sessionQuery = useSessionQuery();
-  const sessionOk = Boolean(sessionQuery.data?.authenticated);
 
-  useEffect(() => {
-    if (hasToken && sessionOk) {
-      navigate(next || "/facturar", { replace: true });
+  useLayoutEffect(() => {
+    if (hasToken && sessionQuery.isSuccess && sessionQuery.data && sessionQuery.data.authenticated === false) {
+      logout();
     }
-  }, [hasToken, sessionOk, navigate, next]);
+  }, [hasToken, sessionQuery.isSuccess, sessionQuery.data, logout]);
 
-  if (hasToken && sessionQuery.isLoading && !sessionQuery.data) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <p className="text-sm text-muted-foreground">Comprobando sesión…</p>
-      </div>
-    );
-  }
-
-  if (hasToken && sessionQuery.error) {
+  /** Con token y error de red/API: quedarse aquí para recuperación; si no hay error, ir a la app y validar allí (legacy-like). */
+  if (hasToken && sessionQuery.isError) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4">
         <p className="max-w-sm text-center text-sm text-muted-foreground">
@@ -56,7 +48,12 @@ export function LoginPage() {
     );
   }
 
-  if (hasToken && sessionOk) {
+  /** Evita bucle con `/facturar` si el servidor devuelve `authenticated: false` antes de limpiar token. */
+  if (hasToken && sessionQuery.isSuccess && sessionQuery.data && sessionQuery.data.authenticated === false) {
+    return null;
+  }
+
+  if (hasToken) {
     return <Navigate to={next || "/facturar"} replace />;
   }
 

@@ -10,7 +10,7 @@ export { SESSION_QUERY_KEY } from "@/features/auth/sessionQueryKey";
 
 /**
  * Sesión vía `GET /api/session` (Bearer). La clave incluye `authVersion` para refetch tras login/logout.
- * 401 o `authenticated: false` limpian el token (vía `clearAuthToken`).
+ * 401 o respuesta `authenticated: false` limpian el token (vía `clearAuthToken`).
  */
 export function useSessionQuery() {
   const { authVersion } = useAuth();
@@ -35,6 +35,17 @@ export function useSessionQuery() {
       queryClient.removeQueries({ queryKey: [...SESSION_QUERY_KEY] });
     }
   }, [hasToken, sessionQuery.error, queryClient]);
+
+  useEffect(() => {
+    if (!hasToken) {
+      return;
+    }
+    const data = sessionQuery.data;
+    if (sessionQuery.isSuccess && data && data.authenticated === false) {
+      clearAuthToken();
+      queryClient.removeQueries({ queryKey: [...SESSION_QUERY_KEY] });
+    }
+  }, [hasToken, sessionQuery.isSuccess, sessionQuery.data, queryClient]);
 
   return sessionQuery;
 }
