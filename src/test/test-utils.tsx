@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
-import { MemoryRouter } from "react-router-dom";
+
+import { AuthProvider } from "@/features/auth/AuthContext";
 
 export function createTestQueryClient() {
   return new QueryClient({
@@ -14,16 +15,21 @@ export function createTestQueryClient() {
 export function createHookWrapper() {
   const queryClient = createTestQueryClient();
   return function HookWrapper({ children }: PropsWithChildren) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>{children}</AuthProvider>
+      </QueryClientProvider>
+    );
   };
 }
 
-export function createPageWrapper(initialEntries: string[] = ["/"]) {
+/** Sin `MemoryRouter`: los tests suelen mockear `useSearchParams` / `useNavigate`; evita duplicar React con react-router en Vitest. */
+export function createPageWrapper() {
   const queryClient = createTestQueryClient();
   return function PageWrapper({ children }: PropsWithChildren) {
     return (
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+        <AuthProvider>{children}</AuthProvider>
       </QueryClientProvider>
     );
   };

@@ -1,8 +1,9 @@
-import { LayoutGrid, Menu, ReceiptText, Settings, Users, WalletCards, X } from "lucide-react";
+import { LayoutGrid, LogOut, Menu, ReceiptText, Settings, Users, WalletCards, X } from "lucide-react";
 import { useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/features/auth/AuthContext";
 import { cn } from "@/lib/utils";
 
 type ShellNavItem = {
@@ -23,9 +24,10 @@ const navItems: ShellNavItem[] = [
 type SidebarContentProps = {
   collapsed: boolean;
   onNavigate?: () => void;
+  onLogout?: () => void;
 };
 
-function SidebarContent({ collapsed, onNavigate }: SidebarContentProps) {
+function SidebarContent({ collapsed, onNavigate, onLogout }: SidebarContentProps) {
   return (
     <div className="flex h-full flex-col gap-4 p-3">
       <div className={cn("rounded-lg border bg-card px-3 py-3", collapsed ? "text-center" : "")}>
@@ -57,14 +59,36 @@ function SidebarContent({ collapsed, onNavigate }: SidebarContentProps) {
           );
         })}
       </nav>
+
+      <div className="mt-auto border-t pt-2">
+        <Button
+          type="button"
+          variant="ghost"
+          className={cn("w-full justify-start gap-2 text-muted-foreground", collapsed ? "justify-center px-2" : "")}
+          onClick={() => {
+            onLogout?.();
+            onNavigate?.();
+          }}
+        >
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed ? <span>Cerrar sesión</span> : null}
+        </Button>
+      </div>
     </div>
   );
 }
 
 export function AppShell() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
 
   const shellTitle = useMemo(() => {
     return navItems.find((item) => location.pathname.startsWith(item.to))?.label || "Facturación";
@@ -77,9 +101,14 @@ export function AppShell() {
           <span className="text-xs uppercase tracking-wide text-muted-foreground">Facturación React</span>
           <span className="text-sm font-semibold">{shellTitle}</span>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={() => setMobileOpen(true)} aria-label="Abrir menú">
-          <Menu className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={handleLogout} aria-label="Cerrar sesión">
+            <LogOut className="h-4 w-4" />
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setMobileOpen(true)} aria-label="Abrir menú">
+            <Menu className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
 
       {mobileOpen ? (
@@ -95,7 +124,11 @@ export function AppShell() {
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <SidebarContent collapsed={false} onNavigate={() => setMobileOpen(false)} />
+            <SidebarContent
+              collapsed={false}
+              onNavigate={() => setMobileOpen(false)}
+              onLogout={handleLogout}
+            />
           </aside>
         </div>
       ) : null}
@@ -119,7 +152,7 @@ export function AppShell() {
               <Menu className="h-4 w-4" />
             </Button>
           </div>
-          <SidebarContent collapsed={collapsed} />
+          <SidebarContent collapsed={collapsed} onLogout={handleLogout} />
         </aside>
 
         <main className="min-h-[calc(100vh-57px)] w-full min-w-0 flex-1 lg:min-h-screen">

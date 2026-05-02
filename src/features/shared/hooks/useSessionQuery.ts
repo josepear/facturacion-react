@@ -1,13 +1,40 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
+import { useAuth } from "@/features/auth/AuthContext";
+import { SESSION_QUERY_KEY } from "@/features/auth/sessionQueryKey";
+import { ApiError, clearAuthToken, getAuthToken } from "@/infrastructure/api/httpClient";
 import { fetchSession } from "@/infrastructure/api/sessionApi";
 
-/** Misma clave en toda la app para deduplicar `GET /api/session` vía React Query. */
-export const SESSION_QUERY_KEY = ["session"] as const;
+export { SESSION_QUERY_KEY } from "@/features/auth/sessionQueryKey";
 
+/**
+ * Sesión vía `GET /api/session` (Bearer). La clave incluye `authVersion` para refetch tras login/logout.
+ * 401 o `authenticated: false` limpian el token (vía `clearAuthToken`).
+ */
 export function useSessionQuery() {
-  return useQuery({
-    queryKey: SESSION_QUERY_KEY,
+  const { authVersion } = useAuth();
+  const queryClient = useQueryClient();
+  const hasToken = Boolean(getAuthToken());
+
+  const sessionQuery = useQuery({
+    queryKey: [...SESSION_QUERY_KEY, authVersion] as const,
     queryFn: fetchSession,
+    enabled: hasToken,
+    retry: false,
+    staleTime: 30_000,
   });
+
+  useEffect(() => {
+    if (!hasToken) {
+      return;
+    }
+    const err = sessionQuery.error;
+    if (err instanceof ApiError && err.status === 401) {
+      clearAuthToken();
+      queryClient.removeQueries({ queryKey: [...SESSION_QUERY_KEY] });
+    }
+  }, [hasToken, sessionQuery.error, queryClient]);
+
+  return sessionQuery;
 }

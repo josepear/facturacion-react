@@ -1,15 +1,52 @@
 type HttpMethod = "GET" | "POST";
 
-const AUTH_TOKEN_KEY = "facturacion-auth-token";
+/** Misma clave que E2E y `auth.setup`; única entrada de persistencia del token en el cliente. */
+export const AUTH_TOKEN_STORAGE_KEY = "facturacion-auth-token";
 
-function getBrowserAuthToken(): string | null {
+/** Disparado tras `clearAuthToken()` para que `AuthProvider` re-renderice sin acoplar módulos a React Context. */
+export const AUTH_STORAGE_EVENT = "facturacion:auth-storage";
+
+function readStoredToken(): string | null {
   if (typeof globalThis === "undefined" || !("localStorage" in globalThis)) {
     return null;
   }
   try {
-    return globalThis.localStorage.getItem(AUTH_TOKEN_KEY);
+    return globalThis.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
   } catch {
     return null;
+  }
+}
+
+/** Token JWT/hex actual usado como `Authorization: Bearer` (solo lectura). */
+export function getAuthToken(): string | null {
+  const raw = readStoredToken();
+  const trimmed = String(raw || "").trim();
+  return trimmed || null;
+}
+
+/** Persiste o borra el token; debe llamarse solo desde el módulo de auth (login/logout). */
+export function setAuthToken(token: string | null): void {
+  if (typeof globalThis === "undefined" || !("localStorage" in globalThis)) {
+    return;
+  }
+  try {
+    const safe = String(token || "").trim();
+    if (safe) {
+      globalThis.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, safe);
+    } else {
+      globalThis.localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    }
+  } catch {
+    // modo privado u otro bloqueo: la sesión no persistirá
+  }
+}
+
+export function clearAuthToken(): void {
+  setAuthToken(null);
+  try {
+    globalThis.dispatchEvent(new CustomEvent(AUTH_STORAGE_EVENT));
+  } catch {
+    // ignore
   }
 }
 
@@ -58,7 +95,7 @@ export async function request<TResponse>(
     signal?: AbortSignal;
   } = {},
 ): Promise<TResponse> {
-  const token = getBrowserAuthToken();
+  const token = getAuthToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -87,7 +124,7 @@ export async function request<TResponse>(
 
 /** Misma cabecera `Authorization` que `request`, sin forzar JSON (p. ej. HTML/PDF oficiales). */
 export async function fetchWithAuth(input: string | URL, init: RequestInit = {}): Promise<Response> {
-  const token = getBrowserAuthToken();
+  const token = getAuthToken();
   const headers = new Headers(init.headers);
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);

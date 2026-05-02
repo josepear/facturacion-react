@@ -1,19 +1,50 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SettingsPage } from "@/features/settings/pages/SettingsPage";
 import { ApiError } from "@/infrastructure/api/httpClient";
+import { createPageWrapper } from "@/test/test-utils";
 
-const { fetchRuntimeConfigMock, fetchSessionMock, saveTemplateProfilesConfigMock, navigateMock, searchState } = vi.hoisted(
-  () => ({
+const {
+  fetchRuntimeConfigMock,
+  fetchSessionMock,
+  saveTemplateProfilesConfigMock,
+  navigateMock,
+  searchState,
+  useSessionQueryMock,
+  adminSessionQueryResult,
+  editorSessionQueryResult,
+} = vi.hoisted(() => {
+  const admin = {
+    data: {
+      authenticated: true as const,
+      user: { id: "u1", name: "Admin", email: "admin@test", role: "admin", tenantId: "default" },
+    },
+    isLoading: false,
+    error: null,
+    isSuccess: true,
+  };
+  const editor = {
+    data: {
+      authenticated: true as const,
+      user: { id: "u2", name: "Editor", email: "ed@test", role: "editor", tenantId: "default" },
+    },
+    isLoading: false,
+    error: null,
+    isSuccess: true,
+  };
+  return {
     fetchRuntimeConfigMock: vi.fn(),
     fetchSessionMock: vi.fn(),
     saveTemplateProfilesConfigMock: vi.fn(),
     navigateMock: vi.fn(),
     searchState: { query: "" },
-  }),
-);
+    useSessionQueryMock: vi.fn(() => admin),
+    adminSessionQueryResult: admin,
+    editorSessionQueryResult: editor,
+  };
+});
 
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
@@ -39,6 +70,11 @@ vi.mock("@/infrastructure/api/sessionApi", () => ({
   fetchSession: fetchSessionMock,
 }));
 
+vi.mock("@/features/shared/hooks/useSessionQuery", () => ({
+  SESSION_QUERY_KEY: ["session"],
+  useSessionQuery: () => useSessionQueryMock(),
+}));
+
 describe("SettingsPage regression", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -47,6 +83,7 @@ describe("SettingsPage regression", () => {
       authenticated: true,
       user: { id: "u1", name: "Admin", email: "admin@test", role: "admin", tenantId: "default" },
     });
+    useSessionQueryMock.mockReturnValue(adminSessionQueryResult);
   });
 
   it("loads and saves active profile/defaults for admin", async () => {
@@ -72,14 +109,17 @@ describe("SettingsPage regression", () => {
     });
     saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
 
-    render(<SettingsPage />);
+    render(<SettingsPage />, { wrapper: createPageWrapper() });
 
     await screen.findByText("Perfil activo (servidor)");
 
     await userEvent.selectOptions(screen.getByLabelText("Plantilla de emisor"), "perfil-2");
     expect(searchState.query).toContain("templateProfileId=perfil-2");
     expect(screen.getByText(/Cambios locales pendientes de guardar/)).toBeTruthy();
-    const paymentInput = screen.getByPlaceholderText("Transferencia bancaria");
+    const advancedDetails = screen.getByText("Avanzado del usuario").closest("details");
+    expect(advancedDetails).toBeTruthy();
+    await userEvent.click(screen.getByText("Avanzado del usuario"));
+    const paymentInput = within(advancedDetails as HTMLElement).getByPlaceholderText("Transferencia bancaria");
     await userEvent.clear(paymentInput);
     await userEvent.type(paymentInput, "Bizum");
     await userEvent.click(screen.getByRole("button", { name: "Guardar datos del emisor" }));
@@ -95,28 +135,28 @@ describe("SettingsPage regression", () => {
   });
 
   it("keeps readonly mode for non-admin users", async () => {
-    fetchSessionMock.mockResolvedValue({
-      authenticated: true,
-      user: { id: "u2", name: "Editor", email: "ed@test", role: "editor", tenantId: "default" },
-    });
+    useSessionQueryMock.mockReturnValue(editorSessionQueryResult);
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
       templateProfiles: [{ id: "perfil-1", label: "Perfil 1", defaults: { paymentMethod: "Transferencia" } }],
     });
 
-    render(<SettingsPage />);
+    render(<SettingsPage />, { wrapper: createPageWrapper() });
     await screen.findByText("Perfil activo (servidor)");
 
-    const readOnlyBanner = screen.getByRole("status");
-    expect(readOnlyBanner.textContent).toContain("Modo solo lectura");
-    expect(readOnlyBanner.textContent).toContain("editor");
+    const readOnlyBanner = screen
+      .getAllByRole("status")
+      .find((element) => element.textContent?.includes("Modo solo lectura"));
+    expect(readOnlyBanner).toBeTruthy();
+    expect(readOnlyBanner?.textContent).toContain("Modo solo lectura");
+    expect(readOnlyBanner?.textContent).toMatch(/editor/i);
     expect(screen.getByRole("button", { name: "Guardar datos del emisor" }).hasAttribute("disabled")).toBe(true);
   });
 
   it("explains auth failure on /api/config separately from read-only role", async () => {
     fetchRuntimeConfigMock.mockRejectedValue(new ApiError("No autorizado", 401));
 
-    render(<SettingsPage />);
+    render(<SettingsPage />, { wrapper: createPageWrapper() });
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("HTTP 401");
@@ -149,7 +189,7 @@ describe("SettingsPage regression", () => {
       ],
     });
 
-    render(<SettingsPage />);
+    render(<SettingsPage />, { wrapper: createPageWrapper() });
 
     await waitFor(() => {
       expect((screen.getByLabelText("Plantilla de emisor") as HTMLSelectElement).value).toBe("perfil-2");
@@ -175,7 +215,7 @@ describe("SettingsPage regression", () => {
     });
     saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
 
-    render(<SettingsPage />);
+    render(<SettingsPage />, { wrapper: createPageWrapper() });
     await screen.findByText("Perfil activo (servidor)");
 
     await userEvent.click(screen.getByRole("button", { name: "Nuevo usuario" }));
@@ -219,10 +259,13 @@ describe("SettingsPage regression", () => {
     });
     saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
 
-    render(<SettingsPage />);
+    render(<SettingsPage />, { wrapper: createPageWrapper() });
     await screen.findByText("Perfil activo (servidor)");
 
-    const paymentInput = screen.getByPlaceholderText("Transferencia bancaria");
+    const advancedDetails = screen.getByText("Avanzado del usuario").closest("details");
+    expect(advancedDetails).toBeTruthy();
+    await userEvent.click(screen.getByText("Avanzado del usuario"));
+    const paymentInput = within(advancedDetails as HTMLElement).getByPlaceholderText("Transferencia bancaria");
     await userEvent.clear(paymentInput);
     await userEvent.type(paymentInput, "Bizum");
 
@@ -231,7 +274,9 @@ describe("SettingsPage regression", () => {
     await userEvent.click(screen.getByRole("button", { name: "Crear perfil" }));
 
     expect((screen.getByLabelText("Plantilla de emisor") as HTMLSelectElement).value).toBe("perfil-1-copia");
-    expect((screen.getByPlaceholderText("Transferencia bancaria") as HTMLInputElement).value).toBe("Bizum");
+    expect((within(advancedDetails as HTMLElement).getByPlaceholderText("Transferencia bancaria") as HTMLInputElement).value).toBe(
+      "Bizum",
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Guardar datos del emisor" }));
     await waitFor(() => {
