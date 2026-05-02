@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ClientsPage } from "@/features/clients/pages/ClientsPage";
+import { createPageWrapper } from "@/test/test-utils";
 
 const { fetchClientsMock, saveClientMock, searchState } = vi.hoisted(() => ({
   fetchClientsMock: vi.fn(),
@@ -47,7 +48,7 @@ describe("ClientsPage regression", () => {
       taxId: "A111",
     });
 
-    render(<ClientsPage />);
+    render(<ClientsPage />, { wrapper: createPageWrapper() });
 
     await screen.findByText("Acme Studio");
     expect(screen.getByText("Beta Labs")).toBeTruthy();
@@ -76,7 +77,7 @@ describe("ClientsPage regression", () => {
     ]);
     saveClientMock.mockResolvedValue({ recordId: "c1", name: "Acme Studio", taxId: "A111" });
 
-    render(<ClientsPage />);
+    render(<ClientsPage />, { wrapper: createPageWrapper() });
 
     expect(await screen.findByDisplayValue("Acme Studio")).toBeTruthy();
     expect(screen.getByText("Cliente cargado desde URL.")).toBeTruthy();

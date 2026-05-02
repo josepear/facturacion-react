@@ -1,8 +1,23 @@
 import { cleanup } from "@testing-library/react";
-import { afterEach, vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
+
+import { AUTH_TOKEN_STORAGE_KEY } from "@/infrastructure/api/httpClient";
+
+beforeEach(() => {
+  try {
+    globalThis.localStorage?.setItem(AUTH_TOKEN_STORAGE_KEY, "vitest-bearer-token");
+  } catch {
+    // sin localStorage en entorno raro
+  }
+});
 
 afterEach(() => {
   cleanup();
+  try {
+    globalThis.localStorage?.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
 });
 
 vi.mock("@tanstack/react-query", async () => {
@@ -107,6 +122,8 @@ vi.mock("@tanstack/react-query", async () => {
     useMutation,
     useQueryClient: () => ({
       invalidateQueries: async () => undefined,
+      removeQueries: async () => undefined,
+      clear: async () => undefined,
       setQueryData: () => undefined,
     }),
   };

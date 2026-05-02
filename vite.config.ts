@@ -2,10 +2,18 @@ import { configDefaults, defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 
+const proxyTarget = process.env.E2E_API_TARGET || "https://facturacion.pearandco.es";
+
 /** Mismo destino en `vite` (dev) y `vite preview`: sin esto, `/api/*` en preview cae al fallback SPA y devuelve HTML. */
 const apiProxy = {
   "/api": {
-    target: process.env.E2E_API_TARGET || "https://facturacion.pearandco.es",
+    target: proxyTarget,
+    changeOrigin: true,
+    secure: false,
+  },
+  /** Auth vive fuera de `/api`; en dev/preview el `fetch` va al mismo origen que Vite, hay que proxyar. */
+  "/login": {
+    target: proxyTarget,
     changeOrigin: true,
     secure: false,
   },
