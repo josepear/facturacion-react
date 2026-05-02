@@ -7,9 +7,8 @@ import { getAuthToken } from "@/infrastructure/api/httpClient";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 
 /**
- * Puerta de entrada: sin token → `/login`.
- * Con token: deja entrar a la app de inmediato (como legacy); `GET /api/session` valida después.
- * Mientras llega la sesión, banner no bloqueante; si falla o no autentica, vuelta a login.
+ * Token-first: con token se renderiza el shell al instante; `GET /api/session` corre en background.
+ * Si 401 / `authenticated: false` / error de sesión → limpiar y volver a `/login` (fallback acotado).
  */
 export function RequireAuth({ children }: PropsWithChildren) {
   const { authVersion, logout } = useAuth();
@@ -39,21 +38,5 @@ export function RequireAuth({ children }: PropsWithChildren) {
     return <Navigate to="/login" replace />;
   }
 
-  const showSessionBanner =
-    !sessionQuery.data && !sessionQuery.error && (sessionQuery.isPending || sessionQuery.isLoading);
-
-  return (
-    <div className="min-h-screen">
-      {showSessionBanner ? (
-        <div
-          className="border-b bg-muted/40 px-4 py-2 text-center text-xs text-muted-foreground"
-          role="status"
-          aria-live="polite"
-        >
-          Sincronizando sesión con el servidor…
-        </div>
-      ) : null}
-      {children}
-    </div>
-  );
+  return <>{children}</>;
 }

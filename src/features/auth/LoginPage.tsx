@@ -16,46 +16,15 @@ function safeNextParam(raw: string | null): string {
   return value;
 }
 
-export function LoginPage() {
-  const { authVersion, login, logout, loginError, clearLoginError, isLoginPending } = useAuth();
+/** Sin token: no monta `useSessionQuery` → no petición a `/api/session`. */
+function LoginFormOnly() {
+  const { authVersion, login, loginError, clearLoginError, isLoginPending } = useAuth();
   void authVersion;
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const next = safeNextParam(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  const hasToken = Boolean(getAuthToken());
-  const sessionQuery = useSessionQuery();
-
-  useLayoutEffect(() => {
-    if (hasToken && sessionQuery.isSuccess && sessionQuery.data && sessionQuery.data.authenticated === false) {
-      logout();
-    }
-  }, [hasToken, sessionQuery.isSuccess, sessionQuery.data, logout]);
-
-  /** Con token y error de red/API: quedarse aquí para recuperación; si no hay error, ir a la app y validar allí (legacy-like). */
-  if (hasToken && sessionQuery.isError) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4">
-        <p className="max-w-sm text-center text-sm text-muted-foreground">
-          Hay un token guardado pero no se pudo validar con el servidor (red o sesión caducada).
-        </p>
-        <Button type="button" variant="outline" onClick={() => logout()}>
-          Olvidar token y volver al acceso
-        </Button>
-      </div>
-    );
-  }
-
-  /** Evita bucle con `/facturar` si el servidor devuelve `authenticated: false` antes de limpiar token. */
-  if (hasToken && sessionQuery.isSuccess && sessionQuery.data && sessionQuery.data.authenticated === false) {
-    return null;
-  }
-
-  if (hasToken) {
-    return <Navigate to={next || "/facturar"} replace />;
-  }
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -107,4 +76,46 @@ export function LoginPage() {
       </div>
     </div>
   );
+}
+
+/** Con token en URL de login: validación en background; recovery si la query falla. */
+function LoginWithTokenGate() {
+  const { authVersion, logout } = useAuth();
+  void authVersion;
+  const [searchParams] = useSearchParams();
+  const next = safeNextParam(searchParams.get("next"));
+  const sessionQuery = useSessionQuery();
+
+  useLayoutEffect(() => {
+    if (sessionQuery.isSuccess && sessionQuery.data && sessionQuery.data.authenticated === false) {
+      logout();
+    }
+  }, [sessionQuery.isSuccess, sessionQuery.data, logout]);
+
+  if (sessionQuery.isError) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4">
+        <p className="max-w-sm text-center text-sm text-muted-foreground">
+          Hay un token guardado pero no se pudo validar con el servidor (red o sesión caducada).
+        </p>
+        <Button type="button" variant="outline" onClick={() => logout()}>
+          Olvidar token y volver al acceso
+        </Button>
+      </div>
+    );
+  }
+
+  if (sessionQuery.isSuccess && sessionQuery.data && sessionQuery.data.authenticated === false) {
+    return null;
+  }
+
+  return <Navigate to={next || "/facturar"} replace />;
+}
+
+export function LoginPage() {
+  const hasToken = Boolean(getAuthToken());
+  if (!hasToken) {
+    return <LoginFormOnly />;
+  }
+  return <LoginWithTokenGate />;
 }
