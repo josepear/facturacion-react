@@ -95,10 +95,11 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] Deep link de selección en Historial:
   - [x] `?recordId=...` para abrir detalle directo
 - [x] Microcopy operativo para reforzar el flujo con Facturar.
+- [x] **Filtros por estado contable y perfil de plantilla:** dropdowns con persistencia en URL (`?status=...&profile=...`); texto de búsqueda ampliado a `templateProfileLabel`; cada fila del listado muestra perfil y estado.
 
 ### Parcial
 
-- [ ] (parcial) Filtros por tipo + año + texto están bien, pero faltan dimensiones más ricas si legacy las tiene (estado, perfil, rangos de fecha).
+- [ ] (parcial) Rangos de fecha y otros filtros avanzados si legacy los exige.
 
 ### Pendiente
 
@@ -155,22 +156,24 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] **`GET /api/expense-options`:** adaptador único en cliente que normaliza variantes de JSON (raíz, `expenseOptions`, `data`) a listas estables de proveedores y categorías para datalists.
 - [x] **Perfil en alta de gasto:** borrador alineado con `activeTemplateProfileId` de `/api/config` cuando el usuario no ha elegido otro perfil; copy del selector y texto de ayuda que enlazan con Configuración; valor vacío = perfil activo del servidor.
 - [x] **Errores al guardar:** mensajes de fallo de `POST /api/expenses` reutilizan `ApiError` y campos típicos del cuerpo (`message`, `detail`) para mostrar el texto del backend cuando existe.
+- [x] **Importes manuales IGIC/IRPF:** `taxAmount` y `withholdingAmount` editables directamente; el % recalcula el importe pero el usuario puede sobreescribirlo.
+- [x] **`issueDate` obligatoria:** validación cliente antes de `POST /api/expenses`; hint visual en el campo.
+- [x] **`paymentMethod` datalist:** sugerencias (Transferencia bancaria, Tarjeta, Domiciliación, Efectivo, PayPal).
+- [x] **Archivar solo admin:** botones "Archivar gasto" y "Archivar ejercicio" ocultos para no-admin en UI.
+- [x] **Hints de claridad:** `vendor` ("Requerido si no hay descripción"), `description` ("Si se rellena, proveedor opcional"), `expenseConcept` ("Etiqueta contable; distinto de descripción").
+- [x] **`taxIdType` datalist:** NIF, CIF, NIE, Pasaporte, VAT.
+- [x] **`taxCountryCode` datalist:** ES, PT, FR, DE, IT, GB, NL, US, MX, AR, CN.
 
 ### Parcial
 
 - [ ] (parcial) `vendor`: confirmar obligatoriedad real frente a legacy/backend.
 - [ ] (parcial) `category`: confirmar si debe ser lista cerrada.
 - [ ] (parcial) `invoiceNumberEnd`: confirmar formato/regla legacy.
-- [ ] (parcial) `issueDate`: confirmar obligatoriedad exacta.
 - [ ] (parcial) `operationDate`: visible, pero pendiente checklist de obligatoriedad/regla.
-- [ ] (parcial) `expenseConcept`: visible, pendiente contraste semántico con `description`.
-- [ ] (parcial) `paymentMethod`: visible, pendiente confirmar catálogo estricto.
-- [ ] (parcial) `taxRate` / `taxAmount`: pendiente confirmar si legacy permite importe manual.
 - [ ] (parcial) `withholdingRate` / `withholdingAmount`: pendiente confirmar catálogo/regla.
 - [ ] (parcial) `total`: confirmar si legacy permite edición manual.
-- [ ] (parcial) `templateProfileId`: checklist legacy frente a comportamiento exacto al guardar con perfil vacío vs explícito (React ya documenta y alinea con `activeTemplateProfileId`).
+- [ ] (parcial) `templateProfileId`: checklist legacy frente a comportamiento exacto al guardar con perfil vacío vs explícito.
 - [ ] (parcial) Filtros adicionales si legacy los exige.
-- [ ] (parcial) Permisos de archivar vs política legacy.
 - [ ] (parcial) `/api/expense-options`: confirmar riqueza/normalización frente a legacy.
 
 ### Pendiente
@@ -196,6 +199,11 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 ### Parcial
 
 - [ ] (parcial) El módulo solo cubre una parte de la configuración legacy publicada por `/api/config`.
+
+### Hecho (Configuración)
+
+- [x] **Catálogo de gastos (`expenseOptions`):** sección admin para editar listas de proveedores y categorías vía `POST /api/expense-options`; solo lectura para no-admin.
+- [x] **Edición de miembro inline:** formulario de edición se despliega debajo del usuario concreto en lugar de al final de la lista.
 
 ### Pendiente
 

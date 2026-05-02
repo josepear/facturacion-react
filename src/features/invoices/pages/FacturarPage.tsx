@@ -1,6 +1,6 @@
 import { Calendar } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,7 @@ export function FacturarPage() {
     setSelectedHistoryRecordId,
     loadBySelectedHistory,
     loadingHistory,
+    totalHistoryCount,
     serverRecordId,
     openOfficialOutput,
     officialOutputError,
@@ -138,7 +139,15 @@ export function FacturarPage() {
                 </select>
               </Field>
               <Field label="Forma de pago">
-                <Input placeholder="Transferencia" {...register("paymentMethod")} />
+                <Input placeholder="Transferencia" list="facturar-payment-methods" {...register("paymentMethod")} />
+                <datalist id="facturar-payment-methods">
+                  <option value="Transferencia bancaria" />
+                  <option value="Tarjeta de crédito" />
+                  <option value="Tarjeta de débito" />
+                  <option value="Domiciliación bancaria" />
+                  <option value="Efectivo" />
+                  <option value="PayPal" />
+                </datalist>
               </Field>
               <Field label="Cuenta bancaria">
                 <Input placeholder="ES..." {...register("bankAccount")} />
@@ -202,10 +211,10 @@ export function FacturarPage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="Serie">
+              <Field label="Serie" hint="Opcional. Separa secuencias de numeración (ej: A, RECT, 2025).">
                 <Input placeholder="Opcional" {...register("series")} />
               </Field>
-              <Field label="Vencimiento" error={errors.dueDate?.message}>
+              <Field label="Vencimiento" hint="Dejar vacío si no aplica." error={errors.dueDate?.message}>
                 <Input type="date" {...register("dueDate")} />
               </Field>
               <Field label="Referencia interna" error={errors.reference?.message}>
@@ -222,11 +231,20 @@ export function FacturarPage() {
                 <Field label="Número final" error={errors.numberEnd?.message}>
                   <Input placeholder="Opcional (rango o número final)" {...register("numberEnd")} />
                 </Field>
-                <Field label="Fecha cobro" error={errors.accounting?.paymentDate?.message}>
+                <Field label="Fecha cobro" hint="Cuando el estado es Cobrada." error={errors.accounting?.paymentDate?.message}>
                   <Input type="date" {...register("accounting.paymentDate")} />
                 </Field>
                 <Field label="Trimestre contable">
-                  <Input placeholder="Q1 / 1T / 2026-Q1" {...register("accounting.quarter")} />
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    {...register("accounting.quarter")}
+                  >
+                    <option value="">—</option>
+                    <option value="1T">1T</option>
+                    <option value="2T">2T</option>
+                    <option value="3T">3T</option>
+                    <option value="4T">4T</option>
+                  </select>
                 </Field>
                 <Field label="Referencia contable / ID">
                   <Input placeholder="ID contable / Drive label" {...register("accounting.invoiceId")} />
@@ -367,7 +385,12 @@ export function FacturarPage() {
                 <span className="text-xs text-muted-foreground">
                   {loadingHistory
                     ? "Cargando histórico..."
-                    : `${yearFilteredHistoryOptions.length} de ${historyOptions.length} documentos recientes`}
+                    : <>
+                        {yearFilteredHistoryOptions.length} de {historyOptions.length} recientes
+                        {totalHistoryCount > historyOptions.length
+                          ? <> · <Link to="/historial" className="underline underline-offset-2">ver los {totalHistoryCount} en Historial</Link></>
+                          : null}
+                      </>}
                 </span>
               </Field>
             </div>
@@ -431,7 +454,14 @@ export function FacturarPage() {
                   <Input placeholder="NIF/CIF" {...register("client.taxId")} />
                 </Field>
                 <Field label="Tipo NIF">
-                  <Input placeholder="NIF/CIF/VAT..." {...register("client.taxIdType")} />
+                  <Input list="facturar-taxid-types" placeholder="NIF / CIF / VAT…" {...register("client.taxIdType")} />
+                  <datalist id="facturar-taxid-types">
+                    <option value="NIF" />
+                    <option value="CIF" />
+                    <option value="NIE" />
+                    <option value="Pasaporte" />
+                    <option value="VAT" />
+                  </datalist>
                 </Field>
                 <Field label="Email">
                   <Input placeholder="email@cliente.com" {...register("client.email")} />
@@ -449,7 +479,13 @@ export function FacturarPage() {
                   <Input placeholder="Provincia" {...register("client.province")} />
                 </Field>
                 <Field label="País (código)">
-                  <Input placeholder="ES" {...register("client.taxCountryCode")} />
+                  <Input list="facturar-country-codes" placeholder="ES" {...register("client.taxCountryCode")} />
+                  <datalist id="facturar-country-codes">
+                    <option value="ES" /><option value="PT" /><option value="FR" />
+                    <option value="DE" /><option value="IT" /><option value="GB" />
+                    <option value="NL" /><option value="US" /><option value="MX" />
+                    <option value="AR" /><option value="CN" />
+                  </datalist>
                 </Field>
               </div>
             </details>
@@ -463,7 +499,7 @@ export function FacturarPage() {
           >
             <div className="grid gap-4">
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Modo cálculo conceptos">
+                <Field label="Modo cálculo conceptos" hint="'Por concepto' suma las líneas. 'Por bruto' introduce la base directamente sin líneas.">
                   <select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     {...register("totalsBasis")}

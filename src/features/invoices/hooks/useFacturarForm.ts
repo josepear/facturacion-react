@@ -237,7 +237,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       (historyQuery.data ?? [])
         .slice()
         .sort((left, right) => String(right.savedAt || right.issueDate).localeCompare(String(left.savedAt || left.issueDate)))
-        .slice(0, 40)
+        .slice(0, 100)
         .map((item) => {
           const issueDate = String(item.issueDate || "").trim();
           const dateLabel = issueDate || "sin fecha";
@@ -653,6 +653,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     setSelectedHistoryRecordId,
     loadBySelectedHistory,
     loadingHistory: historyQuery.isLoading,
+    totalHistoryCount: historyQuery.data?.length ?? 0,
     serverRecordId,
     openOfficialOutput,
     officialOutputError,

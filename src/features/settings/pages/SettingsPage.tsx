@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { TemplateProfileConfig } from "@/domain/document/types";
+import { fetchExpenseOptions, saveExpenseOptions } from "@/infrastructure/api/expensesApi";
 import { fetchRuntimeConfig, saveTemplateProfilesConfig } from "@/infrastructure/api/documentsApi";
 import { ApiError } from "@/infrastructure/api/httpClient";
 import { type SystemUser, type UpsertUserInput, deleteSystemUser, fetchSystemUsers, upsertSystemUser } from "@/infrastructure/api/usersApi";
@@ -228,39 +229,112 @@ function MembersSection({
           <p className="text-sm text-red-600">{(usersQuery.error as Error)?.message || "No se pudo cargar la lista de miembros."}</p>
         ) : (
           <div className="grid gap-2">
-            {items.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{user.name || user.email}</p>
-                  <p className="truncate text-xs text-muted-foreground">{user.email} · {user.role}</p>
-                </div>
-                {canEdit && (
-                  <div className="flex shrink-0 gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(user)}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      disabled={user.id === currentUserId}
-                      onClick={() => handleDelete(user)}
-                    >
-                      Eliminar
-                    </Button>
+            {items.map((user) => {
+              const isEditing = editingUser !== null && !editingUser.isNew && editingUser.id === user.id;
+              return (
+                <div key={user.id} className="grid gap-0">
+                  <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{user.name || user.email}</p>
+                      <p className="truncate text-xs text-muted-foreground">{user.email} · {user.role}</p>
+                    </div>
+                    {canEdit && (
+                      <div className="flex shrink-0 gap-1">
+                        <Button
+                          type="button"
+                          variant={isEditing ? "outline" : "ghost"}
+                          size="sm"
+                          onClick={() => isEditing ? setEditingUser(null) : handleEdit(user)}
+                        >
+                          {isEditing ? "Cerrar" : "Editar"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          disabled={user.id === currentUserId}
+                          onClick={() => handleDelete(user)}
+                        >
+                          Eliminar
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {isEditing && editingUser && (
+                    <div className="grid gap-3 rounded-b-md border border-t-0 border-dashed px-4 py-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Email">
+                          <Input
+                            type="email"
+                            value={editingUser.email}
+                            onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                            autoComplete="off"
+                          />
+                        </Field>
+                        <Field label="Nombre">
+                          <Input
+                            value={editingUser.name}
+                            onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                          />
+                        </Field>
+                        <Field label="Nueva contraseña (vacío = sin cambio)">
+                          <Input
+                            type="password"
+                            value={editingUser.password ?? ""}
+                            onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
+                            autoComplete="new-password"
+                          />
+                        </Field>
+                        <Field label="Rol">
+                          <select
+                            aria-label="Rol del miembro"
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            value={editingUser.role}
+                            onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+                          >
+                            {ROLE_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                      </div>
+                      {profiles.length > 0 && (
+                        <Field label="Perfiles permitidos (vacío = todos)">
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {profiles.map((profile) => {
+                              const checked = editingUser.allowedTemplateProfileIds.includes(profile.id);
+                              return (
+                                <label key={profile.id} className="flex cursor-pointer items-center gap-1.5 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleAllowedProfile(profile.id)}
+                                    className="h-4 w-4 rounded border-input"
+                                  />
+                                  {profile.label || profile.id}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </Field>
+                      )}
+                      <div className="flex gap-2">
+                        <Button type="button" onClick={handleSubmit} disabled={upsertMutation.isPending}>
+                          {upsertMutation.isPending ? "Guardando..." : "Guardar"}
+                        </Button>
+                        <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             {items.length === 0 && (
               <p className="text-sm text-muted-foreground">No hay miembros registrados.</p>
             )}
@@ -273,9 +347,9 @@ function MembersSection({
           </Button>
         )}
 
-        {editingUser && (
+        {editingUser?.isNew && (
           <div className="grid gap-3 rounded-md border border-dashed p-4">
-            <p className="text-sm font-medium">{editingUser.isNew ? "Nuevo miembro" : "Editar miembro"}</p>
+            <p className="text-sm font-medium">Nuevo miembro</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Email">
                 <Input
@@ -291,7 +365,7 @@ function MembersSection({
                   onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
                 />
               </Field>
-              <Field label={editingUser.isNew ? "Contraseña" : "Nueva contraseña (vacío = sin cambio)"}>
+              <Field label="Contraseña">
                 <Input
                   type="password"
                   value={editingUser.password ?? ""}
@@ -335,18 +409,10 @@ function MembersSection({
               </Field>
             )}
             <div className="flex gap-2">
-              <Button
-                type="button"
-                onClick={handleSubmit}
-                disabled={upsertMutation.isPending}
-              >
+              <Button type="button" onClick={handleSubmit} disabled={upsertMutation.isPending}>
                 {upsertMutation.isPending ? "Guardando..." : "Guardar miembro"}
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setEditingUser(null)}
-              >
+              <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>
                 Cancelar
               </Button>
             </div>
@@ -363,6 +429,118 @@ function MembersSection({
   );
 }
 
+function ExpenseOptionsSection({ canEdit }: { canEdit: boolean }) {
+  const queryClient = useQueryClient();
+  const optionsQuery = useQuery({
+    queryKey: ["expense-options"],
+    queryFn: fetchExpenseOptions,
+  });
+  const [vendorsDraft, setVendorsDraft] = useState<string | null>(null);
+  const [categoriesDraft, setCategoriesDraft] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ text: string; tone: "success" | "error" | "neutral" } | null>(null);
+
+  const serverVendors = (optionsQuery.data?.vendors ?? []).join("\n");
+  const serverCategories = (optionsQuery.data?.categories ?? []).join("\n");
+
+  const toList = (raw: string) =>
+    raw
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      saveExpenseOptions({
+        vendors: toList(vendorsDraft ?? serverVendors),
+        categories: toList(categoriesDraft ?? serverCategories),
+      }),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ["expense-options"] });
+      setVendorsDraft(null);
+      setCategoriesDraft(null);
+      setStatus({ text: `Guardado: ${(data.vendors ?? []).length} proveedores, ${(data.categories ?? []).length} categorías.`, tone: "success" });
+    },
+    onError: (err) => {
+      const msg = err instanceof ApiError ? err.message : String(err);
+      setStatus({ text: `Error al guardar: ${msg}`, tone: "error" });
+    },
+  });
+
+  const hasPendingChanges = vendorsDraft !== null || categoriesDraft !== null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Catálogo de gastos</CardTitle>
+        <CardDescription>
+          Proveedores y categorías disponibles en el formulario de gastos.{" "}
+          {canEdit ? "Solo administradores." : "Solo lectura."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {optionsQuery.isLoading && <p className="text-sm text-muted-foreground">Cargando catálogo...</p>}
+        {optionsQuery.isError && (
+          <p className="text-sm text-red-600">No se pudo cargar el catálogo de gastos.</p>
+        )}
+        {optionsQuery.isSuccess && (
+          <>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Proveedores ({toList(vendorsDraft ?? serverVendors).length})
+                </label>
+                <textarea
+                  className="flex min-h-[160px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                  readOnly={!canEdit}
+                  value={vendorsDraft ?? serverVendors}
+                  onChange={(e) => setVendorsDraft(e.target.value)}
+                  aria-label="Lista de proveedores, uno por línea"
+                />
+              </div>
+              <div className="grid gap-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Categorías ({toList(categoriesDraft ?? serverCategories).length})
+                </label>
+                <textarea
+                  className="flex min-h-[160px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                  readOnly={!canEdit}
+                  value={categoriesDraft ?? serverCategories}
+                  onChange={(e) => setCategoriesDraft(e.target.value)}
+                  aria-label="Lista de categorías, uno por línea"
+                />
+              </div>
+            </div>
+            {canEdit && (
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  disabled={!hasPendingChanges || saveMutation.isPending}
+                  onClick={() => saveMutation.mutate()}
+                >
+                  {saveMutation.isPending ? "Guardando..." : "Guardar catálogo"}
+                </Button>
+                {hasPendingChanges && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => { setVendorsDraft(null); setCategoriesDraft(null); setStatus(null); }}
+                  >
+                    Descartar cambios
+                  </Button>
+                )}
+                {status && (
+                  <p className={`text-sm ${status.tone === "error" ? "text-red-600" : status.tone === "success" ? "text-emerald-600" : "text-muted-foreground"}`}>
+                    {status.text}
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function safeValue(value: unknown): string {
   const normalized = String(value ?? "").trim();
@@ -1178,6 +1356,8 @@ export function SettingsPage() {
               ) : null}
             </CardContent>
           </Card>
+
+          <ExpenseOptionsSection canEdit={canEdit} />
 
           <MembersSection
             canEdit={canEdit}

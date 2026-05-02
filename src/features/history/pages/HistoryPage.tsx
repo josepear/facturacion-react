@@ -38,6 +38,8 @@ export function HistoryPage() {
   const initialSearch = String(searchParams.get("q") || "").trim();
   const initialType = String(searchParams.get("type") || "").trim();
   const initialYear = String(searchParams.get("year") || "").trim();
+  const initialStatus = String(searchParams.get("status") || "").trim();
+  const initialProfile = String(searchParams.get("profile") || "").trim();
   const initialRecordId = String(searchParams.get("recordId") || "").trim();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -46,6 +48,8 @@ export function HistoryPage() {
     initialType === "factura" || initialType === "presupuesto" ? initialType : "",
   );
   const [filterYear, setFilterYear] = useState(initialYear);
+  const [filterStatus, setFilterStatus] = useState(initialStatus);
+  const [filterProfile, setFilterProfile] = useState(initialProfile);
   const [selectedRecordId, setSelectedRecordId] = useState(initialRecordId);
   const [archiveYear, setArchiveYear] = useState("");
   const [archiveProfileId, setArchiveProfileId] = useState("");
@@ -101,6 +105,12 @@ export function HistoryPage() {
     if (filterYear) {
       items = items.filter((item) => String(item.issueDate || "").startsWith(filterYear));
     }
+    if (filterStatus) {
+      items = items.filter((item) => String(item.status || "").toUpperCase() === filterStatus.toUpperCase());
+    }
+    if (filterProfile) {
+      items = items.filter((item) => item.templateProfileId === filterProfile);
+    }
     if (!term) {
       return items;
     }
@@ -110,15 +120,17 @@ export function HistoryPage() {
       const client = String(item.clientName || "").toLowerCase();
       const typeLabel = String(item.typeLabel || "").toLowerCase();
       const typeRaw = String(item.type || "").toLowerCase();
+      const profileLabel = String(item.templateProfileLabel || "").toLowerCase();
       return (
         recordId.includes(term) ||
         number.includes(term) ||
         client.includes(term) ||
         typeLabel.includes(term) ||
-        typeRaw.includes(term)
+        typeRaw.includes(term) ||
+        profileLabel.includes(term)
       );
     });
-  }, [historyQuery.data, searchTerm, filterType, filterYear]);
+  }, [historyQuery.data, searchTerm, filterType, filterYear, filterStatus, filterProfile]);
 
   const openedDocument = useMemo(() => {
     if (!detailQuery.data?.document) {
@@ -165,7 +177,7 @@ export function HistoryPage() {
   );
 
   const rawHistoryCount = historyQuery.data?.length ?? 0;
-  const hasActiveFilters = Boolean(filterType || filterYear || String(searchTerm || "").trim());
+  const hasActiveFilters = Boolean(filterType || filterYear || filterStatus || filterProfile || String(searchTerm || "").trim());
   const selectionHiddenByFilters = Boolean(
     selectedRecordId && !filteredItems.some((item) => item.recordId === selectedRecordId),
   );
@@ -173,25 +185,19 @@ export function HistoryPage() {
     nextSearch: string,
     nextType: "" | "factura" | "presupuesto",
     nextYear: string,
+    nextStatus: string,
+    nextProfile: string,
   ) => {
     const next = new URLSearchParams(searchParams);
     const safeSearch = String(nextSearch || "").trim();
     const safeYear = String(nextYear || "").trim();
-    if (safeSearch) {
-      next.set("q", safeSearch);
-    } else {
-      next.delete("q");
-    }
-    if (nextType) {
-      next.set("type", nextType);
-    } else {
-      next.delete("type");
-    }
-    if (safeYear) {
-      next.set("year", safeYear);
-    } else {
-      next.delete("year");
-    }
+    const safeStatus = String(nextStatus || "").trim();
+    const safeProfile = String(nextProfile || "").trim();
+    if (safeSearch) { next.set("q", safeSearch); } else { next.delete("q"); }
+    if (nextType) { next.set("type", nextType); } else { next.delete("type"); }
+    if (safeYear) { next.set("year", safeYear); } else { next.delete("year"); }
+    if (safeStatus) { next.set("status", safeStatus); } else { next.delete("status"); }
+    if (safeProfile) { next.set("profile", safeProfile); } else { next.delete("profile"); }
     setSearchParams(next, { replace: true });
   };
 
@@ -322,7 +328,7 @@ export function HistoryPage() {
                   onChange={(event) => {
                     const nextType = event.target.value as "" | "factura" | "presupuesto";
                     setFilterType(nextType);
-                    syncFiltersToUrl(searchTerm, nextType, filterYear);
+                    syncFiltersToUrl(searchTerm, nextType, filterYear, filterStatus, filterProfile);
                   }}
                   aria-label="Filtrar por tipo de documento"
                 >
@@ -339,7 +345,7 @@ export function HistoryPage() {
                   onChange={(event) => {
                     const nextYear = event.target.value;
                     setFilterYear(nextYear);
-                    syncFiltersToUrl(searchTerm, filterType, nextYear);
+                    syncFiltersToUrl(searchTerm, filterType, nextYear, filterStatus, filterProfile);
                   }}
                   aria-label="Filtrar por año de emisión"
                 >
@@ -351,14 +357,52 @@ export function HistoryPage() {
                   ))}
                 </select>
               </div>
+              <div className="grid gap-1">
+                <span className="text-xs font-medium text-muted-foreground">Estado contable</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={filterStatus}
+                  onChange={(event) => {
+                    const nextStatus = event.target.value;
+                    setFilterStatus(nextStatus);
+                    syncFiltersToUrl(searchTerm, filterType, filterYear, nextStatus, filterProfile);
+                  }}
+                  aria-label="Filtrar por estado contable"
+                >
+                  <option value="">Todos</option>
+                  <option value="ENVIADA">Enviada</option>
+                  <option value="COBRADA">Cobrada</option>
+                  <option value="CANCELADA">Cancelada</option>
+                </select>
+              </div>
+              <div className="grid gap-1">
+                <span className="text-xs font-medium text-muted-foreground">Perfil de plantilla</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={filterProfile}
+                  onChange={(event) => {
+                    const nextProfile = event.target.value;
+                    setFilterProfile(nextProfile);
+                    syncFiltersToUrl(searchTerm, filterType, filterYear, filterStatus, nextProfile);
+                  }}
+                  aria-label="Filtrar por perfil de plantilla"
+                >
+                  <option value="">Todos</option>
+                  {profileOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label || p.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <Input
-              placeholder="Filtrar por número, cliente, recordId o texto del tipo"
+              placeholder="Filtrar por número, cliente, perfil, recordId o tipo"
               value={searchTerm}
               onChange={(event) => {
                 const nextSearch = event.target.value;
                 setSearchTerm(nextSearch);
-                syncFiltersToUrl(nextSearch, filterType, filterYear);
+                syncFiltersToUrl(nextSearch, filterType, filterYear, filterStatus, filterProfile);
               }}
               aria-label="Filtrar listado de historial"
             />
@@ -371,8 +415,10 @@ export function HistoryPage() {
                   onClick={() => {
                     setFilterType("");
                     setFilterYear("");
+                    setFilterStatus("");
+                    setFilterProfile("");
                     setSearchTerm("");
-                    syncFiltersToUrl("", "", "");
+                    syncFiltersToUrl("", "", "", "", "");
                   }}
                 >
                   Limpiar filtros
@@ -410,7 +456,9 @@ export function HistoryPage() {
                             {item.clientName || "Sin cliente"} · {item.typeLabel || item.type} · {formatDate(item.issueDate)}
                           </p>
                           <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
-                            {formatCurrency(Number(item.total || 0))} · {item.recordId}
+                            {formatCurrency(Number(item.total || 0))}
+                            {item.templateProfileLabel ? ` · ${item.templateProfileLabel}` : ""}
+                            {item.status ? ` · ${formatAccountingStatusLabel(item.status)}` : ""}
                           </p>
                         </button>
                       </li>
@@ -422,7 +470,7 @@ export function HistoryPage() {
               ) : (
                 <div className="grid gap-3 p-3">
                   <p className="text-sm text-muted-foreground">
-                    Ningún documento coincide con los filtros activos (tipo, ejercicio o búsqueda).
+                    Ningún documento coincide con los filtros activos (tipo, ejercicio, estado, perfil o búsqueda).
                   </p>
                   <Button
                     type="button"
@@ -432,8 +480,10 @@ export function HistoryPage() {
                     onClick={() => {
                       setFilterType("");
                       setFilterYear("");
+                      setFilterStatus("");
+                      setFilterProfile("");
                       setSearchTerm("");
-                      syncFiltersToUrl("", "", "");
+                      syncFiltersToUrl("", "", "", "", "");
                     }}
                   >
                     Limpiar filtros

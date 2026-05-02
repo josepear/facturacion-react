@@ -46,8 +46,13 @@ function normalizeExpenseDraft(expense: ExpenseRecord): ExpenseRecord {
   const subtotal = toNumber(expense.subtotal);
   const taxRate = toNumber(expense.taxRate);
   const withholdingRate = toNumber(expense.withholdingRate);
-  const taxAmount = Number((subtotal * (taxRate / 100)).toFixed(2));
-  const withholdingAmount = Number((subtotal * (withholdingRate / 100)).toFixed(2));
+  // Preserve explicit amounts if already set; only auto-calculate when undefined
+  const taxAmount = expense.taxAmount !== undefined
+    ? toNumber(expense.taxAmount)
+    : Number((subtotal * (taxRate / 100)).toFixed(2));
+  const withholdingAmount = expense.withholdingAmount !== undefined
+    ? toNumber(expense.withholdingAmount)
+    : Number((subtotal * (withholdingRate / 100)).toFixed(2));
   const total = Number((subtotal + taxAmount - withholdingAmount).toFixed(2));
 
   return {
@@ -185,6 +190,9 @@ export function ExpensesPage() {
       const normalized = normalizeExpenseDraft(draft);
       if (!normalized.vendor && !normalized.description) {
         throw new Error("Indica al menos proveedor o descripción.");
+      }
+      if (!normalized.issueDate) {
+        throw new Error("La fecha de factura es obligatoria.");
       }
       return saveExpense({
         recordId: selectedRecordId || undefined,
@@ -414,35 +422,41 @@ export function ExpensesPage() {
             </Button>
             <div className="grid gap-2 rounded-md border p-3">
               <p className="text-xs font-medium text-muted-foreground">Archivar ejercicio (perfil + año)</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={archiveYear}
-                  onChange={(event) => setArchiveYear(event.target.value)}
-                >
-                  <option value="">Selecciona ejercicio</option>
-                  {availableYears.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={archiveProfileId}
-                  onChange={(event) => setArchiveProfileId(event.target.value)}
-                >
-                  <option value="">Selecciona perfil</option>
-                  {profileOptions.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.label || profile.id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <Button type="button" variant="outline" onClick={() => archiveYearMutation.mutate()} disabled={archiveYearMutation.isPending}>
-                {archiveYearMutation.isPending ? "Archivando..." : "Archivar ejercicio"}
-              </Button>
+              {isAdmin ? (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={archiveYear}
+                      onChange={(event) => setArchiveYear(event.target.value)}
+                    >
+                      <option value="">Selecciona ejercicio</option>
+                      {availableYears.map((year) => (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={archiveProfileId}
+                      onChange={(event) => setArchiveProfileId(event.target.value)}
+                    >
+                      <option value="">Selecciona perfil</option>
+                      {profileOptions.map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {profile.label || profile.id}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <Button type="button" variant="outline" onClick={() => archiveYearMutation.mutate()} disabled={archiveYearMutation.isPending}>
+                    {archiveYearMutation.isPending ? "Archivando..." : "Archivar ejercicio"}
+                  </Button>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">Solo administradores.</p>
+              )}
             </div>
             <div className="max-h-[540px] overflow-auto rounded-md border">
               {expensesQuery.isLoading ? (
@@ -540,7 +554,7 @@ export function ExpensesPage() {
                 servidor aplica ese activo; puedes forzar un perfil concreto de la lista.
               </p>
             </Field>
-            <Field label="Fecha factura">
+            <Field label="Fecha factura" hint="Obligatoria.">
               <div className="flex items-stretch gap-1">
                 <Input
                   type="date"
@@ -561,7 +575,7 @@ export function ExpensesPage() {
                 </Button>
               </div>
             </Field>
-            <Field label="Proveedor">
+            <Field label="Proveedor" hint="Requerido si no se rellena la descripción.">
               <Input
                 list="expense-vendors"
                 value={draft.vendor || ""}
@@ -594,7 +608,7 @@ export function ExpensesPage() {
                 ))}
               </datalist>
             </Field>
-            <Field label="Descripción" >
+            <Field label="Descripción" hint="Si se rellena, el proveedor pasa a ser opcional.">
               <Input
                 value={draft.description || ""}
                 onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))}
@@ -602,9 +616,18 @@ export function ExpensesPage() {
             </Field>
             <Field label="Forma de pago">
               <Input
+                list="expense-payment-methods"
                 value={draft.paymentMethod || ""}
                 onChange={(event) => setDraft((prev) => ({ ...prev, paymentMethod: event.target.value }))}
               />
+              <datalist id="expense-payment-methods">
+                <option value="Transferencia bancaria" />
+                <option value="Tarjeta de crédito" />
+                <option value="Tarjeta de débito" />
+                <option value="Domiciliación bancaria" />
+                <option value="Efectivo" />
+                <option value="PayPal" />
+              </datalist>
             </Field>
 
             <details className="sm:col-span-2 group rounded-md border border-dashed p-3">
@@ -641,18 +664,33 @@ export function ExpensesPage() {
                 </Field>
                 <Field label="Tipo NIF/CIF proveedor">
                   <Input
-                    placeholder="NIF / CIF / VAT..."
+                    list="expense-taxid-types"
+                    placeholder="NIF / CIF / VAT…"
                     value={draft.taxIdType || ""}
                     onChange={(event) => setDraft((prev) => ({ ...prev, taxIdType: event.target.value }))}
                   />
+                  <datalist id="expense-taxid-types">
+                    <option value="NIF" />
+                    <option value="CIF" />
+                    <option value="NIE" />
+                    <option value="Pasaporte" />
+                    <option value="VAT" />
+                  </datalist>
                 </Field>
                 <Field label="País fiscal proveedor">
                   <Input
+                    list="expense-country-codes"
                     placeholder="ES"
                     maxLength={2}
                     value={draft.taxCountryCode || ""}
                     onChange={(event) => setDraft((prev) => ({ ...prev, taxCountryCode: event.target.value.toUpperCase() }))}
                   />
+                  <datalist id="expense-country-codes">
+                    <option value="ES" /><option value="PT" /><option value="FR" />
+                    <option value="DE" /><option value="IT" /><option value="GB" />
+                    <option value="NL" /><option value="US" /><option value="MX" />
+                    <option value="AR" /><option value="CN" />
+                  </datalist>
                 </Field>
                 <Field label="Trimestre">
                   <select
@@ -678,7 +716,7 @@ export function ExpensesPage() {
                   />
                 </Field>
                 <div className="sm:col-span-2">
-                  <Field label="Concepto gasto">
+                  <Field label="Concepto gasto" hint="Etiqueta contable interna; distinto del campo descripción.">
                     <Input
                       value={draft.expenseConcept || ""}
                       onChange={(event) => setDraft((prev) => ({ ...prev, expenseConcept: event.target.value }))}
@@ -693,7 +731,15 @@ export function ExpensesPage() {
                 type="number"
                 step="0.01"
                 value={String(draft.subtotal ?? 0)}
-                onChange={(event) => setDraft((prev) => ({ ...prev, subtotal: toNumber(event.target.value) }))}
+                onChange={(event) => {
+                  const subtotal = toNumber(event.target.value);
+                  setDraft((prev) => ({
+                    ...prev,
+                    subtotal,
+                    taxAmount: Number((subtotal * (toNumber(prev.taxRate) / 100)).toFixed(2)),
+                    withholdingAmount: Number((subtotal * (toNumber(prev.withholdingRate) / 100)).toFixed(2)),
+                  }));
+                }}
               />
             </Field>
             <Field label="IGIC %">
@@ -701,7 +747,22 @@ export function ExpensesPage() {
                 type="number"
                 step="0.01"
                 value={String(draft.taxRate ?? 0)}
-                onChange={(event) => setDraft((prev) => ({ ...prev, taxRate: toNumber(event.target.value) }))}
+                onChange={(event) => {
+                  const taxRate = toNumber(event.target.value);
+                  setDraft((prev) => ({
+                    ...prev,
+                    taxRate,
+                    taxAmount: Number((toNumber(prev.subtotal) * (taxRate / 100)).toFixed(2)),
+                  }));
+                }}
+              />
+            </Field>
+            <Field label="Cuota IGIC (€)">
+              <Input
+                type="number"
+                step="0.01"
+                value={String(draft.taxAmount ?? 0)}
+                onChange={(event) => setDraft((prev) => ({ ...prev, taxAmount: toNumber(event.target.value) }))}
               />
             </Field>
             <Field label="IRPF %">
@@ -709,7 +770,22 @@ export function ExpensesPage() {
                 type="number"
                 step="0.01"
                 value={String(draft.withholdingRate ?? 0)}
-                onChange={(event) => setDraft((prev) => ({ ...prev, withholdingRate: toNumber(event.target.value) }))}
+                onChange={(event) => {
+                  const withholdingRate = toNumber(event.target.value);
+                  setDraft((prev) => ({
+                    ...prev,
+                    withholdingRate,
+                    withholdingAmount: Number((toNumber(prev.subtotal) * (withholdingRate / 100)).toFixed(2)),
+                  }));
+                }}
+              />
+            </Field>
+            <Field label="Importe retención IRPF (€)">
+              <Input
+                type="number"
+                step="0.01"
+                value={String(draft.withholdingAmount ?? 0)}
+                onChange={(event) => setDraft((prev) => ({ ...prev, withholdingAmount: toNumber(event.target.value) }))}
               />
             </Field>
             <Field label="Deducible">
@@ -727,8 +803,6 @@ export function ExpensesPage() {
             </Field>
 
             <div className="sm:col-span-2 grid gap-2 rounded-md border p-3 text-sm">
-              <span>Impuesto: {formatCurrency(computedDraft.taxAmount || 0)}</span>
-              <span>Retención: {formatCurrency(computedDraft.withholdingAmount || 0)}</span>
               <span className="font-medium">Total: {formatCurrency(computedDraft.total || 0)}</span>
             </div>
 
@@ -736,7 +810,7 @@ export function ExpensesPage() {
               <Button type="button" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
                 {saveMutation.isPending ? "Guardando..." : "Guardar gasto"}
               </Button>
-              {selectedRecordId ? (
+              {selectedRecordId && isAdmin ? (
                 <Button
                   type="button"
                   variant="outline"

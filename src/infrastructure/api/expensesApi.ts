@@ -38,6 +38,14 @@ export async function fetchExpenseOptions(): Promise<ExpenseOptions> {
   return parseExpenseOptionsPayload(payload);
 }
 
+export async function saveExpenseOptions(options: ExpenseOptions): Promise<ExpenseOptions> {
+  const payload = await request<unknown>("/api/expense-options", {
+    method: "POST",
+    body: { vendors: options.vendors, categories: options.categories },
+  });
+  return parseExpenseOptionsPayload(payload);
+}
+
 type ArchiveExpenseYearInput = {
   year: string;
   templateProfileId: string;

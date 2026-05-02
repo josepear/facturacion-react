@@ -9,6 +9,9 @@ export type HistoryInvoiceItem = {
   issueDate: string;
   total: number;
   savedAt: string;
+  status: string;
+  templateProfileId: string;
+  templateProfileLabel: string;
 };
 
 type HistoryResponse = {
