@@ -10,47 +10,52 @@ import { FacturarPage } from "@/features/invoices/pages/FacturarPage";
 import { SettingsPage } from "@/features/settings/pages/SettingsPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 
-export const router = createBrowserRouter([
-  {
-    path: "/login",
-    element: <LoginPage />,
-  },
-  {
-    path: "/",
-    element: (
-      <RequireAuth>
-        <AppShell />
-      </RequireAuth>
-    ),
-    children: [
-      {
-        index: true,
-        element: <Navigate to="/facturar" replace />,
-      },
-      {
-        path: "facturar",
-        element: <FacturarPage />,
-      },
-      {
-        path: "clientes",
-        element: <ClientsPage />,
-      },
-      {
-        path: "historial",
-        element: <HistoryPage />,
-      },
-      {
-        path: "gastos",
-        element: <ExpensesPage />,
-      },
-      {
-        path: "configuracion",
-        element: <SettingsPage />,
-      },
-      {
-        path: "*",
-        element: <NotFoundPage />,
-      },
-    ],
-  },
-]);
+// In production the app is served at /react/ by the legacy Node server.
+// Vite sets import.meta.env.BASE_URL to "/" in dev and "/react/" in prod builds.
+export const router = createBrowserRouter(
+  [
+    {
+      path: "/login",
+      element: <LoginPage />,
+    },
+    {
+      path: "/",
+      element: (
+        <RequireAuth>
+          <AppShell />
+        </RequireAuth>
+      ),
+      children: [
+        {
+          index: true,
+          element: <Navigate to="/facturar" replace />,
+        },
+        {
+          path: "facturar",
+          element: <FacturarPage />,
+        },
+        {
+          path: "clientes",
+          element: <ClientsPage />,
+        },
+        {
+          path: "historial",
+          element: <HistoryPage />,
+        },
+        {
+          path: "gastos",
+          element: <ExpensesPage />,
+        },
+        {
+          path: "configuracion",
+          element: <SettingsPage />,
+        },
+        {
+          path: "*",
+          element: <NotFoundPage />,
+        },
+      ],
+    },
+  ],
+  { basename: import.meta.env.BASE_URL.replace(/\/$/, "") || "/" },
+);

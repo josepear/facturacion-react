@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import type { TemplateProfileConfig } from "@/domain/document/types";
 import { fetchRuntimeConfig, saveTemplateProfilesConfig } from "@/infrastructure/api/documentsApi";
 import { ApiError } from "@/infrastructure/api/httpClient";
+import { type SystemUser, type UpsertUserInput, deleteSystemUser, fetchSystemUsers, upsertSystemUser } from "@/infrastructure/api/usersApi";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { toNumber } from "@/lib/utils";
 
@@ -91,6 +92,277 @@ function getNextProfileColorKey(list: TemplateProfileConfig[]): (typeof PROFILE_
   const sorted = [...counts.entries()].sort((a, b) => a[1] - b[1]);
   return (sorted[0]?.[0] as (typeof PROFILE_COLOR_KEYS)[number]) || PROFILE_COLOR_KEYS[0];
 }
+
+const ROLE_OPTIONS = [
+  { value: "admin", label: "Administrador" },
+  { value: "editor", label: "Editor" },
+  { value: "viewer", label: "Solo lectura" },
+];
+
+const EMPTY_USER_FORM: UpsertUserInput = {
+  email: "",
+  name: "",
+  password: "",
+  role: "editor",
+  allowedTemplateProfileIds: [],
+};
+
+function MembersSection({
+  canEdit,
+  profiles,
+  currentUserId,
+}: {
+  canEdit: boolean;
+  profiles: TemplateProfileConfig[];
+  currentUserId: string;
+}) {
+  const queryClient = useQueryClient();
+  const usersQuery = useQuery({
+    queryKey: ["system-users"],
+    queryFn: fetchSystemUsers,
+  });
+
+  const [editingUser, setEditingUser] = useState<(UpsertUserInput & { isNew: boolean }) | null>(null);
+  const [memberStatus, setMemberStatus] = useState("");
+  const [memberStatusTone, setMemberStatusTone] = useState<"neutral" | "success" | "error">("neutral");
+
+  const upsertMutation = useMutation({
+    mutationFn: (user: UpsertUserInput) => upsertSystemUser(user),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["system-users"] });
+      setEditingUser(null);
+      setMemberStatus("Miembro guardado.");
+      setMemberStatusTone("success");
+    },
+    onError: (error) => {
+      setMemberStatus((error as Error).message || "No se pudo guardar el miembro.");
+      setMemberStatusTone("error");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteSystemUser(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["system-users"] });
+      setMemberStatus("Miembro eliminado.");
+      setMemberStatusTone("success");
+    },
+    onError: (error) => {
+      setMemberStatus((error as Error).message || "No se pudo eliminar el miembro.");
+      setMemberStatusTone("error");
+    },
+  });
+
+  const handleDelete = (user: SystemUser) => {
+    if (!window.confirm(`¿Eliminar al miembro «${user.name || user.email}»? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    deleteMutation.mutate(user.id);
+  };
+
+  const handleEdit = (user: SystemUser) => {
+    setEditingUser({
+      isNew: false,
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      password: "",
+      role: user.role || "editor",
+      allowedTemplateProfileIds: user.allowedTemplateProfileIds ?? [],
+    });
+    setMemberStatus("");
+  };
+
+  const handleNew = () => {
+    setEditingUser({ isNew: true, ...EMPTY_USER_FORM });
+    setMemberStatus("");
+  };
+
+  const toggleAllowedProfile = (profileId: string) => {
+    if (!editingUser) {
+      return;
+    }
+    const current = editingUser.allowedTemplateProfileIds;
+    const next = current.includes(profileId)
+      ? current.filter((id) => id !== profileId)
+      : [...current, profileId];
+    setEditingUser({ ...editingUser, allowedTemplateProfileIds: next });
+  };
+
+  const handleSubmit = () => {
+    if (!editingUser) {
+      return;
+    }
+    const { isNew, ...payload } = editingUser;
+    if (!payload.email.trim()) {
+      setMemberStatus("El email es obligatorio.");
+      setMemberStatusTone("error");
+      return;
+    }
+    if (isNew && !payload.password?.trim()) {
+      setMemberStatus("La contraseña es obligatoria para miembros nuevos.");
+      setMemberStatusTone("error");
+      return;
+    }
+    const toSend: UpsertUserInput = {
+      ...payload,
+      password: payload.password?.trim() || undefined,
+    };
+    upsertMutation.mutate(toSend);
+  };
+
+  const items = usersQuery.data?.items ?? [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Miembros del sistema</CardTitle>
+        <CardDescription>
+          Usuarios con acceso a la aplicación. Solo visible para administradores.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {usersQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Cargando miembros...</p>
+        ) : usersQuery.isError ? (
+          <p className="text-sm text-red-600">{(usersQuery.error as Error)?.message || "No se pudo cargar la lista de miembros."}</p>
+        ) : (
+          <div className="grid gap-2">
+            {items.map((user) => (
+              <div
+                key={user.id}
+                className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{user.name || user.email}</p>
+                  <p className="truncate text-xs text-muted-foreground">{user.email} · {user.role}</p>
+                </div>
+                {canEdit && (
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEdit(user)}
+                    >
+                      Editar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      disabled={user.id === currentUserId}
+                      onClick={() => handleDelete(user)}
+                    >
+                      Eliminar
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {items.length === 0 && (
+              <p className="text-sm text-muted-foreground">No hay miembros registrados.</p>
+            )}
+          </div>
+        )}
+
+        {canEdit && !editingUser && (
+          <Button type="button" variant="outline" onClick={handleNew} className="self-start">
+            Nuevo miembro
+          </Button>
+        )}
+
+        {editingUser && (
+          <div className="grid gap-3 rounded-md border border-dashed p-4">
+            <p className="text-sm font-medium">{editingUser.isNew ? "Nuevo miembro" : "Editar miembro"}</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Email">
+                <Input
+                  type="email"
+                  value={editingUser.email}
+                  onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="Nombre">
+                <Input
+                  value={editingUser.name}
+                  onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                />
+              </Field>
+              <Field label={editingUser.isNew ? "Contraseña" : "Nueva contraseña (vacío = sin cambio)"}>
+                <Input
+                  type="password"
+                  value={editingUser.password ?? ""}
+                  onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
+                  autoComplete="new-password"
+                />
+              </Field>
+              <Field label="Rol">
+                <select
+                  aria-label="Rol del miembro"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={editingUser.role}
+                  onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+                >
+                  {ROLE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            {profiles.length > 0 && (
+              <Field label="Perfiles permitidos (vacío = todos)">
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {profiles.map((profile) => {
+                    const checked = editingUser.allowedTemplateProfileIds.includes(profile.id);
+                    return (
+                      <label key={profile.id} className="flex cursor-pointer items-center gap-1.5 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAllowedProfile(profile.id)}
+                          className="h-4 w-4 rounded border-input"
+                        />
+                        {profile.label || profile.id}
+                      </label>
+                    );
+                  })}
+                </div>
+              </Field>
+            )}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={upsertMutation.isPending}
+              >
+                {upsertMutation.isPending ? "Guardando..." : "Guardar miembro"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setEditingUser(null)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {memberStatus && (
+          <p className={`text-sm ${memberStatusTone === "error" ? "text-red-600" : memberStatusTone === "success" ? "text-emerald-600" : "text-muted-foreground"}`}>
+            {memberStatus}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 
 function safeValue(value: unknown): string {
   const normalized = String(value ?? "").trim();
@@ -906,9 +1178,14 @@ export function SettingsPage() {
               ) : null}
             </CardContent>
           </Card>
+
+          <MembersSection
+            canEdit={canEdit}
+            profiles={serverProfiles}
+            currentUserId={String(sessionQuery.data?.authenticated ? sessionQuery.data.user.id ?? "" : "")}
+          />
         </>
       )}
     </div>
   );
 }
-

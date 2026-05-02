@@ -21,6 +21,8 @@ const apiProxy = {
 
 export default defineConfig({
   plugins: [react()],
+  // In production the legacy Node server serves the React app at /react/
+  base: process.env.NODE_ENV === "production" ? "/react/" : "/",
   server: {
     proxy: apiProxy,
   },

@@ -158,7 +158,7 @@ export function HistoryPage() {
 
   const isAdmin =
     Boolean(sessionQuery.data?.authenticated) &&
-    String(sessionQuery.data.user.role || "").trim().toLowerCase() === "admin";
+    String(sessionQuery.data?.user?.role || "").trim().toLowerCase() === "admin";
   const trashDocumentItems = useMemo(
     () => (trashQuery.data?.items ?? []).filter((item) => item.category === "documentos"),
     [trashQuery.data?.items],

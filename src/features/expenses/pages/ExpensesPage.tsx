@@ -125,7 +125,7 @@ export function ExpensesPage() {
   const activeProfileLabel = profileOptions.find((p) => p.id === activeProfileId)?.label || activeProfileId;
   const isAdmin =
     Boolean(sessionQuery.data?.authenticated) &&
-    String(sessionQuery.data.user.role || "").trim().toLowerCase() === "admin";
+    String(sessionQuery.data?.user?.role || "").trim().toLowerCase() === "admin";
   const trashExpenseItems = useMemo(
     () => (trashQuery.data?.items ?? []).filter((item) => item.category === "gastos"),
     [trashQuery.data?.items],

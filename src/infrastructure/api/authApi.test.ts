@@ -28,7 +28,7 @@ describe("loginWithPassword", () => {
       }),
     );
     const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
-    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]!.body));
     expect(body).toEqual({ email: "user@test.com", password: "secret" });
   });
 
