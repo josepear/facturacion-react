@@ -209,6 +209,7 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 
 - [x] **Catálogo de gastos (`expenseOptions`):** sección admin para editar listas de proveedores y categorías vía `POST /api/expense-options`; solo lectura para no-admin.
 - [x] **Edición de miembro inline:** formulario de edición se despliega debajo del usuario concreto en lugar de al final de la lista.
+- [x] **Papelera admin:** sección visible solo para administradores con `GET /api/trash`, vaciado global (`POST /api/trash/empty`) y borrado selectivo (`POST /api/trash/delete`).
 
 ### Pendiente
 

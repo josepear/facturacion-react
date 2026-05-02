@@ -9,7 +9,8 @@ import { Input } from "@/components/ui/input";
 import type { TemplateProfileConfig } from "@/domain/document/types";
 import { fetchExpenseOptions, saveExpenseOptions } from "@/infrastructure/api/expensesApi";
 import { fetchRuntimeConfig, saveTemplateProfilesConfig } from "@/infrastructure/api/documentsApi";
-import { ApiError } from "@/infrastructure/api/httpClient";
+import { ApiError, getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
+import { deleteTrashEntries, emptyTrash, fetchTrash, type TrashItem } from "@/infrastructure/api/trashApi";
 import { type SystemUser, type UpsertUserInput, deleteSystemUser, fetchSystemUsers, upsertSystemUser } from "@/infrastructure/api/usersApi";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { toNumber } from "@/lib/utils";
@@ -537,6 +538,178 @@ function ExpenseOptionsSection({ canEdit }: { canEdit: boolean }) {
             )}
           </>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TrashSection({ canEdit }: { canEdit: boolean }) {
+  const queryClient = useQueryClient();
+  const trashQuery = useQuery({
+    queryKey: ["trash"],
+    queryFn: fetchTrash,
+    enabled: canEdit,
+  });
+  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+  const [status, setStatus] = useState<{ text: string; tone: "success" | "error" | "neutral" } | null>(null);
+
+  const items = trashQuery.data?.items ?? [];
+  const summary = trashQuery.data?.summary ?? {
+    total: 0,
+    totalGroups: 0,
+    byCategory: {},
+    byFileType: {},
+  };
+
+  useEffect(() => {
+    if (!items.length) {
+      setSelectedPaths([]);
+      return;
+    }
+    const available = new Set(items.map((item) => item.path));
+    setSelectedPaths((prev) => prev.filter((path) => available.has(path)));
+  }, [items]);
+
+  const groupedItems = useMemo(() => {
+    const groups: Record<string, TrashItem[]> = {
+      documentos: [],
+      gastos: [],
+      clientes: [],
+      otros: [],
+    };
+    items.forEach((item) => {
+      groups[item.category] = [...(groups[item.category] ?? []), item];
+    });
+    return groups;
+  }, [items]);
+
+  const emptyMutation = useMutation({
+    mutationFn: emptyTrash,
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["trash"] });
+      setSelectedPaths([]);
+      setStatus({
+        text: `Papelera vaciada. Elementos eliminados: ${Number(data.removedEntries ?? 0)}.`,
+        tone: "success",
+      });
+    },
+    onError: (error) => {
+      setStatus({ text: `Error al vaciar: ${getErrorMessageFromUnknown(error)}`, tone: "error" });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (paths: string[]) => deleteTrashEntries(paths),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["trash"] });
+      setSelectedPaths([]);
+      setStatus({ text: "Elementos seleccionados borrados.", tone: "success" });
+    },
+    onError: (error) => {
+      setStatus({ text: `Error al borrar: ${getErrorMessageFromUnknown(error)}`, tone: "error" });
+    },
+  });
+
+  if (!canEdit) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Papelera</CardTitle>
+        <CardDescription>Gestión de archivos archivados. Solo administradores.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {trashQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Cargando papelera...</p>
+        ) : trashQuery.isError ? (
+          <p className="text-sm text-red-600">{getErrorMessageFromUnknown(trashQuery.error)}</p>
+        ) : (
+          <>
+            <div className="grid gap-1 rounded-md border p-3 text-sm">
+              <p><strong>Total:</strong> {summary.total}</p>
+              <p><strong>Documentos:</strong> {Number(summary.byCategory.documentos ?? 0)}</p>
+              <p><strong>Gastos:</strong> {Number(summary.byCategory.gastos ?? 0)}</p>
+              <p><strong>Clientes:</strong> {Number(summary.byCategory.clientes ?? 0)}</p>
+              <p><strong>Otros:</strong> {Number(summary.byCategory.otros ?? 0)}</p>
+            </div>
+
+            {items.length === 0 ? (
+              <p className="text-sm text-muted-foreground">La papelera está vacía.</p>
+            ) : (
+              <div className="grid gap-3">
+                {(["documentos", "gastos", "clientes", "otros"] as const).map((category) => {
+                  const categoryItems = groupedItems[category] ?? [];
+                  if (categoryItems.length === 0) {
+                    return null;
+                  }
+                  return (
+                    <div key={category} className="grid gap-2 rounded-md border p-3">
+                      <p className="text-sm font-medium capitalize">{category}</p>
+                      <ul className="grid gap-1">
+                        {categoryItems.map((item) => (
+                          <li key={item.path} className="flex items-start gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 rounded border-input"
+                              checked={selectedPaths.includes(item.path)}
+                              onChange={(event) => {
+                                setSelectedPaths((prev) =>
+                                  event.target.checked
+                                    ? [...prev, item.path]
+                                    : prev.filter((path) => path !== item.path),
+                                );
+                              }}
+                            />
+                            <span className="min-w-0 flex-1 break-all">{item.path}</span>
+                            <span className="rounded border px-1.5 py-0.5 text-xs text-muted-foreground">{item.fileType}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={emptyMutation.isPending || deleteMutation.isPending || items.length === 0}
+                onClick={() => {
+                  const confirmed = window.confirm("Se borrará todo el contenido de la papelera. ¿Continuar?");
+                  if (!confirmed) {
+                    return;
+                  }
+                  emptyMutation.mutate();
+                }}
+              >
+                {emptyMutation.isPending ? "Vaciando..." : "Vaciar papelera"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={deleteMutation.isPending || emptyMutation.isPending || selectedPaths.length === 0}
+                onClick={() => {
+                  const confirmed = window.confirm(`Se borrarán ${selectedPaths.length} elementos seleccionados. ¿Continuar?`);
+                  if (!confirmed) {
+                    return;
+                  }
+                  deleteMutation.mutate(selectedPaths);
+                }}
+              >
+                {deleteMutation.isPending ? "Borrando..." : "Borrar seleccionados"}
+              </Button>
+            </div>
+          </>
+        )}
+        {status ? (
+          <p className={`text-sm ${status.tone === "error" ? "text-red-600" : status.tone === "success" ? "text-emerald-600" : "text-muted-foreground"}`}>
+            {status.text}
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -1358,6 +1531,8 @@ export function SettingsPage() {
           </Card>
 
           <ExpenseOptionsSection canEdit={canEdit} />
+
+          <TrashSection canEdit={canEdit} />
 
           <MembersSection
             canEdit={canEdit}
