@@ -49,6 +49,8 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
   - [x] límite ampliado a 100 recientes con enlace al Historial completo
 - [x] **Presets IGIC:** botones 0 %, 3 %, 7 %, 15 % junto al campo IGIC (%) en el panel de impuestos.
 - [x] **Duplicar documento:** botón "Duplicar documento" (visible solo cuando hay un documento cargado); copia todos los datos, borra número y `recordId` para guardar como nuevo.
+- [x] **`lineTotal` manual por línea:** campo "Total línea" en cada concepto; cuando se informa, prevalece sobre cantidad × precio.
+- [x] **Tipos de documento adicionales:** no aplican por contrato actual (backend legacy resuelve solo `factura` y `presupuesto`).
 
 ### Parcial
 
@@ -73,8 +75,6 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 ### Pendiente
 
 - [x] **Duplicar documento:** implementado en cliente (ver Hecho arriba).
-- [ ] `lineTotal` manual por línea si el legacy lo soporta.
-- [ ] Cualquier tipo de documento adicional si el legacy usa más que factura/presupuesto.
 
 ---
 
@@ -121,15 +121,18 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] Contador operativo `Mostrando N de M` y acción `Limpiar búsqueda` cuando hay texto de filtro.
 - [x] Persistencia de contexto en URL: `q` (búsqueda) y `recordId` (selección); al elegir cliente o guardar, se sincroniza `recordId`; deep link `?recordId=...` abre el cliente en el formulario.
 - [x] `recordId` del cliente visible en el formulario al editar (misma pieza que usa Facturar vía listado/API).
+- [x] **Archivado de cliente desde UI:** acción `Archivar cliente` conectada a `POST /api/clients/archive` con invalidación de listado y feedback de estado.
+- [x] **Coherencia de matching con Facturar:** normalización de nombre (acentos, mayúsculas/minúsculas y espacios) para vincular cliente guardado al editar documento.
+- [x] **Búsqueda más robusta en Clientes:** filtro local normalizado (texto y NIF/CIF) para mejorar coincidencias.
 
 ### Parcial
 
-- [ ] (parcial) Coherencia exacta con Facturar si legacy usa otro criterio de matching/normalización.
+- [ ] (parcial) Coherencia exacta con Facturar si legacy usa otro criterio adicional de matching (p. ej., prioridad por NIF o reglas de desempate).
 
 ### Pendiente
 
 - [ ] Paginación, ordenación y filtros en servidor o más ricos si legacy los tiene.
-- [ ] Ciclo de vida ausente: borrar, fusionar, archivar duplicados o equivalentes si existen en legacy.
+- [ ] Ciclo de vida avanzado: fusión, desarchivado o gestión de duplicados si existen en legacy.
 
 ---
 

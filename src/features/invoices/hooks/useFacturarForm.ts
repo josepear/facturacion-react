@@ -17,6 +17,7 @@ import {
 } from "@/infrastructure/api/openOfficialDocumentOutput";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import { mapFormToLegacyDocument, mapLegacyDocumentToForm } from "@/infrastructure/mappers/documentMapper";
+import { sameClientName } from "@/lib/clientMatching";
 
 function applyTotals(document: InvoiceDocument): InvoiceDocument {
   const totals = calculateTotals(document);
@@ -420,7 +421,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       setSelectedClientOptionId("");
       return;
     }
-    const matched = clientOptions.find((option) => String(option.client.name || "").trim() === safeName);
+    const matched = clientOptions.find((option) => sameClientName(option.client.name || "", safeName));
     setSelectedClientOptionId(matched?.optionId || "");
   };
 
@@ -573,7 +574,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     if (!safeName) {
       return;
     }
-    const selectedOption = clientOptions.find((option) => option.client.name === safeName);
+    const selectedOption = clientOptions.find((option) => sameClientName(option.client.name || "", safeName));
     if (!selectedOption) {
       return;
     }

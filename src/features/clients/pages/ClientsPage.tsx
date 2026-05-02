@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { ClientRecord } from "@/domain/document/types";
-import { fetchClients, saveClient } from "@/infrastructure/api/clientsApi";
+import { archiveClient, fetchClients, saveClient } from "@/infrastructure/api/clientsApi";
+import { normalizeTaxIdKey, normalizeTextKey } from "@/lib/clientMatching";
 import { cn } from "@/lib/utils";
 
 function createEmptyClient(): ClientRecord {
@@ -68,22 +69,23 @@ export function ClientsPage() {
   };
 
   const filteredClients = useMemo(() => {
-    const term = String(searchTerm || "").trim().toLowerCase();
+    const term = normalizeTextKey(searchTerm);
+    const taxTerm = normalizeTaxIdKey(searchTerm);
     const clients = clientsQuery.data ?? [];
     if (!term) {
       return clients;
     }
     return clients.filter((client) => {
-      const name = String(client.name || "").toLowerCase();
-      const taxId = String(client.taxId || "").toLowerCase();
-      const email = String(client.email || "").toLowerCase();
-      const contactPerson = String(client.contactPerson || "").toLowerCase();
-      const city = String(client.city || "").toLowerCase();
-      const province = String(client.province || "").toLowerCase();
-      const recordId = String(client.recordId || "").toLowerCase();
+      const name = normalizeTextKey(client.name || "");
+      const taxId = normalizeTaxIdKey(client.taxId || "");
+      const email = normalizeTextKey(client.email || "");
+      const contactPerson = normalizeTextKey(client.contactPerson || "");
+      const city = normalizeTextKey(client.city || "");
+      const province = normalizeTextKey(client.province || "");
+      const recordId = normalizeTextKey(client.recordId || "");
       return (
         name.includes(term)
-        || taxId.includes(term)
+        || taxId.includes(taxTerm)
         || email.includes(term)
         || contactPerson.includes(term)
         || city.includes(term)
@@ -152,6 +154,28 @@ export function ClientsPage() {
     },
     onError: (error) => {
       setStatusMessage((error as Error).message || "No se pudo guardar el cliente.");
+      setStatusTone("error");
+    },
+  });
+
+  const archiveMutation = useMutation({
+    mutationFn: async () => {
+      const safeRecordId = String(selectedRecordId || "").trim();
+      if (!safeRecordId) {
+        throw new Error("Selecciona un cliente para archivar.");
+      }
+      return archiveClient(safeRecordId);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["clients"] });
+      setSelectedRecordId("");
+      setDraft(createEmptyClient());
+      setRecordIdSearchParam("");
+      setStatusMessage("Cliente archivado.");
+      setStatusTone("success");
+    },
+    onError: (error) => {
+      setStatusMessage((error as Error).message || "No se pudo archivar el cliente.");
       setStatusTone("error");
     },
   });
@@ -335,6 +359,22 @@ export function ClientsPage() {
                   }}
                 >
                   Crear nuevo
+                </Button>
+              ) : null}
+              {selectedRecordId ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={archiveMutation.isPending}
+                  onClick={() => {
+                    const confirmed = globalThis.confirm("Este cliente se moverá a papelera. ¿Continuar?");
+                    if (!confirmed) {
+                      return;
+                    }
+                    archiveMutation.mutate();
+                  }}
+                >
+                  {archiveMutation.isPending ? "Archivando..." : "Archivar cliente"}
                 </Button>
               ) : null}
             </div>

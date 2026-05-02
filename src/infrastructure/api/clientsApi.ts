@@ -26,3 +26,10 @@ export async function saveClient(input: SaveClientInput) {
     },
   });
 }
+
+export async function archiveClient(recordId: string) {
+  return request<{ ok: boolean }>("/api/clients/archive", {
+    method: "POST",
+    body: { recordId },
+  });
+}

@@ -5,9 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientsPage } from "@/features/clients/pages/ClientsPage";
 import { createPageWrapper } from "@/test/test-utils";
 
-const { fetchClientsMock, saveClientMock, searchState } = vi.hoisted(() => ({
+const { fetchClientsMock, saveClientMock, archiveClientMock, searchState } = vi.hoisted(() => ({
   fetchClientsMock: vi.fn(),
   saveClientMock: vi.fn(),
+  archiveClientMock: vi.fn(),
   searchState: { query: "" },
 }));
 
@@ -28,6 +29,7 @@ vi.mock("react-router-dom", async (importOriginal) => {
 vi.mock("@/infrastructure/api/clientsApi", () => ({
   fetchClients: fetchClientsMock,
   saveClient: saveClientMock,
+  archiveClient: archiveClientMock,
 }));
 
 const searchPlaceholder = "Buscar por nombre, NIF/CIF, email, contacto, ciudad o recordId";

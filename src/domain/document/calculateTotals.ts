@@ -28,10 +28,10 @@ function mapItem(item: InvoiceItem): InvoiceItem & { total: number } {
 
   let total = 0;
 
-  if (unitPrice > 0) {
-    total = quantity * unitPrice;
-  } else if (explicitLineTotal !== undefined) {
+  if (explicitLineTotal !== undefined) {
     total = explicitLineTotal;
+  } else if (unitPrice > 0) {
+    total = quantity * unitPrice;
   }
 
   return {

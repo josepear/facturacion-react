@@ -57,6 +57,30 @@ export function InvoiceItemsTable({
               <Input type="number" step="0.01" {...register(`items.${index}.unitPrice`, { valueAsNumber: true })} />
             </label>
           </div>
+          <div className="sm:col-span-1">
+            <label className="grid gap-1 text-xs">
+              <span>Total línea</span>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="Auto"
+                {...register(`items.${index}.lineTotal`, {
+                  setValueAs: (value) => {
+                    if (value === "" || value === null || value === undefined) {
+                      return undefined;
+                    }
+                    const parsed = Number(value);
+                    return Number.isFinite(parsed) ? parsed : undefined;
+                  },
+                })}
+              />
+            </label>
+          </div>
+          <div className="sm:col-span-12">
+            <p className="text-[11px] text-muted-foreground">
+              Si informas total manual, prevalece sobre cantidad × precio.
+            </p>
+          </div>
           <div className="sm:col-span-1 flex items-end">
             <Button
               type="button"
