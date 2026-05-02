@@ -45,6 +45,7 @@ export function ClientsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialRecordId = String(searchParams.get("recordId") || "").trim();
   const initialSearchTerm = String(searchParams.get("q") || "").trim();
+  const initialCountryFilter = String(searchParams.get("country") || "").trim().toUpperCase();
 
   const clientsQuery = useQuery({
     queryKey: ["clients"],
@@ -52,6 +53,8 @@ export function ClientsPage() {
   });
 
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [sortBy, setSortBy] = useState<"name" | "taxCountryCode" | "recent">("name");
+  const [filterCountry, setFilterCountry] = useState(initialCountryFilter);
   const [selectedRecordId, setSelectedRecordId] = useState("");
   const [draft, setDraft] = useState<ClientRecord>(createEmptyClient());
   const [statusMessage, setStatusMessage] = useState("");
@@ -68,14 +71,43 @@ export function ClientsPage() {
     setSearchParams(next, { replace: true });
   };
 
+  const allClients = useMemo(() => clientsQuery.data ?? [], [clientsQuery.data]);
+
+  const countryOptions = useMemo(() => {
+    const values = new Set(
+      allClients
+        .map((client) => String(client.taxCountryCode || "").trim().toUpperCase())
+        .filter(Boolean),
+    );
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [allClients]);
+
   const filteredClients = useMemo(() => {
     const term = normalizeTextKey(searchTerm);
     const taxTerm = normalizeTaxIdKey(searchTerm);
-    const clients = clientsQuery.data ?? [];
+    const safeCountry = String(filterCountry || "").trim().toUpperCase();
+    const clients = allClients;
     if (!term) {
-      return clients;
+      const noSearchClients = safeCountry
+        ? clients.filter((client) => String(client.taxCountryCode || "").trim().toUpperCase() === safeCountry)
+        : clients;
+      if (sortBy === "recent") {
+        return noSearchClients;
+      }
+      const sorted = [...noSearchClients].sort((left, right) => {
+        if (sortBy === "taxCountryCode") {
+          const leftCountry = String(left.taxCountryCode || "").trim().toUpperCase();
+          const rightCountry = String(right.taxCountryCode || "").trim().toUpperCase();
+          if (leftCountry !== rightCountry) {
+            return leftCountry.localeCompare(rightCountry);
+          }
+        }
+        return normalizeTextKey(left.name || "").localeCompare(normalizeTextKey(right.name || ""));
+      });
+      return sorted;
     }
-    return clients.filter((client) => {
+
+    const searched = clients.filter((client) => {
       const name = normalizeTextKey(client.name || "");
       const taxId = normalizeTaxIdKey(client.taxId || "");
       const email = normalizeTextKey(client.email || "");
@@ -93,10 +125,27 @@ export function ClientsPage() {
         || recordId.includes(term)
       );
     });
-  }, [clientsQuery.data, searchTerm]);
+    const countryFiltered = safeCountry
+      ? searched.filter((client) => String(client.taxCountryCode || "").trim().toUpperCase() === safeCountry)
+      : searched;
+    if (sortBy === "recent") {
+      return countryFiltered;
+    }
+    const sorted = [...countryFiltered].sort((left, right) => {
+      if (sortBy === "taxCountryCode") {
+        const leftCountry = String(left.taxCountryCode || "").trim().toUpperCase();
+        const rightCountry = String(right.taxCountryCode || "").trim().toUpperCase();
+        if (leftCountry !== rightCountry) {
+          return leftCountry.localeCompare(rightCountry);
+        }
+      }
+      return normalizeTextKey(left.name || "").localeCompare(normalizeTextKey(right.name || ""));
+    });
+    return sorted;
+  }, [allClients, filterCountry, searchTerm, sortBy]);
 
-  const allClients = useMemo(() => clientsQuery.data ?? [], [clientsQuery.data]);
   const hasSearchFilter = Boolean(String(searchTerm || "").trim());
+  const hasActiveFilters = hasSearchFilter || Boolean(String(filterCountry || "").trim());
 
   useEffect(() => {
     if (!initialRecordId || selectedRecordId || !allClients.length) {
@@ -120,15 +169,21 @@ export function ClientsPage() {
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
     const safeSearch = String(searchTerm || "").trim();
+    const safeCountry = String(filterCountry || "").trim().toUpperCase();
     if (safeSearch) {
       next.set("q", safeSearch);
     } else {
       next.delete("q");
     }
+    if (safeCountry) {
+      next.set("country", safeCountry);
+    } else {
+      next.delete("country");
+    }
     if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
     }
-  }, [searchParams, searchTerm, setSearchParams]);
+  }, [filterCountry, searchParams, searchTerm, setSearchParams]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -201,16 +256,44 @@ export function ClientsPage() {
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
             />
-            {hasSearchFilter ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Field label="País">
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={filterCountry}
+                  onChange={(event) => setFilterCountry(String(event.target.value || "").trim().toUpperCase())}
+                >
+                  <option value="">Todos los países</option>
+                  {countryOptions.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Ordenar por">
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={sortBy}
+                  onChange={(event) => setSortBy(event.target.value as "name" | "taxCountryCode" | "recent")}
+                >
+                  <option value="name">Nombre (A-Z)</option>
+                  <option value="taxCountryCode">País (A-Z)</option>
+                  <option value="recent">Orden original</option>
+                </select>
+              </Field>
+            </div>
+            {hasActiveFilters ? (
               <div className="flex justify-end">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => {
                     setSearchTerm("");
+                    setFilterCountry("");
                   }}
                 >
-                  Limpiar búsqueda
+                  Limpiar filtros
                 </Button>
               </div>
             ) : null}
@@ -230,7 +313,7 @@ export function ClientsPage() {
             {!clientsQuery.isLoading && allClients.length ? (
               <p className="text-xs text-muted-foreground">
                 Mostrando {filteredClients.length} de {allClients.length}
-                {hasSearchFilter ? " (filtro activo)" : ""}
+                {hasActiveFilters ? " (filtro activo)" : ""}
               </p>
             ) : null}
             <div className="max-h-[480px] overflow-auto rounded-md border">

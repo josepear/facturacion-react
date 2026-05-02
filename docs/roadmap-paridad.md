@@ -125,6 +125,7 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] **Archivado de cliente desde UI:** acción `Archivar cliente` conectada a `POST /api/clients/archive` con invalidación de listado y feedback de estado.
 - [x] **Coherencia de matching con Facturar:** normalización de nombre (acentos, mayúsculas/minúsculas y espacios) para vincular cliente guardado al editar documento.
 - [x] **Búsqueda más robusta en Clientes:** filtro local normalizado (texto y NIF/CIF) para mejorar coincidencias.
+- [x] **Ordenación cliente-lado (por nombre, por país, orden original) y filtro por país con persistencia en URL.**
 
 ### Parcial
 
@@ -132,7 +133,7 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 
 ### Pendiente
 
-- [ ] Paginación, ordenación y filtros en servidor o más ricos si legacy los tiene.
+- [ ] Paginación y filtros/ordenación en servidor o más ricos si legacy los tiene.
 - [ ] Ciclo de vida avanzado: fusión, desarchivado o gestión de duplicados si existen en legacy.
 
 ---
