@@ -541,11 +541,25 @@ export function ExpensesPage() {
               </p>
             </Field>
             <Field label="Fecha factura">
-              <Input
-                type="date"
-                value={draft.issueDate || ""}
-                onChange={(event) => setDraft((prev) => ({ ...prev, issueDate: event.target.value }))}
-              />
+              <div className="flex items-stretch gap-1">
+                <Input
+                  type="date"
+                  className="min-w-0 flex-1"
+                  value={draft.issueDate || ""}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, issueDate: event.target.value }))}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
+                  title="Usar la fecha de hoy"
+                  aria-label="Poner fecha factura a hoy"
+                  onClick={() => setDraft((prev) => ({ ...prev, issueDate: new Date().toISOString().slice(0, 10) }))}
+                >
+                  <span className="text-xs font-medium">Hoy</span>
+                </Button>
+              </div>
             </Field>
             <Field label="Proveedor">
               <Input
@@ -599,11 +613,25 @@ export function ExpensesPage() {
               </summary>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field label="Fecha operación / devengo">
-                  <Input
-                    type="date"
-                    value={draft.operationDate || ""}
-                    onChange={(event) => setDraft((prev) => ({ ...prev, operationDate: event.target.value }))}
-                  />
+                  <div className="flex items-stretch gap-1">
+                    <Input
+                      type="date"
+                      className="min-w-0 flex-1"
+                      value={draft.operationDate || ""}
+                      onChange={(event) => setDraft((prev) => ({ ...prev, operationDate: event.target.value }))}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
+                      title="Usar la fecha de hoy"
+                      aria-label="Poner fecha operación a hoy"
+                      onClick={() => setDraft((prev) => ({ ...prev, operationDate: new Date().toISOString().slice(0, 10) }))}
+                    >
+                      <span className="text-xs font-medium">Hoy</span>
+                    </Button>
+                  </div>
                 </Field>
                 <Field label="Número final (rango)">
                   <Input
@@ -627,11 +655,18 @@ export function ExpensesPage() {
                   />
                 </Field>
                 <Field label="Trimestre">
-                  <Input
-                    placeholder="p. ej. Q1 o 1T"
+                  <select
+                    aria-label="Trimestre"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={draft.quarter || ""}
                     onChange={(event) => setDraft((prev) => ({ ...prev, quarter: event.target.value }))}
-                  />
+                  >
+                    <option value="">—</option>
+                    <option value="1T">1T</option>
+                    <option value="2T">2T</option>
+                    <option value="3T">3T</option>
+                    <option value="4T">4T</option>
+                  </select>
                 </Field>
                 <Field label="Enlace Nextcloud">
                   <Input
