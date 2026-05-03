@@ -241,7 +241,7 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 
 - [ ] **(P1) Archivar factura desde Facturar/Historial:** `POST /api/documents/archive` — legacy tiene botón "Archivar" en el formulario post-guardado y en cada fila de Historial. En React solo existe archivar gasto.
 - [ ] **(P1) Archivar año de facturas:** `POST /api/documents/archive-year` — equivalente al de gastos pero para documentos. No implementado en React.
-- [ ] **(P1) Propagar diseño de plantilla a histórico:** `POST /api/template-profiles/propagate` — botón "Guardar diseño y actualizar facturas anteriores" en legacy. React guarda el perfil pero no dispara la propagación a documentos existentes.
+- [x] **(P1) Propagar diseño de plantilla a histórico:** botón "Guardar diseño y actualizar facturas anteriores" en Configuración (admin); llama a `POST /api/template-profiles/propagate` con el perfil activo y muestra cuántos documentos se actualizaron.
 - [ ] **(P2) Comprobar disponibilidad de número:** `GET /api/document-number-availability` — legacy valida en tiempo real si el número de factura ya existe antes de guardar. React usa `next-number` pero no hace esta comprobación.
 
 ### Historial — pendiente
@@ -313,7 +313,7 @@ El legacy tiene una pestaña **"Datos"** (`tab-panel-control`) con cuatro sub-se
 
 - [x] **(P1) Modo oscuro / night mode:** toggle luna/sol en sidebar y header móvil, persistido en `localStorage` ("facturacion-ui-theme"), clase `dark` en `<html>`, variables CSS `.dark` en `tokens.css`.
 - [ ] **(P2) Modo sandbox:** switch de ámbito de almacenamiento (producción vs. sandbox) persistido en `localStorage`. No existe en React.
-- [ ] **(P2) Página pública de informe compartido:** `GET /api/public-share-report/:id` — legacy genera una URL de solo lectura; React genera la URL pero no tiene página para renderizarla.
+- [x] **(P2) Página pública de informe compartido:** el servidor devuelve `shareViewUrl` apuntando a `/share-view.html?t=TOKEN` (página standalone del legacy); React solo genera el enlace y lo muestra en Historial para copiar. Ya funciona.
 - [ ] **(P2) First-use wizard:** modal `first-use-wizard-modal` con guía de orden sugerido la primera vez (emisor → plantilla → facturar). No existe en React.
 
 ---
