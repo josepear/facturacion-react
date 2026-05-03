@@ -273,11 +273,48 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [ ] **(P2) Catálogo de fuentes:** `GET /api/fonts/catalog` — selector de fuentes personalizadas por perfil. No implementado en React.
 - [ ] **(P2) Logo / imagen de marca:** legacy permite subir una imagen como logo del emisor (base64 embebida). React tiene campo de texto pero no input de archivo.
 
+### Tab "Datos" — sección entera ausente en React (P1)
+
+El legacy tiene una pestaña **"Datos"** (`tab-panel-control`) con cuatro sub-secciones distintas que no existen en React:
+
+- [ ] **(P1) Dashboard financiero:** grid de estadísticas (`control-workbook-summary`, `control-executive-summary`, `control-quarter-strip`) — totales de facturas y gastos por perfil/año/trimestre.
+- [ ] **(P1) Tabla unificada facturas + gastos** con filtros combinados (perfil, año, trimestre, estado) persistidos; chips de trimestre en móvil; filas con acciones por fila (archivar, Gmail, PDF). En React existen páginas separadas (Historial, Gastos) pero no esta vista combinada con stats.
+- [ ] **(P1) Sub-panel "Importar gastos" (Excel o PDF):** `POST /api/control-expenses-import` con input de archivo múltiple, botón "Importar gastos", estado inline y lista de omitidas. No existe en React.
+- [ ] **(P1) Sub-panel "Celia: Excel y columnas":** formulario de configuración de columnas por gasto (concept, taxIdType, taxCountryCode, taxId, subtotal, taxRate) + selector año/perfil + botón "Generar Excel Celia" (`POST /api/accounting/export`). En React el botón de exportar está en Gastos pero sin esta UI de columnas configurables.
+- [ ] **(P1) Sub-panel "Importación histórica":** carga de PDF/Excel, selección de persona/año/perfil, previsualización de facturas detectadas, botón "Revisar antes de importar" y modal de confirmación. No existe en React.
+- [ ] **(P1) Gmail bulk send desde tabla de facturas:** checkbox por fila + botón "Enviar por Gmail" masivo. No existe en React.
+- [ ] **(P1) Botón "Vista compartida / Asesor"** (`POST /api/share-reports`) visible en esta sección — en React está en Historial pero no en la vista de Datos.
+
+### Gastos — botones inline al catálogo (P1)
+
+- [ ] **(P1) Botones "Añadir" inline en Proveedor y Categoría:** en legacy el formulario de gasto tiene un botón "Añadir" junto al select de proveedor y otro junto al select de categoría; abren el modal `expense-options-modal` directamente desde el formulario. En React hay un select pero no este acceso directo.
+- [ ] **(P1) Catálogo de conceptos visible:** chips `#expense-concept-catalog-list` que muestran las categorías disponibles encima del formulario de gasto, con acceso a "Gestionar conceptos".
+- [ ] **(P1) Drag-to-reorder en modal de opciones de gastos:** el modal `expense-options-modal` permite arrastrar filas para reordenar proveedores y categorías. La sección en React (`ExpenseOptionsSection`) no tiene drag-and-drop.
+- [ ] **(P1) `merge-expense-into-catalog`:** botón para añadir el proveedor/concepto actual al catálogo. No existe en React.
+
+### Configuración / Emisor — pendiente
+
+- [ ] **(P1) Logo upload (imagen de marca):** campo de archivo `#business-brand-image-file` para subir SVG/PNG/WebP como logo; React tiene un campo de texto pero no input de archivo.
+- [ ] **(P1) Panel de resumen de perfil activo:** `#personal-active-summary-root` y `#personal-template-summary-root` — muestra estadísticas del perfil activo y su plantilla. No existe en React.
+- [ ] **(P1) Sugerencias de tag de número de factura:** panel `#invoice-tag-suggestions-panel` con chips de sugerencias cuando hay conflicto de prefijo. No existe en React.
+
+### Configuración / Diseño (Plantilla) — sección parcialmente ausente
+
+- [ ] **(P2) Editor de diseño avanzado completo:** la pestaña "Plantilla" tiene selectores de color hex (`design-accent-hex`, `design-dark-hex`), sliders de tamaño de fuente/columna (pt, mm) y selectores de alineación por zona (issuer, client, side, items). React solo gestiona `layout`, `colorKey` y datos básicos.
+- [ ] **(P2) "Nueva base de diseño" modal:** modal `new-design-template-modal` para crear una base de diseño desde cero con selector de tipo. No existe en React.
+- [ ] **(P2) Guardar diseño + propagar a histórico:** botón "Guardar diseño y actualizar facturas anteriores" (`POST /api/template-profiles/propagate`). No existe en React.
+
+### Facturar — extras no inventariados antes
+
+- [ ] **(P2) "Repetir última factura":** botón `#repeat-last-document-setup` que rellena el formulario con los datos del último documento guardado (sin `recordId`). Distinto de "Duplicar documento" (que copia el doc actual). No existe en React.
+- [ ] **(P2) Preview swatch de perfil:** franja de color del perfil activo encima del preview del PDF (`invoice-preview-profile-swatch` + `invoice-preview-profile-line`). En React el preview no muestra este indicador de perfil.
+
 ### Transversal — pendiente
 
 - [ ] **(P1) Modo oscuro / night mode:** legacy tiene toggle de tema claro/oscuro persistido en `localStorage`. No existe en React.
 - [ ] **(P2) Modo sandbox:** switch de ámbito de almacenamiento (producción vs. sandbox) persistido en `localStorage`. No existe en React.
 - [ ] **(P2) Página pública de informe compartido:** `GET /api/public-share-report/:id` — legacy genera una URL de solo lectura; React genera la URL pero no tiene página para renderizarla.
+- [ ] **(P2) First-use wizard:** modal `first-use-wizard-modal` con guía de orden sugerido la primera vez (emisor → plantilla → facturar). No existe en React.
 
 ---
 
