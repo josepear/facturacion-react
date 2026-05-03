@@ -15,6 +15,7 @@ import {
   sendGmailInvoice,
   sendGmailInvoiceBatch,
 } from "@/infrastructure/api/gmailApi";
+import { openGmailOAuthPopupAndWait } from "@/infrastructure/gmail/oauthPopup";
 import { postShareReport } from "@/infrastructure/api/exportReportsApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { openOfficialDocumentInNewTab } from "@/infrastructure/api/openOfficialDocumentOutput";
@@ -278,12 +279,13 @@ export function HistoryPage() {
         to: gmailTo,
         bodyText: gmailBodyText || undefined,
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       setGmailSentMessage("Factura enviada por Gmail.");
       setGmailDialog(false);
+      await queryClient.invalidateQueries({ queryKey: ["gmail-status", gmailProfileId] });
     },
     onError: (err) => {
-      setGmailSentMessage((err as Error).message || "Error al enviar por Gmail.");
+      setGmailSentMessage(getErrorMessageFromUnknown(err));
     },
   });
 
@@ -311,6 +313,15 @@ export function HistoryPage() {
     }
   }, [gmailBatchDialog]);
 
+  useEffect(() => {
+    const onFocus = () => {
+      void queryClient.invalidateQueries({ queryKey: ["gmail-status", gmailProfileId] });
+      void queryClient.invalidateQueries({ queryKey: ["gmail-status-batch", gmailBatchProfileId] });
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [queryClient, gmailProfileId, gmailBatchProfileId]);
+
   const gmailBatchSendMutation = useMutation({
     mutationFn: () =>
       sendGmailInvoiceBatch({
@@ -324,9 +335,10 @@ export function HistoryPage() {
       setGmailBatchDialog(false);
       clearSelection();
       await queryClient.invalidateQueries({ queryKey: ["history-invoices"] });
+      await queryClient.invalidateQueries({ queryKey: ["gmail-status-batch", gmailBatchProfileId] });
     },
     onError: (err) => {
-      setGmailBatchMessage((err as Error).message || "Error al enviar.");
+      setGmailBatchMessage(getErrorMessageFromUnknown(err));
     },
   });
 
@@ -734,6 +746,30 @@ export function HistoryPage() {
                   !batchProfileConflict &&
                   Boolean(gmailBatchProfileId) &&
                   gmailBatchConfigured &&
+                  !gmailBatchConnected &&
+                  selectedRows.length <= 20 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        setOutputFeedback(null);
+                        try {
+                          const { authUrl } = await fetchGmailOAuthStartUrl(gmailBatchProfileId);
+                          await openGmailOAuthPopupAndWait(authUrl);
+                          await queryClient.invalidateQueries({ queryKey: ["gmail-status-batch", gmailBatchProfileId] });
+                        } catch (err) {
+                          setOutputFeedback({ text: getErrorMessageFromUnknown(err), tone: "error" });
+                        }
+                      }}
+                    >
+                      Conectar Gmail (lote)
+                    </Button>
+                  ) : null}
+                  {selectedRows.length > 0 &&
+                  !batchProfileConflict &&
+                  Boolean(gmailBatchProfileId) &&
+                  gmailBatchConfigured &&
                   gmailBatchConnected &&
                   selectedRows.length <= 20 ? (
                     <Button
@@ -971,10 +1007,14 @@ export function HistoryPage() {
                       type="button"
                       variant="outline"
                       onClick={async () => {
+                        setOutputFeedback(null);
                         try {
                           const { authUrl } = await fetchGmailOAuthStartUrl(gmailProfileId);
-                          window.open(authUrl, "_blank");
-                        } catch {}
+                          await openGmailOAuthPopupAndWait(authUrl);
+                          await queryClient.invalidateQueries({ queryKey: ["gmail-status", gmailProfileId] });
+                        } catch (err) {
+                          setOutputFeedback({ text: getErrorMessageFromUnknown(err), tone: "error" });
+                        }
                       }}
                     >
                       Conectar Gmail

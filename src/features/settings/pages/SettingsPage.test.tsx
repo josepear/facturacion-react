@@ -77,6 +77,10 @@ vi.mock("@/infrastructure/api/gmailApi", () => ({
   fetchGmailOAuthStartUrl: vi.fn().mockResolvedValue({ authUrl: "https://example.com/oauth" }),
 }));
 
+vi.mock("@/infrastructure/gmail/oauthPopup", () => ({
+  openGmailOAuthPopupAndWait: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/infrastructure/api/sessionApi", () => ({
   fetchSession: fetchSessionMock,
 }));

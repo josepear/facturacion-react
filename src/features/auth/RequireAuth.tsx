@@ -3,12 +3,13 @@ import { useLayoutEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
 import { useAuth } from "@/features/auth/AuthContext";
-import { getAuthToken } from "@/infrastructure/api/httpClient";
+import { ApiError, getAuthToken } from "@/infrastructure/api/httpClient";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 
 /**
  * Token-first: con token se renderiza el shell al instante; `GET /api/session` corre en background.
- * Si 401 / `authenticated: false` / error de sesión → limpiar y volver a `/login` (fallback acotado).
+ * Solo ante **401** o `authenticated: false` se fuerza login. Errores de red o 5xx tras reinicio del
+ * servidor no deben expulsar al usuario (React Query reintenta sesión).
  */
 export function RequireAuth({ children }: PropsWithChildren) {
   const { authVersion, logout } = useAuth();
@@ -31,7 +32,10 @@ export function RequireAuth({ children }: PropsWithChildren) {
   }
 
   if (sessionQuery.isError) {
-    return <Navigate to="/login" replace />;
+    const err = sessionQuery.error;
+    if (err instanceof ApiError && err.status === 401) {
+      return <Navigate to="/login" replace />;
+    }
   }
 
   if (sessionQuery.isSuccess && sessionQuery.data && !sessionQuery.data.authenticated) {

@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
 
 import { AppShell } from "@/app/AppShell";
 import { LoginPage } from "@/features/auth/LoginPage";
@@ -10,6 +10,11 @@ import { HistoryPage } from "@/features/history/pages/HistoryPage";
 import { FacturarPage } from "@/features/invoices/pages/FacturarPage";
 import { SettingsPage } from "@/features/settings/pages/SettingsPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+
+function IndexRedirectToFacturar() {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: "/facturar", search }} replace />;
+}
 
 // In production the app is served at /react/ by the legacy Node server.
 // Vite sets import.meta.env.BASE_URL to "/" in dev and "/react/" in prod builds.
@@ -29,7 +34,7 @@ export const router = createBrowserRouter(
       children: [
         {
           index: true,
-          element: <Navigate to="/facturar" replace />,
+          element: <IndexRedirectToFacturar />,
         },
         {
           path: "facturar",

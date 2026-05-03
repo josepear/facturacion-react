@@ -50,6 +50,17 @@ Resumen:
 4. Dos `POST /api/expenses` con `response.ok()`, mismo `recordId` en la edición; si la respuesta incluye `expense.description`, debe coincidir con el texto editado.
 5. **Limpieza:** `POST /api/expenses/archive` con bearer. Si falla, el test **falla** con mensaje explícito (el gasto E2E puede quedar en el sistema).
 
+## Dónde ejecutar los comandos
+
+Los tests viven en el paquete **`facturacion-react`**. La mayoría de comandos asumen **directorio de trabajo** `…/facturacion/facturacion-react/`:
+
+```bash
+cd facturacion-react
+npm run test:e2e
+```
+
+Desde la **raíz del monorepo** `facturacion/` (junto a `server.mjs`), el `package.json` raíz puede delegar con `npm run test:e2e` si existe el script que llama a `--prefix ./facturacion-react`. Si ejecutas `npm run test:e2e` solo en una carpeta sin ese script, verás `Missing script: "test:e2e"`.
+
 ## Entorno esperado
 
 Frontend local:
@@ -81,6 +92,20 @@ E2E_USER_PASSWORD
 
 ## Comandos canónicos
 
+Ejecutar desde **`facturacion-react/`** (salvo que uses el script delegado en la raíz del monorepo).
+
+Primera vez o tras actualizar Playwright:
+
+```bash
+npx playwright install chromium
+```
+
+El proyecto **`setup`** (`e2e/auth.setup.ts`) debe pasar antes de **`chromium`**; `playwright.config.ts` ya declara esa dependencia. Si cambias el init script de auth o el wizard, conviene regenerar estado:
+
+```bash
+rm -rf e2e/.auth && npm run test:e2e
+```
+
 Validación rápida del flujo crítico:
 
 ```bash
@@ -104,6 +129,26 @@ npm run test:e2e
 `npm run test:e2e` fuerza `PATH`, `E2E_NODE_PATH` y `PLAYWRIGHT_BROWSERS_PATH=0` para evitar que Vite arranque con un Node embebido incompatible.
 
 ## Problemas encontrados
+
+### 0. El diálogo de bienvenida bloquea la UI (wizard `AppShell`)
+
+Síntomas (Playwright):
+
+```text
+<dialog ...> intercepts pointer events
+Test timeout ... waiting for locator ... Nuevo gasto
+Target page, context or browser has been closed
+```
+
+Causa:
+
+Con sesión válida, `AppShell` abre un **modal de bienvenida** si `localStorage.getItem("facturacion-wizard-seen") !== "1"`. El `<dialog>` tiene `z-[60]` y tapa toda la app: los tests hacen clic en botones de `main` pero los eventos los intercepta el diálogo.
+
+Decisión:
+
+En **`e2e/auth.setup.ts`**, el `addInitScript` que inyecta el token debe también hacer `localStorage.setItem("facturacion-wizard-seen", "1")` **antes** del primer `goto`, para que el `storageState` guardado ya lleve el wizard desactivado en todos los tests que dependen del setup.
+
+Si un entorno reutiliza un `e2e/.auth/user.json` antiguo sin esa clave, borrar `e2e/.auth/` y volver a ejecutar el proyecto `setup`.
 
 ### 1. El test dependía de señales frágiles de UI
 
@@ -402,6 +447,10 @@ Confirmar:
 - `GET /api/documents/detail?recordId=...` responde OK,
 - el `recordId` aparece en UI,
 - los campos clave vuelven a quedar guardables.
+
+### Si un `<dialog>` bloquea clics (timeout en Gastos o Facturar)
+
+Ver sección **«0. El diálogo de bienvenida»** arriba. Comprobar en captura o vídeo que el modal de bienvenida está abierto; revisar que `auth.setup.ts` fija `facturacion-wizard-seen` y que no se reutiliza un `storageState` obsoleto.
 
 ## Principios que no deben romperse
 

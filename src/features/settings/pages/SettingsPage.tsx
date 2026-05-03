@@ -16,6 +16,7 @@ import {
   saveTemplateProfilesConfig,
 } from "@/infrastructure/api/documentsApi";
 import { fetchGmailOAuthStartUrl, fetchGmailProfiles, type GmailProfileItem } from "@/infrastructure/api/gmailApi";
+import { openGmailOAuthPopupAndWait } from "@/infrastructure/gmail/oauthPopup";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import { ApiError, getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { deleteTrashEntries, emptyTrash, fetchTrash, type TrashItem } from "@/infrastructure/api/trashApi";
@@ -883,6 +884,7 @@ export function SettingsPage() {
   const [newBaseOpen, setNewBaseOpen] = useState(false);
   const [newBaseLabel, setNewBaseLabel] = useState("");
   const [newBaseLayout, setNewBaseLayout] = useState<(typeof LAYOUT_OPTIONS)[number]["value"]>("pear");
+  const [gmailOAuthSectionError, setGmailOAuthSectionError] = useState("");
 
   const serverProfiles = useMemo(
     () => configQuery.data?.templateProfiles ?? [],
@@ -1878,6 +1880,8 @@ export function SettingsPage() {
               <div className="grid gap-4 p-4">
                 <h2 className="text-base font-semibold">Integración Gmail</h2>
 
+                {gmailOAuthSectionError ? <p className="text-sm text-red-600">{gmailOAuthSectionError}</p> : null}
+
                 {gmailProfilesQuery.isLoading ? (
                   <p className="text-sm text-muted-foreground">Cargando estado de Gmail...</p>
                 ) : null}
@@ -1904,10 +1908,14 @@ export function SettingsPage() {
                           variant="outline"
                           size="sm"
                           onClick={async () => {
+                            setGmailOAuthSectionError("");
                             try {
                               const { authUrl } = await fetchGmailOAuthStartUrl(item.templateProfileId);
-                              window.open(authUrl, "_blank");
-                            } catch {}
+                              await openGmailOAuthPopupAndWait(authUrl);
+                              await queryClient.invalidateQueries({ queryKey: ["gmail-profiles"] });
+                            } catch (err) {
+                              setGmailOAuthSectionError(getErrorMessageFromUnknown(err));
+                            }
                           }}
                         >
                           {item.connected ? "Reconectar" : "Conectar"}

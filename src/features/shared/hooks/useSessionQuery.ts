@@ -21,8 +21,16 @@ export function useSessionQuery() {
     queryKey: [...SESSION_QUERY_KEY, authVersion] as const,
     queryFn: fetchSession,
     enabled: hasToken,
-    retry: false,
+    retry(failureCount, error) {
+      if (error instanceof ApiError && error.status === 401) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    retryDelay: (attempt) => Math.min(500 * 2 ** attempt, 4000),
     staleTime: 30_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   useEffect(() => {

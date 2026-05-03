@@ -17,7 +17,9 @@ import {
   fetchNextcloudFolder,
 } from "@/infrastructure/api/documentsApi";
 import { fetchGmailOAuthStartUrl, fetchGmailStatus, sendGmailInvoice } from "@/infrastructure/api/gmailApi";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
+import { openGmailOAuthPopupAndWait } from "@/infrastructure/gmail/oauthPopup";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 /** Badge de valor en módulo Emisor (misma estética que estado «Completo», solo lectura). */
 const facturarIssuerValueBadgeClass =
@@ -75,6 +77,7 @@ export function FacturarPage() {
     repeatLastSetup,
     isDirty,
   } = useFacturarForm(initialRecordId, initialTemplateProfileId);
+  const queryClient = useQueryClient();
   const {
     register,
     watch,
@@ -113,6 +116,7 @@ export function FacturarPage() {
   const [gmailTo, setGmailTo] = useState("");
   const [gmailBodyText, setGmailBodyText] = useState("");
   const [gmailSentMessage, setGmailSentMessage] = useState("");
+  const [gmailAuthError, setGmailAuthError] = useState("");
   const gmailDialogRef = useRef<HTMLDialogElement>(null);
 
   const gmailStatusQuery = useQuery({
@@ -155,14 +159,24 @@ export function FacturarPage() {
         to: gmailTo,
         bodyText: gmailBodyText || undefined,
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       setGmailSentMessage("Factura enviada por Gmail.");
       setGmailDialog(false);
+      await queryClient.invalidateQueries({ queryKey: ["gmail-status", templateProfileIdForGmail] });
     },
     onError: (err) => {
-      setGmailSentMessage((err as Error).message || "Error al enviar por Gmail.");
+      setGmailSentMessage(getErrorMessageFromUnknown(err));
     },
   });
+
+  useEffect(() => {
+    const onFocus = () => {
+      setGmailAuthError("");
+      void queryClient.invalidateQueries({ queryKey: ["gmail-status", templateProfileIdForGmail] });
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [queryClient, templateProfileIdForGmail]);
 
   useEffect(() => {
     const el = gmailDialogRef.current;
@@ -799,10 +813,15 @@ export function FacturarPage() {
                     type="button"
                     variant="outline"
                     onClick={async () => {
+                      setGmailSentMessage("");
+                      setGmailAuthError("");
                       try {
                         const { authUrl } = await fetchGmailOAuthStartUrl(templateProfileIdForGmail);
-                        window.open(authUrl, "_blank");
-                      } catch {}
+                        await openGmailOAuthPopupAndWait(authUrl);
+                        await queryClient.invalidateQueries({ queryKey: ["gmail-status", templateProfileIdForGmail] });
+                      } catch (err) {
+                        setGmailAuthError(getErrorMessageFromUnknown(err));
+                      }
                     }}
                   >
                     Conectar Gmail
@@ -816,6 +835,7 @@ export function FacturarPage() {
                       setGmailTo(form.getValues("client.email") || "");
                       setGmailBodyText("");
                       setGmailSentMessage("");
+                      setGmailAuthError("");
                       setGmailDialog(true);
                     }}
                   >
@@ -823,6 +843,7 @@ export function FacturarPage() {
                   </Button>
                 ) : null}
               </div>
+              {gmailAuthError ? <p className="text-sm text-red-600">{gmailAuthError}</p> : null}
               {officialOutputError ? <p className="text-sm text-red-600">{officialOutputError}</p> : null}
               <span className="text-sm text-muted-foreground">
                 {serverRecordId ? `recordId: ${serverRecordId}` : "Documento nuevo"}

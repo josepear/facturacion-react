@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { BarChart2, LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
@@ -135,6 +136,7 @@ function useSandbox() {
 export function AppShell() {
   const { logout, authVersion } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { isDark, toggle } = useTheme();
   const { sandbox, toggleSandbox } = useSandbox();
   const wizardDialogRef = useRef<HTMLDialogElement>(null);
@@ -152,6 +154,22 @@ export function AppShell() {
   const shellTitle = useMemo(() => {
     return navItems.find((item) => location.pathname.startsWith(item.to))?.label || "Facturación";
   }, [location.pathname]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const gmail = params.get("gmail");
+    if (!gmail) {
+      return;
+    }
+    params.delete("gmail");
+    const rest = params.toString();
+    void (async () => {
+      await queryClient.invalidateQueries({ queryKey: ["gmail-status"] });
+      await queryClient.invalidateQueries({ queryKey: ["gmail-status-batch"] });
+      await queryClient.invalidateQueries({ queryKey: ["gmail-profiles"] });
+      navigate({ pathname: location.pathname, search: rest ? `?${rest}` : "" }, { replace: true });
+    })();
+  }, [location.pathname, location.search, navigate, queryClient]);
 
   useEffect(() => {
     try {

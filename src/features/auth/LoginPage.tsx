@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { type FormEvent, useLayoutEffect, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
@@ -5,8 +6,9 @@ import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/features/auth/AuthContext";
+import { SESSION_QUERY_KEY } from "@/features/auth/sessionQueryKey";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
-import { getAuthToken } from "@/infrastructure/api/httpClient";
+import { ApiError, getAuthToken } from "@/infrastructure/api/httpClient";
 
 function safeNextParam(raw: string | null): string {
   const value = String(raw || "").trim();
@@ -82,6 +84,7 @@ function LoginFormOnly() {
 function LoginWithTokenGate() {
   const { authVersion, logout } = useAuth();
   void authVersion;
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const next = safeNextParam(searchParams.get("next"));
   const sessionQuery = useSessionQuery();
@@ -93,14 +96,31 @@ function LoginWithTokenGate() {
   }, [sessionQuery.isSuccess, sessionQuery.data, logout]);
 
   if (sessionQuery.isError) {
+    const err = sessionQuery.error;
+    const is401 = err instanceof ApiError && err.status === 401;
+    if (is401) {
+      return null;
+    }
+
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4">
         <p className="max-w-sm text-center text-sm text-muted-foreground">
-          Hay un token guardado pero no se pudo validar con el servidor (red o sesión caducada).
+          Hay un token guardado pero no se pudo validar con el servidor (red temporal o servidor
+          reiniciando). Puedes reintentar o cerrar sesión y volver a entrar.
         </p>
-        <Button type="button" variant="outline" onClick={() => logout()}>
-          Olvidar token y volver al acceso
-        </Button>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Button
+            type="button"
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: [...SESSION_QUERY_KEY] });
+            }}
+          >
+            Reintentar
+          </Button>
+          <Button type="button" variant="outline" onClick={() => logout()}>
+            Olvidar token
+          </Button>
+        </div>
       </div>
     );
   }

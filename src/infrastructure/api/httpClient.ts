@@ -11,7 +11,12 @@ function readStoredToken(): string | null {
     return null;
   }
   try {
-    return globalThis.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+    const raw = globalThis.localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+    const trimmed = String(raw || "")
+      .trim()
+      .replace(/^Bearer\s+/iu, "")
+      .trim();
+    return trimmed || null;
   } catch {
     return null;
   }
@@ -30,7 +35,10 @@ export function setAuthToken(token: string | null): void {
     return;
   }
   try {
-    const safe = String(token || "").trim();
+    const safe = String(token || "")
+      .trim()
+      .replace(/^Bearer\s+/iu, "")
+      .trim();
     if (safe) {
       globalThis.localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, safe);
     } else {

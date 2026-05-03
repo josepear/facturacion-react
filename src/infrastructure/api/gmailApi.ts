@@ -1,5 +1,17 @@
 import { request } from "@/infrastructure/api/httpClient";
 
+/** El POST `/api/gmail/send-invoice` solo acepta rutas que terminen en `.json`. */
+export function normalizeGmailRecordId(recordId: string): string {
+  const id = String(recordId || "").trim().replace(/\\/gu, "/");
+  if (!id) {
+    return id;
+  }
+  if (/\.json$/iu.test(id)) {
+    return id;
+  }
+  return `${id}.json`;
+}
+
 export type GmailStatusResponse = {
   configured: boolean;
   connected: boolean;
@@ -32,7 +44,10 @@ export function sendGmailInvoice(params: {
 }): Promise<GmailSendResponse> {
   return request<GmailSendResponse>("/api/gmail/send-invoice", {
     method: "POST",
-    body: params,
+    body: {
+      ...params,
+      recordId: normalizeGmailRecordId(params.recordId),
+    },
   });
 }
 
@@ -45,7 +60,7 @@ export async function sendGmailInvoiceBatch(params: {
   return request<GmailSendResponse>("/api/gmail/send-invoice", {
     method: "POST",
     body: {
-      recordIds: params.recordIds,
+      recordIds: params.recordIds.map((id) => normalizeGmailRecordId(id)),
       templateProfileId: params.templateProfileId,
       ...(params.to?.trim() ? { to: params.to.trim() } : {}),
       ...(params.bodyText?.trim() ? { bodyText: params.bodyText.trim() } : {}),
