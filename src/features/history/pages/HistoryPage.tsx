@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { archiveDocument, archiveDocumentYear, fetchDocumentDetail, fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
+import { fetchGmailOAuthStartUrl, fetchGmailStatus, sendGmailInvoice } from "@/infrastructure/api/gmailApi";
 import { postShareReport } from "@/infrastructure/api/exportReportsApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { openOfficialDocumentInNewTab } from "@/infrastructure/api/openOfficialDocumentOutput";
@@ -64,6 +65,11 @@ export function HistoryPage() {
   const [shareProfileId, setShareProfileId] = useState("");
   const [shareUrl, setShareUrl] = useState("");
   const [shareMessage, setShareMessage] = useState<{ text: string; tone: "neutral" | "success" | "error" } | null>(null);
+  const [gmailDialog, setGmailDialog] = useState(false);
+  const [gmailTo, setGmailTo] = useState("");
+  const [gmailBodyText, setGmailBodyText] = useState("");
+  const [gmailSentMessage, setGmailSentMessage] = useState("");
+  const gmailDialogRef = useRef<HTMLDialogElement>(null);
 
   const selectRecord = (recordId: string) => {
     setSelectedRecordId(recordId);
@@ -173,6 +179,43 @@ export function HistoryPage() {
     const label = profileOptions.find((p) => p.id === id)?.label?.trim();
     return label ? `${label} (${id})` : id;
   }, [openedDocument, profileOptions]);
+
+  const gmailProfileId = String(openedDocument?.templateProfileId || "").trim();
+
+  const gmailStatusQuery = useQuery({
+    queryKey: ["gmail-status", gmailProfileId],
+    queryFn: () => fetchGmailStatus(gmailProfileId),
+    enabled: Boolean(selectedRecordId && gmailProfileId),
+    staleTime: 60_000,
+  });
+
+  const gmailConfigured = Boolean(gmailStatusQuery.data?.configured);
+  const gmailConnected = Boolean(gmailStatusQuery.data?.connected);
+
+  useEffect(() => {
+    if (gmailDialog) {
+      gmailDialogRef.current?.showModal();
+    } else {
+      gmailDialogRef.current?.close();
+    }
+  }, [gmailDialog]);
+
+  const gmailSendMutation = useMutation({
+    mutationFn: () =>
+      sendGmailInvoice({
+        recordId: selectedRecordId,
+        templateProfileId: gmailProfileId,
+        to: gmailTo,
+        bodyText: gmailBodyText || undefined,
+      }),
+    onSuccess: () => {
+      setGmailSentMessage("Factura enviada por Gmail.");
+      setGmailDialog(false);
+    },
+    onError: (err) => {
+      setGmailSentMessage((err as Error).message || "Error al enviar por Gmail.");
+    },
+  });
 
   const isAdmin =
     Boolean(sessionQuery.data?.authenticated) &&
@@ -748,6 +791,34 @@ export function HistoryPage() {
                   >
                     {archiveDocumentMutation.isPending ? "Archivando..." : "Archivar documento"}
                   </Button>
+                  {selectedRecordId && gmailConfigured && !gmailConnected ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          const { authUrl } = await fetchGmailOAuthStartUrl(gmailProfileId);
+                          window.open(authUrl, "_blank");
+                        } catch {}
+                      }}
+                    >
+                      Conectar Gmail
+                    </Button>
+                  ) : null}
+                  {selectedRecordId && gmailConfigured && gmailConnected ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setGmailTo(String(openedDocument.client.email || "").trim());
+                        setGmailBodyText("");
+                        setGmailSentMessage("");
+                        setGmailDialog(true);
+                      }}
+                    >
+                      Enviar por Gmail
+                    </Button>
+                  ) : null}
                 </div>
                 {outputFeedback ? (
                   <p className="text-sm text-red-600">{outputFeedback.text}</p>
@@ -804,6 +875,59 @@ export function HistoryPage() {
           ) : null}
         </CardContent>
       </Card>
+
+      <dialog
+        ref={gmailDialogRef}
+        onClose={() => setGmailDialog(false)}
+        style={{ borderRadius: 8, padding: 24, maxWidth: 480, width: "90vw", border: "1px solid #ccc" }}
+      >
+        <h2 style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar factura por Gmail</h2>
+        <div style={{ display: "grid", gap: 12 }}>
+          <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
+            Para (email)
+            <input
+              type="email"
+              value={gmailTo}
+              onChange={(e) => setGmailTo(e.target.value)}
+              placeholder="cliente@ejemplo.com"
+              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem" }}
+            />
+          </label>
+          <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
+            Mensaje (opcional)
+            <textarea
+              value={gmailBodyText}
+              onChange={(e) => setGmailBodyText(e.target.value)}
+              rows={4}
+              placeholder="Texto adicional del correo..."
+              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem", resize: "vertical" }}
+            />
+          </label>
+          {gmailSentMessage ? (
+            <p
+              style={{
+                fontSize: "0.875rem",
+                color: gmailSendMutation.isError ? "#dc2626" : "#16a34a",
+                margin: 0,
+              }}
+            >
+              {gmailSentMessage}
+            </p>
+          ) : null}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Button type="button" variant="ghost" onClick={() => setGmailDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={!gmailTo.trim() || gmailSendMutation.isPending}
+              onClick={() => gmailSendMutation.mutate()}
+            >
+              {gmailSendMutation.isPending ? "Enviando..." : "Enviar"}
+            </Button>
+          </div>
+        </div>
+      </dialog>
     </main>
   );
 }
