@@ -73,3 +73,14 @@ export async function archiveDocumentYear(input: ArchiveYearInput) {
     body: input,
   });
 }
+
+export async function checkDocumentNumberAvailability(
+  number: string,
+  templateProfileId: string,
+): Promise<{ available: boolean; conflictRecordId?: string }> {
+  const params = new URLSearchParams({ number, templateProfileId });
+  return request<{ available: boolean; conflictRecordId?: string }>(
+    `/api/document-number-availability?${params}`,
+    { method: "GET" },
+  );
+}

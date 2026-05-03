@@ -11,7 +11,7 @@ import { InvoiceItemsTable } from "@/features/invoices/components/InvoiceItemsTa
 import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotalsPanel";
 import { WorkflowModule } from "@/features/invoices/components/WorkflowModule";
 import { useFacturarForm } from "@/features/invoices/hooks/useFacturarForm";
-import { archiveDocument } from "@/infrastructure/api/documentsApi";
+import { archiveDocument, checkDocumentNumberAvailability } from "@/infrastructure/api/documentsApi";
 import { fetchGmailOAuthStartUrl, fetchGmailStatus, sendGmailInvoice } from "@/infrastructure/api/gmailApi";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -77,6 +77,12 @@ export function FacturarPage() {
   const withholdingRateWatched = watch("withholdingRate");
   const templateProfileIdWatched = watch("templateProfileId");
   const templateProfileIdForGmail = String(templateProfileIdWatched || "").trim();
+  const numberWatched = watch("number");
+  const [debouncedNumber, setDebouncedNumber] = useState(numberWatched);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedNumber(String(numberWatched || "").trim()), 600);
+    return () => clearTimeout(t);
+  }, [numberWatched]);
   const selectedTemplateProfile = useMemo(() => {
     const id = String(templateProfileIdWatched || "").trim();
     if (!id) {
@@ -101,6 +107,17 @@ export function FacturarPage() {
 
   const gmailConfigured = Boolean(gmailStatusQuery.data?.configured);
   const gmailConnected = Boolean(gmailStatusQuery.data?.connected);
+
+  const numberAvailabilityQuery = useQuery({
+    queryKey: ["number-availability", debouncedNumber, templateProfileIdForGmail],
+    queryFn: () => checkDocumentNumberAvailability(debouncedNumber, templateProfileIdForGmail),
+    enabled: Boolean(debouncedNumber && templateProfileIdForGmail),
+    staleTime: 30_000,
+  });
+
+  const numberConflict =
+    numberAvailabilityQuery.data?.available === false &&
+    numberAvailabilityQuery.data?.conflictRecordId !== serverRecordId;
 
   const gmailSendMutation = useMutation({
     mutationFn: () =>
@@ -281,7 +298,18 @@ export function FacturarPage() {
                 </select>
               </Field>
               <Field label="Número">
-                <Input placeholder="Número factura" {...register("number")} />
+                <>
+                  <Input placeholder="Número factura" {...register("number")} />
+                  {numberConflict ? (
+                    <p className="mt-0.5 text-xs text-amber-600">
+                      Este número ya está en uso
+                      {numberAvailabilityQuery.data?.conflictRecordId
+                        ? ` (${numberAvailabilityQuery.data.conflictRecordId})`
+                        : ""}
+                      .
+                    </p>
+                  ) : null}
+                </>
               </Field>
               <Field
                 label="Estado contable"
