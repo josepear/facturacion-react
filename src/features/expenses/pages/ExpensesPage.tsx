@@ -1345,7 +1345,7 @@ export function ExpensesPage() {
               </Button>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" disabled={saveCatalogMutation.isPending} onClick={() => saveCatalogMutation.mutate()}>
+              <Button type="button" disabled={saveCatalogMutation.isPending} onClick={() => saveCatalogMutation.mutate(undefined)}>
                 {saveCatalogMutation.isPending ? "Guardando..." : "Guardar"}
               </Button>
               <Button
