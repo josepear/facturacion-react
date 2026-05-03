@@ -205,6 +205,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       (configQuery.data?.templateProfiles ?? []).map((profile) => ({
         id: profile.id,
         label: profile.label || profile.id,
+        colorKey: profile.colorKey,
       })),
     [configQuery.data?.templateProfiles],
   );
