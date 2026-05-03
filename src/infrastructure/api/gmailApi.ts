@@ -36,6 +36,23 @@ export function sendGmailInvoice(params: {
   });
 }
 
+export async function sendGmailInvoiceBatch(params: {
+  recordIds: string[];
+  templateProfileId: string;
+  to?: string;
+  bodyText?: string;
+}): Promise<GmailSendResponse> {
+  return request<GmailSendResponse>("/api/gmail/send-invoice", {
+    method: "POST",
+    body: {
+      recordIds: params.recordIds,
+      templateProfileId: params.templateProfileId,
+      ...(params.to?.trim() ? { to: params.to.trim() } : {}),
+      ...(params.bodyText?.trim() ? { bodyText: params.bodyText.trim() } : {}),
+    },
+  });
+}
+
 export type GmailProfileItem = {
   templateProfileId: string;
   label: string;

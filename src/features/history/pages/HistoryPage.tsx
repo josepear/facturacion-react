@@ -9,7 +9,12 @@ import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { archiveDocument, archiveDocumentYear, fetchDocumentDetail, fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
-import { fetchGmailOAuthStartUrl, fetchGmailStatus, sendGmailInvoice } from "@/infrastructure/api/gmailApi";
+import {
+  fetchGmailOAuthStartUrl,
+  fetchGmailStatus,
+  sendGmailInvoice,
+  sendGmailInvoiceBatch,
+} from "@/infrastructure/api/gmailApi";
 import { postShareReport } from "@/infrastructure/api/exportReportsApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { openOfficialDocumentInNewTab } from "@/infrastructure/api/openOfficialDocumentOutput";
@@ -70,6 +75,12 @@ export function HistoryPage() {
   const [gmailBodyText, setGmailBodyText] = useState("");
   const [gmailSentMessage, setGmailSentMessage] = useState("");
   const gmailDialogRef = useRef<HTMLDialogElement>(null);
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(() => new Set());
+  const [gmailBatchDialog, setGmailBatchDialog] = useState(false);
+  const [gmailBatchTo, setGmailBatchTo] = useState("");
+  const [gmailBatchBody, setGmailBatchBody] = useState("");
+  const [gmailBatchMessage, setGmailBatchMessage] = useState("");
+  const gmailBatchDialogRef = useRef<HTMLDialogElement>(null);
 
   const selectRecord = (recordId: string) => {
     setSelectedRecordId(recordId);
@@ -108,6 +119,25 @@ export function HistoryPage() {
     enabled: Boolean(selectedRecordId),
   });
 
+  const toggleRecordSelection = (recordId: string, docType: string) => {
+    if (docType !== "factura") {
+      return;
+    }
+    setSelectedRecordIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(recordId)) {
+        next.delete(recordId);
+      } else if (next.size >= 20) {
+        return prev;
+      } else {
+        next.add(recordId);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedRecordIds(new Set());
+
   const filteredItems = useMemo(() => {
     const term = String(searchTerm || "").trim().toLowerCase();
     let items = historyQuery.data ?? [];
@@ -143,6 +173,40 @@ export function HistoryPage() {
       );
     });
   }, [historyQuery.data, searchTerm, filterType, filterYear, filterStatus, filterProfile]);
+
+  const visibleFacturas = useMemo(() => filteredItems.filter((i) => i.type === "factura"), [filteredItems]);
+
+  const facturaSliceIds = useMemo(() => visibleFacturas.slice(0, 20).map((i) => i.recordId), [visibleFacturas]);
+
+  const toggleSelectAllVisibleFacturas = () => {
+    setSelectedRecordIds((prev) => {
+      const slice = filteredItems.filter((i) => i.type === "factura").slice(0, 20).map((i) => i.recordId);
+      if (slice.length === 0) {
+        return prev;
+      }
+      const allSelected = slice.every((id) => prev.has(id));
+      if (allSelected) {
+        const next = new Set(prev);
+        for (const id of slice) {
+          next.delete(id);
+        }
+        return next;
+      }
+      return new Set(slice);
+    });
+  };
+
+  const selectedRows = useMemo(
+    () => filteredItems.filter((i) => selectedRecordIds.has(i.recordId) && i.type === "factura"),
+    [filteredItems, selectedRecordIds],
+  );
+
+  const batchProfileIdSet = useMemo(
+    () => new Set(selectedRows.map((r) => String(r.templateProfileId || "").trim()).filter(Boolean)),
+    [selectedRows],
+  );
+  const batchProfileConflict = batchProfileIdSet.size > 1;
+  const gmailBatchProfileId = String(selectedRows[0]?.templateProfileId || "").trim();
 
   const openedDocument = useMemo(() => {
     if (!detailQuery.data?.document) {
@@ -193,10 +257,16 @@ export function HistoryPage() {
   const gmailConnected = Boolean(gmailStatusQuery.data?.connected);
 
   useEffect(() => {
+    const el = gmailDialogRef.current;
+    if (!el) {
+      return;
+    }
     if (gmailDialog) {
-      gmailDialogRef.current?.showModal();
-    } else {
-      gmailDialogRef.current?.close();
+      if (typeof el.showModal === "function") {
+        el.showModal();
+      }
+    } else if (typeof el.close === "function") {
+      el.close();
     }
   }, [gmailDialog]);
 
@@ -214,6 +284,49 @@ export function HistoryPage() {
     },
     onError: (err) => {
       setGmailSentMessage((err as Error).message || "Error al enviar por Gmail.");
+    },
+  });
+
+  const gmailBatchStatusQuery = useQuery({
+    queryKey: ["gmail-status-batch", gmailBatchProfileId],
+    queryFn: () => fetchGmailStatus(gmailBatchProfileId),
+    enabled: Boolean(gmailBatchProfileId && selectedRows.length > 0),
+    staleTime: 60_000,
+  });
+
+  const gmailBatchConfigured = Boolean(gmailBatchStatusQuery.data?.configured);
+  const gmailBatchConnected = Boolean(gmailBatchStatusQuery.data?.connected);
+
+  useEffect(() => {
+    const el = gmailBatchDialogRef.current;
+    if (!el) {
+      return;
+    }
+    if (gmailBatchDialog) {
+      if (typeof el.showModal === "function") {
+        el.showModal();
+      }
+    } else if (typeof el.close === "function") {
+      el.close();
+    }
+  }, [gmailBatchDialog]);
+
+  const gmailBatchSendMutation = useMutation({
+    mutationFn: () =>
+      sendGmailInvoiceBatch({
+        recordIds: selectedRows.map((r) => r.recordId),
+        templateProfileId: gmailBatchProfileId,
+        to: gmailBatchTo.trim() || undefined,
+        bodyText: gmailBatchBody.trim() || undefined,
+      }),
+    onSuccess: async () => {
+      setGmailBatchMessage("Correo enviado.");
+      setGmailBatchDialog(false);
+      clearSelection();
+      await queryClient.invalidateQueries({ queryKey: ["history-invoices"] });
+    },
+    onError: (err) => {
+      setGmailBatchMessage((err as Error).message || "Error al enviar.");
     },
   });
 
@@ -595,6 +708,50 @@ export function HistoryPage() {
               </p>
             ) : null}
             <div className="max-h-[560px] overflow-auto rounded-md border">
+              {filteredItems.some((i) => i.type === "factura") ? (
+                <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-3 py-2 text-sm">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={facturaSliceIds.length > 0 && facturaSliceIds.every((id) => selectedRecordIds.has(id))}
+                      onChange={toggleSelectAllVisibleFacturas}
+                    />
+                    <span>Seleccionar todas (facturas visibles)</span>
+                  </label>
+                  <span className="text-muted-foreground">{selectedRecordIds.size} seleccionada(s)</span>
+                  {selectedRecordIds.size >= 20 ? (
+                    <span className="text-xs text-amber-700 dark:text-amber-300">Máximo 20 facturas.</span>
+                  ) : null}
+                  {batchProfileConflict && selectedRows.length > 0 ? (
+                    <span className="text-xs text-red-600">Las facturas seleccionadas deben compartir el mismo perfil de plantilla.</span>
+                  ) : null}
+                  {selectedRecordIds.size > 0 ? (
+                    <Button type="button" variant="outline" size="sm" onClick={clearSelection}>
+                      Limpiar selección
+                    </Button>
+                  ) : null}
+                  {selectedRows.length > 0 &&
+                  !batchProfileConflict &&
+                  Boolean(gmailBatchProfileId) &&
+                  gmailBatchConfigured &&
+                  gmailBatchConnected &&
+                  selectedRows.length <= 20 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setGmailBatchTo("");
+                        setGmailBatchBody("");
+                        setGmailBatchMessage("");
+                        setGmailBatchDialog(true);
+                      }}
+                    >
+                      Enviar seleccionadas por Gmail
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
               {historyQuery.isLoading ? (
                 <p className="p-3 text-sm text-muted-foreground">Cargando historial...</p>
               ) : historyQuery.isError ? (
@@ -605,11 +762,29 @@ export function HistoryPage() {
                 <ul className="divide-y">
                   {filteredItems.map((item) => {
                     const isActive = item.recordId === selectedRecordId;
+                    const atSelectionLimit = selectedRecordIds.size >= 20 && !selectedRecordIds.has(item.recordId);
                     return (
-                      <li key={item.recordId}>
+                      <li key={item.recordId} className="flex">
+                        {item.type === "factura" ? (
+                          <div
+                            className="flex shrink-0 items-start border-r border-border px-2 py-2"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                            role="presentation"
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4"
+                              checked={selectedRecordIds.has(item.recordId)}
+                              disabled={atSelectionLimit}
+                              onChange={() => toggleRecordSelection(item.recordId, item.type)}
+                              aria-label={`Seleccionar factura ${item.number || item.recordId}`}
+                            />
+                          </div>
+                        ) : null}
                         <button
                           type="button"
-                          className={`w-full px-3 py-2 text-left text-sm transition-colors ${
+                          className={`min-w-0 flex-1 px-3 py-2 text-left text-sm transition-colors ${
                             isActive ? "bg-primary text-primary-foreground" : "hover:bg-accent"
                           }`}
                           onClick={() => selectRecord(item.recordId)}
@@ -875,6 +1050,60 @@ export function HistoryPage() {
           ) : null}
         </CardContent>
       </Card>
+
+      <dialog
+        ref={gmailBatchDialogRef}
+        onClose={() => setGmailBatchDialog(false)}
+        className="fixed left-1/2 top-1/2 z-[60] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-auto bg-background text-foreground shadow-lg backdrop:bg-black/50"
+        style={{ borderRadius: 8, padding: 24, maxWidth: 480, width: "90vw", border: "1px solid #ccc" }}
+      >
+        <h2 style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar facturas por Gmail (lote)</h2>
+        <div style={{ display: "grid", gap: 12 }}>
+          <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
+            Para (email)
+            <input
+              type="email"
+              value={gmailBatchTo}
+              onChange={(e) => setGmailBatchTo(e.target.value)}
+              placeholder="cliente@ejemplo.com (un solo destino para todas)"
+              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem" }}
+            />
+          </label>
+          <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
+            Mensaje (opcional)
+            <textarea
+              value={gmailBatchBody}
+              onChange={(e) => setGmailBatchBody(e.target.value)}
+              rows={4}
+              placeholder="Texto adicional del correo..."
+              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem", resize: "vertical" }}
+            />
+          </label>
+          {gmailBatchMessage ? (
+            <p
+              style={{
+                fontSize: "0.875rem",
+                color: gmailBatchSendMutation.isError ? "#dc2626" : "#16a34a",
+                margin: 0,
+              }}
+            >
+              {gmailBatchMessage}
+            </p>
+          ) : null}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Button type="button" variant="ghost" onClick={() => setGmailBatchDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={!gmailBatchTo.trim() || gmailBatchSendMutation.isPending}
+              onClick={() => gmailBatchSendMutation.mutate()}
+            >
+              {gmailBatchSendMutation.isPending ? "Enviando..." : "Enviar"}
+            </Button>
+          </div>
+        </div>
+      </dialog>
 
       <dialog
         ref={gmailDialogRef}
