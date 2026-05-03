@@ -35,3 +35,21 @@ export function sendGmailInvoice(params: {
     body: params,
   });
 }
+
+export type GmailProfileItem = {
+  templateProfileId: string;
+  label: string;
+  connected: boolean;
+  email: string;
+  legacy?: boolean;
+};
+
+export type GmailProfilesResponse = {
+  items: GmailProfileItem[];
+  configured: boolean;
+  sessionGmail?: { connected: boolean; email: string };
+};
+
+export function fetchGmailProfiles(): Promise<GmailProfilesResponse> {
+  return request<GmailProfilesResponse>("/api/gmail/profiles");
+}

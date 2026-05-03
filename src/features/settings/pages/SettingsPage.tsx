@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import type { TemplateProfileConfig } from "@/domain/document/types";
 import { fetchExpenseOptions, saveExpenseOptions } from "@/infrastructure/api/expensesApi";
 import { fetchRuntimeConfig, propagateTemplateProfile, saveTemplateProfilesConfig } from "@/infrastructure/api/documentsApi";
+import { fetchGmailOAuthStartUrl, fetchGmailProfiles, type GmailProfileItem } from "@/infrastructure/api/gmailApi";
 import { ApiError, getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { deleteTrashEntries, emptyTrash, fetchTrash, type TrashItem } from "@/infrastructure/api/trashApi";
 import { type SystemUser, type UpsertUserInput, deleteSystemUser, fetchSystemUsers, upsertSystemUser } from "@/infrastructure/api/usersApi";
@@ -866,9 +867,16 @@ export function SettingsPage() {
     : "";
   const sessionReady = !sessionQuery.isLoading && !sessionQuery.error;
   const canEdit = sessionReady && sessionRole === "admin";
+  const isAdmin = canEdit;
   const configuredRoleLabel = sessionQuery.data?.authenticated
     ? String(sessionQuery.data.user.role ?? "").trim()
     : "";
+
+  const gmailProfilesQuery = useQuery({
+    queryKey: ["gmail-profiles"],
+    queryFn: fetchGmailProfiles,
+    staleTime: 60_000,
+  });
 
   const serverActiveProfileId = String(configQuery.data?.activeTemplateProfileId || "").trim();
   const effectiveActiveProfileId = activeProfileIdDraft || serverActiveProfileId;
@@ -1665,6 +1673,57 @@ export function SettingsPage() {
           </Card>
 
           <ExpenseOptionsSection canEdit={canEdit} />
+
+          {isAdmin ? (
+            <Card>
+              <div className="grid gap-4 p-4">
+                <h2 className="text-base font-semibold">Integración Gmail</h2>
+
+                {gmailProfilesQuery.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Cargando estado de Gmail...</p>
+                ) : null}
+
+                {!gmailProfilesQuery.isLoading && !gmailProfilesQuery.data?.configured ? (
+                  <p className="text-sm text-muted-foreground">
+                    Gmail no está configurado en el servidor (faltan credenciales OAuth).
+                  </p>
+                ) : null}
+
+                {gmailProfilesQuery.data?.configured ? (
+                  <div className="grid gap-3">
+                    {(gmailProfilesQuery.data?.items ?? []).map((item: GmailProfileItem) => (
+                      <div key={item.templateProfileId} className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-medium">{item.label}</p>
+                          {item.connected && item.email ? (
+                            <p className="text-xs text-muted-foreground">{item.email}</p>
+                          ) : null}
+                          {!item.connected ? <p className="text-xs text-muted-foreground">No conectado</p> : null}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const { authUrl } = await fetchGmailOAuthStartUrl(item.templateProfileId);
+                              window.open(authUrl, "_blank");
+                            } catch {}
+                          }}
+                        >
+                          {item.connected ? "Reconectar" : "Conectar"}
+                        </Button>
+                      </div>
+                    ))}
+
+                    {gmailProfilesQuery.data?.items?.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No hay perfiles de plantilla con Gmail configurado.</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </Card>
+          ) : null}
 
           <TrashSection canEdit={canEdit} />
 
