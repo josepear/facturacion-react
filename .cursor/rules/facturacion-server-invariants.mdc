@@ -1,0 +1,62 @@
+---
+description: Invariantes del servidor Node que no deben romperse al editar server.mjs
+alwaysApply: true
+---
+
+# Invariantes del servidor — no romper
+
+## 1. Rutas públicas (sin token): `/react/` es la SPA React
+
+`server.mjs` define `isPublicRoute` antes del guard de autenticación.
+**`/react` y `/react/*` DEBEN estar en esa lista** — son ficheros estáticos de la SPA; el navegador los pide sin Bearer y la app React gestiona su propio login en cliente.
+
+Si se elimina ese bloque, toda la app React devuelve `{"error":"No autorizado."}` en el navegador.
+
+Rutas públicas actuales que no se deben quitar:
+- `pathname === "/" || pathname === "/login"` — legacy y login
+- `isHealthRoute` — `/api/health`
+- `isGmailOAuthCallback` — callback OAuth
+- `pathname.startsWith("/assets/")` — assets legacy
+- `pathname.startsWith("/vendor/")` — gridstack
+- `isPublicShareReportRead` — informes compartidos sin token
+- `pathname === "/react" || pathname.startsWith("/react/")` — **SPA React**
+- `pathname.includes(".")` — cualquier recurso estático con extensión
+
+## 2. Servicio de la SPA React: `react-dist/`
+
+`serveStaticFile` tiene un bloque para `/react/` que:
+- Sirve `react-dist/<asset>` para rutas con extensión (JS, CSS, etc.) con cache agresivo.
+- Sirve `react-dist/index.html` para cualquier ruta SPA sin extensión (React Router la resuelve en cliente).
+- Tiene path-traversal guard (`startsWith(reactDistDir)`).
+
+El directorio `react-dist/` lo puebla el deploy (`rsync -a --delete facturacion-react/dist/ react-dist/`).
+**No eliminar ni simplificar este bloque** sin asegurarse de que `/react/` sigue sirviendo el `index.html`.
+
+## 3. Sesiones en disco: `authController.mjs`
+
+Las sesiones viven en `globalThis.__facturacionSessions` (RAM) + `.facturacion-sessions.json` (disco, junto a `facturacion.config.json`).
+
+- `loadPersistedSessions()` se llama al importar el módulo (top-level) para restaurar sesiones al arrancar.
+- `persistSessionsBestEffort()` escribe en disco tras login, logout y expiración; usa `mkdirSync` recursive y nunca lanza — solo `console.error` con prefijo `[facturacion-auth]`.
+- **No mover `sessionsFilePath`** sin actualizar también el exclude en `deploy-to-macmini.sh`.
+
+## 4. rsync en deploy: secretos excluidos
+
+`scripts/deploy-to-macmini.sh` excluye con `--delete` los siguientes ficheros que existen SOLO en el runtime (gitignored):
+
+| Fichero | Por qué |
+|---|---|
+| `.facturacion-sessions.json` | Sesiones activas → sin exclude, cada deploy invalida todas las sesiones (401 masivo) |
+| `gmail-oauth.local.env` | Credenciales OAuth Gmail del mini → sin exclude, Gmail deja de funcionar |
+| `runtime/gmail-oauth.env` | Alternativa de credenciales OAuth en `runtime/` |
+| `runtime/*.env` | Cualquier otro .env en runtime/ |
+| `facturacion.config.json` | Config de producción con contraseñas y rutas |
+
+**No eliminar ninguno de estos excludes** del array `RSYNC_EXCLUDES`.
+
+## 5. Respuesta 401 con `code`
+
+Cuando el cliente envía un Bearer token no reconocido (sesión expirada o fichero borrado),
+el servidor devuelve `{ "error": "No autorizado.", "code": "session_expired" }`.
+Esto permite distinguir en logs si el 401 es por token ausente o sesión caducada.
+La SPA React ya maneja el 401 redirigiendo al login; el `code` es solo informativo para ops.

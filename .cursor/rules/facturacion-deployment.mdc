@@ -1,0 +1,22 @@
+---
+description: Desarrollo local vs runtime público (Mac mini) y despliegue
+alwaysApply: true
+---
+
+# Despliegue y entornos
+
+- **Desarrollo**: MacBook, repo en `/Volumes/RAID/Repos/apps/facturacion`.
+- **Runtime público**: Mac mini; el dominio **facturacion.pearandco.es** lo sirve el mini, no el portátil.
+- Ver cambios en el dominio público **no** basta con editar archivos en el RAID ni con recargar el navegador: normalmente hay que **desplegar** al mini con:
+
+  `./scripts/deploy-to-macmini.sh`
+
+  (desde la raíz del repo; opciones y variables en el propio script). Si trabajas **en el propio Mac mini** y no hay clave SSH local, usar **`./scripts/deploy-to-macmini.sh --local`** (rsync del repo al directorio runtime y reinicio del LaunchAgent; la verificación prueba **facturacion.pearandco.es** y luego `127.0.0.1`).
+
+- Al diagnosticar “no veo el cambio” en **facturacion.pearandco.es**, no asumir solo caché o carpeta equivocada: comprobar si el despliegue al mini se ha ejecutado y si el servicio en el mini está sirviendo la copia actualizada.
+
+- **Sesiones y 401 masivo:** las sesiones viven en **`.facturacion-sessions.json`** junto a `facturacion.config.json` (ver `authController.mjs`). El script `deploy-to-macmini.sh` **excluye** ese fichero del rsync con `--delete` para no borrarlo en destino. Si tras despliegue o reinicio todo el mundo recibe `No autorizado`, comprobar que ese archivo existe y es escribible por el usuario del LaunchAgent; en stderr del servidor pueden aparecer líneas `[facturacion-auth]` si falla persistir o cargar sesiones (`~/Library/Logs/Facturacion/server.stderr.log` en el mini). Cuando el cliente envía un token válido pero la sesión no se reconoce (p. ej. el fichero fue borrado), el servidor responde HTTP 401 con `{ "code": "session_expired" }` además del campo `error`.
+
+- **Gmail OAuth y rsync:** `gmail-oauth.local.env` y `runtime/gmail-oauth.env` son secretos que solo existen en el runtime (gitignored). El script también los **excluye** del rsync (`--exclude 'gmail-oauth.local.env'`, `--exclude 'runtime/*.env'`) para que `--delete` no los borre en cada despliegue. Si Gmail deja de funcionar tras un deploy, verificar que esos ficheros siguen en el mini antes de buscar otra causa.
+
+- **Decisión:** esta regla se mantiene como referencia canónica para entornos y despliegue; no sustituirla por copias sueltas en otros sitios salvo que se actualicen ambos.
