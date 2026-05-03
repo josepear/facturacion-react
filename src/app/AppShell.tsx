@@ -22,15 +22,19 @@ const navItems: ShellNavItem[] = [
   { to: "/configuracion", label: "Miembros / Emisor", icon: Settings },
 ];
 
+const FACTURACION_STORAGE_SCOPE_EVENT = "facturacion-storage-scope-changed";
+
 type SidebarContentProps = {
   collapsed: boolean;
   isDark: boolean;
   toggle: () => void;
+  sandbox: boolean;
+  toggleSandbox: () => void;
   onNavigate?: () => void;
   onLogout?: () => void;
 };
 
-function SidebarContent({ collapsed, isDark, toggle, onNavigate, onLogout }: SidebarContentProps) {
+function SidebarContent({ collapsed, isDark, toggle, sandbox, toggleSandbox, onNavigate, onLogout }: SidebarContentProps) {
   return (
     <div className="flex h-full flex-col gap-4 p-3">
       <div className={cn("rounded-lg border bg-card px-3 py-3", collapsed ? "text-center" : "")}>
@@ -64,6 +68,20 @@ function SidebarContent({ collapsed, isDark, toggle, onNavigate, onLogout }: Sid
       </nav>
 
       <div className="mt-auto border-t pt-2">
+        <Button
+          type="button"
+          variant={sandbox ? "default" : "ghost"}
+          size="sm"
+          className={cn(
+            "w-full justify-start gap-2",
+            sandbox ? "" : "text-muted-foreground",
+            collapsed ? "justify-center px-2" : "",
+          )}
+          onClick={toggleSandbox}
+          title="Modo prueba (sandbox)"
+        >
+          {collapsed ? "S" : sandbox ? "Prueba ON" : "Prueba OFF"}
+        </Button>
         <Button
           type="button"
           variant="ghost"
@@ -104,10 +122,20 @@ function useTheme() {
   return { isDark, toggle: () => setIsDark((v) => !v) };
 }
 
+function useSandbox() {
+  const [sandbox, setSandbox] = useState(() => localStorage.getItem("facturacion-storage-scope") === "sandbox");
+  useEffect(() => {
+    localStorage.setItem("facturacion-storage-scope", sandbox ? "sandbox" : "production");
+    window.dispatchEvent(new Event(FACTURACION_STORAGE_SCOPE_EVENT));
+  }, [sandbox]);
+  return { sandbox, toggleSandbox: () => setSandbox((v) => !v) };
+}
+
 export function AppShell() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const { isDark, toggle } = useTheme();
+  const { sandbox, toggleSandbox } = useSandbox();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
@@ -164,6 +192,8 @@ export function AppShell() {
               collapsed={false}
               isDark={isDark}
               toggle={toggle}
+              sandbox={sandbox}
+              toggleSandbox={toggleSandbox}
               onNavigate={() => setMobileOpen(false)}
               onLogout={handleLogout}
             />
@@ -190,10 +220,22 @@ export function AppShell() {
               <Menu className="h-4 w-4" />
             </Button>
           </div>
-          <SidebarContent collapsed={collapsed} isDark={isDark} toggle={toggle} onLogout={handleLogout} />
+          <SidebarContent
+            collapsed={collapsed}
+            isDark={isDark}
+            toggle={toggle}
+            sandbox={sandbox}
+            toggleSandbox={toggleSandbox}
+            onLogout={handleLogout}
+          />
         </aside>
 
         <main className="min-h-[calc(100vh-57px)] w-full min-w-0 flex-1 lg:min-h-screen">
+          {sandbox ? (
+            <div className="bg-amber-100 px-4 py-1.5 text-center text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+              Modo prueba activo — los documentos no se guardan en producción
+            </div>
+          ) : null}
           <Outlet />
         </main>
       </div>

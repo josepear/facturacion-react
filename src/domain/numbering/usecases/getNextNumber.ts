@@ -6,6 +6,7 @@ type NumberingInput = {
   series?: string;
   templateProfileId: string;
   recordId?: string;
+  storageScope?: string;
 };
 
 export async function getNextNumber(input: NumberingInput) {

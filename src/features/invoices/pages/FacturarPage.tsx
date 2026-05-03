@@ -83,10 +83,17 @@ export function FacturarPage() {
   const templateProfileIdForGmail = String(templateProfileIdWatched || "").trim();
   const numberWatched = watch("number");
   const [debouncedNumber, setDebouncedNumber] = useState(numberWatched);
+  const [storageScopeVersion, setStorageScopeVersion] = useState(0);
   useEffect(() => {
     const t = setTimeout(() => setDebouncedNumber(String(numberWatched || "").trim()), 600);
     return () => clearTimeout(t);
   }, [numberWatched]);
+  useEffect(() => {
+    const name = "facturacion-storage-scope-changed";
+    const onScope = () => setStorageScopeVersion((v) => v + 1);
+    window.addEventListener(name, onScope);
+    return () => window.removeEventListener(name, onScope);
+  }, []);
   const selectedTemplateProfile = useMemo(() => {
     const id = String(templateProfileIdWatched || "").trim();
     if (!id) {
@@ -113,8 +120,11 @@ export function FacturarPage() {
   const gmailConnected = Boolean(gmailStatusQuery.data?.connected);
 
   const numberAvailabilityQuery = useQuery({
-    queryKey: ["number-availability", debouncedNumber, templateProfileIdForGmail],
-    queryFn: () => checkDocumentNumberAvailability(debouncedNumber, templateProfileIdForGmail),
+    queryKey: ["number-availability", debouncedNumber, templateProfileIdForGmail, storageScopeVersion],
+    queryFn: () => {
+      const storageScope = localStorage.getItem("facturacion-storage-scope") === "sandbox" ? "sandbox" : undefined;
+      return checkDocumentNumberAvailability(debouncedNumber, templateProfileIdForGmail, storageScope);
+    },
     enabled: Boolean(debouncedNumber && templateProfileIdForGmail),
     staleTime: 30_000,
   });

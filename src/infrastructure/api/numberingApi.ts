@@ -6,6 +6,7 @@ type NextNumberParams = {
   series?: string;
   templateProfileId: string;
   recordId?: string;
+  storageScope?: string;
 };
 
 export type NumberAvailabilityResponse = {
@@ -22,6 +23,9 @@ export async function fetchNextNumber(params: NextNumberParams) {
     series: params.series ?? "",
     templateProfileId: params.templateProfileId,
   });
+  if (params.storageScope === "sandbox") {
+    query.set("storageScope", "sandbox");
+  }
 
   return request<{ number: string }>(`/api/next-number?${query.toString()}`);
 }
@@ -37,6 +41,9 @@ export async function fetchNumberAvailability(params: NextNumberParams & { numbe
 
   if (params.recordId) {
     query.set("recordId", params.recordId);
+  }
+  if (params.storageScope === "sandbox") {
+    query.set("storageScope", "sandbox");
   }
 
   return request<NumberAvailabilityResponse>(`/api/document-number-availability?${query.toString()}`);

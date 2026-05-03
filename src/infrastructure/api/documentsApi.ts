@@ -45,12 +45,13 @@ export async function fetchDocumentDetail(recordId: string) {
   return request<{ recordId: string; document: InvoiceDocument }>(url);
 }
 
-export async function saveDocument(document: InvoiceDocument, recordId?: string) {
+export async function saveDocument(document: InvoiceDocument, recordId?: string, storageScope?: "sandbox") {
   return request<SaveDocumentResponse>("/api/documents", {
     method: "POST",
     body: {
       recordId,
       document,
+      ...(storageScope ? { storageScope } : {}),
     },
   });
 }
@@ -77,8 +78,12 @@ export async function archiveDocumentYear(input: ArchiveYearInput) {
 export async function checkDocumentNumberAvailability(
   number: string,
   templateProfileId: string,
+  storageScope?: string,
 ): Promise<{ available: boolean; conflictRecordId?: string }> {
   const params = new URLSearchParams({ number, templateProfileId });
+  if (storageScope === "sandbox") {
+    params.set("storageScope", "sandbox");
+  }
   return request<{ available: boolean; conflictRecordId?: string }>(
     `/api/document-number-availability?${params}`,
     { method: "GET" },

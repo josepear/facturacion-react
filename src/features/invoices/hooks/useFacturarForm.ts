@@ -19,6 +19,31 @@ import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import { mapFormToLegacyDocument, mapLegacyDocumentToForm } from "@/infrastructure/mappers/documentMapper";
 import { sameClientName } from "@/lib/clientMatching";
 
+function readStorageScopeForNumbering(): string | undefined {
+  try {
+    const ls = globalThis.localStorage;
+    if (!ls || typeof ls.getItem !== "function") {
+      return undefined;
+    }
+    const scope = ls.getItem("facturacion-storage-scope") ?? "production";
+    return scope === "sandbox" ? "sandbox" : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function readStorageScopeForSave(): "sandbox" | undefined {
+  try {
+    const ls = globalThis.localStorage;
+    if (!ls || typeof ls.getItem !== "function") {
+      return undefined;
+    }
+    return ls.getItem("facturacion-storage-scope") === "sandbox" ? "sandbox" : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function applyTotals(document: InvoiceDocument): InvoiceDocument {
   const totals = calculateTotals(document);
   return {
@@ -381,6 +406,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         series: draft.series,
         templateProfileId: draft.templateProfileId,
         recordId: serverRecordId || undefined,
+        storageScope: readStorageScopeForNumbering(),
       });
       form.setValue("number", number, { shouldDirty: true, shouldValidate: true });
       return number;
@@ -404,6 +430,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         series: draft.series,
         templateProfileId: draft.templateProfileId,
         recordId: serverRecordId || undefined,
+        storageScope: readStorageScopeForNumbering(),
       });
       return payload;
     },
@@ -440,7 +467,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       if (!totalsAreConsistent(normalized, calculateTotals(normalized))) {
         throw new Error("Los totales no son coherentes. Revisa líneas e impuestos.");
       }
-      return saveDocument(normalized, serverRecordId || undefined);
+      return saveDocument(normalized, serverRecordId || undefined, readStorageScopeForSave());
     },
     onSuccess: ({ recordId, document }) => {
       const mapped = applyTotals(mapLegacyDocumentToForm(document));
