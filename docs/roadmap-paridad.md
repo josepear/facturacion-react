@@ -255,7 +255,7 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 
 ### Integraciones Gmail — sección nueva
 
-- [ ] **(P1) Enviar factura por Gmail desde Facturar:** botón "Guardar y enviar por Gmail" (visible solo si `gmailOAuthConfigured`). Usa `POST /api/gmail/send-invoice`. No existe en React.
+- [x] **(P1) Enviar factura por Gmail desde Facturar:** botón "Enviar por Gmail" (visible si `gmailConfigured && gmailConnected`) con dialog de revisión (email destino + mensaje opcional); "Conectar Gmail" si configurado pero no conectado. Solo cuando hay `serverRecordId`.
 - [ ] **(P1) Enviar factura por Gmail desde Historial:** botón por fila y envío masivo desde el listado de control. No existe en React.
 - [ ] **(P2) Configurar Gmail OAuth en Configuración:** `GET /api/gmail/status`, `GET /api/gmail/profiles`, `GET /api/gmail/oauth/start` — sección en legacy para conectar cuenta Gmail por perfil. No existe en React.
 
