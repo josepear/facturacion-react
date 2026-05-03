@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { archiveDocument, archiveDocumentYear, fetchDocumentDetail, fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
+import { postShareReport } from "@/infrastructure/api/exportReportsApi";
+import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { openOfficialDocumentInNewTab } from "@/infrastructure/api/openOfficialDocumentOutput";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import { deleteTrashEntries, fetchTrash } from "@/infrastructure/api/trashApi";
@@ -58,6 +60,9 @@ export function HistoryPage() {
   const [outputFeedback, setOutputFeedback] = useState<{ text: string; tone: "error" } | null>(null);
   const [officialOutputLoading, setOfficialOutputLoading] = useState<"html" | "pdf" | null>(null);
   const [recordIdCopyFeedback, setRecordIdCopyFeedback] = useState<{ text: string; tone: "success" | "error" } | null>(null);
+  const [shareProfileId, setShareProfileId] = useState("");
+  const [shareUrl, setShareUrl] = useState("");
+  const [shareMessage, setShareMessage] = useState<{ text: string; tone: "neutral" | "success" | "error" } | null>(null);
 
   const selectRecord = (recordId: string) => {
     setSelectedRecordId(recordId);
@@ -231,6 +236,36 @@ export function HistoryPage() {
     window.setTimeout(() => setRecordIdCopyFeedback(null), 2500);
   };
 
+  const copyShareUrl = async () => {
+    const url = String(shareUrl || "").trim();
+    if (!url) {
+      return;
+    }
+    setShareMessage(null);
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (!ok) {
+          throw new Error("copy");
+        }
+      }
+      setShareMessage({ text: "Copiado al portapapeles.", tone: "success" });
+    } catch {
+      setShareMessage({ text: "No se pudo copiar.", tone: "error" });
+    }
+    window.setTimeout(() => setShareMessage(null), 2500);
+  };
+
   const openOfficialOutput = async (kind: "html" | "pdf") => {
     if (!selectedRecordId) {
       return;
@@ -287,6 +322,43 @@ export function HistoryPage() {
     onError: (error) => {
       setStatusMessage((error as Error).message || "No se pudo archivar el ejercicio.");
       setStatusTone("error");
+    },
+  });
+
+  useEffect(() => {
+    if (filterProfile) {
+      setShareProfileId(filterProfile);
+    }
+  }, [filterProfile]);
+
+  const shareReportMutation = useMutation({
+    mutationFn: () => {
+      const pid = String(shareProfileId || "").trim();
+      if (!pid) {
+        throw new Error("Elige un perfil de plantilla para el enlace.");
+      }
+      return postShareReport({
+        templateProfileId: pid,
+        year: filterYear || "all",
+        quarter: "all",
+        scope: "both",
+        invoiceStatus: filterStatus || "all",
+        client: "all",
+        expenseDeductible: "all",
+        vendor: "all",
+        category: "all",
+      });
+    },
+    onSuccess: (data) => {
+      const url = String(data.shareViewUrl || "").trim();
+      setShareUrl(url);
+      setShareMessage(
+        url ? { text: "Enlace generado. Puedes copiarlo o abrirlo.", tone: "success" } : { text: "Respuesta sin URL.", tone: "error" },
+      );
+    },
+    onError: (error) => {
+      setShareUrl("");
+      setShareMessage({ text: getErrorMessageFromUnknown(error), tone: "error" });
     },
   });
 
@@ -425,6 +497,53 @@ export function HistoryPage() {
                 </Button>
               </div>
             ) : null}
+            <div className="grid gap-2 rounded-md border p-3">
+              <p className="text-xs font-medium text-muted-foreground">Vista compartida (solo lectura)</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={shareProfileId}
+                  onChange={(event) => setShareProfileId(event.target.value)}
+                  aria-label="Perfil para enlace compartido"
+                >
+                  <option value="">Elige perfil…</option>
+                  {profileOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label || p.id}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={shareReportMutation.isPending || !profileOptions.length}
+                  onClick={() => shareReportMutation.mutate()}
+                >
+                  {shareReportMutation.isPending ? "Generando…" : "Generar enlace"}
+                </Button>
+              </div>
+              {shareUrl ? (
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                  <Input readOnly value={shareUrl} aria-label="URL de vista compartida" />
+                  <Button type="button" variant="outline" onClick={() => copyShareUrl()}>
+                    Copiar URL
+                  </Button>
+                </div>
+              ) : null}
+              {shareMessage ? (
+                <p
+                  className={`text-xs ${
+                    shareMessage.tone === "error"
+                      ? "text-red-600"
+                      : shareMessage.tone === "success"
+                        ? "text-emerald-600"
+                        : "text-muted-foreground"
+                  }`}
+                >
+                  {shareMessage.text}
+                </p>
+              ) : null}
+            </div>
             {historyQuery.isSuccess ? (
               <p className="text-xs text-muted-foreground">
                 Mostrando {filteredItems.length} de {rawHistoryCount} documento{rawHistoryCount === 1 ? "" : "s"}

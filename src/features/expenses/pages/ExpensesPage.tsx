@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import type { ExpenseRecord } from "@/domain/expenses/types";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
+import { downloadControlWorkbookExport, runAccountingExportDownload } from "@/infrastructure/api/exportReportsApi";
 import { archiveExpense, archiveExpenseYear, fetchExpenseOptions, fetchExpenses, saveExpense } from "@/infrastructure/api/expensesApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { deleteTrashEntries, fetchTrash } from "@/infrastructure/api/trashApi";
@@ -96,6 +97,8 @@ export function ExpensesPage() {
   const [selectedRecordId, setSelectedRecordId] = useState("");
   const [archiveYear, setArchiveYear] = useState("");
   const [archiveProfileId, setArchiveProfileId] = useState("");
+  const [exportYear, setExportYear] = useState(() => String(new Date().getFullYear()));
+  const [exportProfile, setExportProfile] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
   const didHydrateDefaultTemplateProfile = useRef(false);
@@ -255,6 +258,66 @@ export function ExpensesPage() {
     },
   });
 
+  const accountingExportMutation = useMutation({
+    mutationFn: async () => {
+      const y = String(exportYear || "").trim();
+      if (y === "all") {
+        throw new Error("El Excel de asesoría requiere un ejercicio concreto.");
+      }
+      if (!/^\d{4}$/u.test(y)) {
+        throw new Error("Selecciona un ejercicio válido (AAAA).");
+      }
+      const pid = String(exportProfile || "").trim();
+      await runAccountingExportDownload({
+        year: y,
+        templateProfileId:
+          pid && pid !== "__all__" && pid !== "__unassigned__" ? pid : undefined,
+      });
+    },
+    onSuccess: () => {
+      setStatusMessage("Excel de asesoría generado. Revisa la descarga del navegador.");
+      setStatusTone("success");
+    },
+    onError: (error) => {
+      setStatusMessage(getErrorMessageFromUnknown(error));
+      setStatusTone("error");
+    },
+  });
+
+  const controlWorkbookMutation = useMutation({
+    mutationFn: async () => {
+      const yearToken = String(exportYear || "").trim() || "all";
+      const rawProfile = String(exportProfile || "").trim();
+      let invoiceProfile = "__all__";
+      let expenseProfile = "__all__";
+      if (rawProfile === "__unassigned__") {
+        invoiceProfile = "__unassigned__";
+        expenseProfile = "__unassigned__";
+      } else if (rawProfile && rawProfile !== "__all__") {
+        invoiceProfile = rawProfile;
+        expenseProfile = rawProfile;
+      }
+      await downloadControlWorkbookExport({
+        invoiceYear: yearToken,
+        expenseYear: yearToken,
+        invoiceQuarter: "all",
+        expenseQuarter: "all",
+        invoiceStatus: "all",
+        expenseDeductible: "all",
+        invoiceProfile,
+        expenseProfile,
+      });
+    },
+    onSuccess: () => {
+      setStatusMessage("Libro de control descargado.");
+      setStatusTone("success");
+    },
+    onError: (error) => {
+      setStatusMessage(getErrorMessageFromUnknown(error));
+      setStatusTone("error");
+    },
+  });
+
   const deleteTrashMutation = useMutation({
     mutationFn: (path: string) => deleteTrashEntries([path]),
     onSuccess: async () => {
@@ -294,6 +357,12 @@ export function ExpensesPage() {
    * rellena con el activo del servidor. No se re-ejecuta al cambiar solo el borrador (p. ej. usuario elige
    * «Perfil por defecto» con valor vacío explícito).
    */
+  useEffect(() => {
+    if (yearFilter !== "all") {
+      setExportYear(yearFilter);
+    }
+  }, [yearFilter]);
+
   useEffect(() => {
     if (selectedRecordId) {
       didHydrateDefaultTemplateProfile.current = false;
@@ -420,6 +489,59 @@ export function ExpensesPage() {
             >
               Nuevo gasto
             </Button>
+            <div className="grid gap-2 rounded-md border p-3">
+              <p className="text-xs font-medium text-muted-foreground">Exportación (servidor)</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={exportYear}
+                  onChange={(event) => setExportYear(event.target.value)}
+                  aria-label="Ejercicio para exportación"
+                >
+                  <option value="all">Todos los ejercicios (solo libro de control)</option>
+                  {availableYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                  {availableYears.length === 0 ? (
+                    <option value={String(new Date().getFullYear())}>{String(new Date().getFullYear())}</option>
+                  ) : null}
+                </select>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={exportProfile}
+                  onChange={(event) => setExportProfile(event.target.value)}
+                  aria-label="Perfil para exportación"
+                >
+                  <option value="">Todos los perfiles</option>
+                  <option value="__unassigned__">Sin perfil asignado</option>
+                  {profileOptions.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.label || profile.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={accountingExportMutation.isPending}
+                  onClick={() => accountingExportMutation.mutate()}
+                >
+                  {accountingExportMutation.isPending ? "Generando…" : "Excel asesoría (Celia)"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={controlWorkbookMutation.isPending}
+                  onClick={() => controlWorkbookMutation.mutate()}
+                >
+                  {controlWorkbookMutation.isPending ? "Generando…" : "Libro de control (Excel)"}
+                </Button>
+              </div>
+            </div>
             <div className="grid gap-2 rounded-md border p-3">
               <p className="text-xs font-medium text-muted-foreground">Archivar ejercicio (perfil + año)</p>
               {isAdmin ? (
@@ -558,6 +680,7 @@ export function ExpensesPage() {
               <div className="flex items-stretch gap-1">
                 <Input
                   type="date"
+                  aria-label="Fecha factura del gasto"
                   className="min-w-0 flex-1"
                   value={draft.issueDate || ""}
                   onChange={(event) => setDraft((prev) => ({ ...prev, issueDate: event.target.value }))}
@@ -577,6 +700,7 @@ export function ExpensesPage() {
             </Field>
             <Field label="Proveedor" hint="Requerido si no se rellena la descripción.">
               <Input
+                aria-label="Proveedor del gasto"
                 list="expense-vendors"
                 value={draft.vendor || ""}
                 onChange={(event) => setDraft((prev) => ({ ...prev, vendor: event.target.value }))}
@@ -610,6 +734,7 @@ export function ExpensesPage() {
             </Field>
             <Field label="Descripción" hint="Si se rellena, el proveedor pasa a ser opcional.">
               <Input
+                aria-label="Descripción del gasto"
                 value={draft.description || ""}
                 onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))}
               />

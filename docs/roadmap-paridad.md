@@ -25,6 +25,7 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] Checklist manual sistemático contra legacy en producción para cerrar filas marcadas como parciales.
 - [x] **App React desplegada en producción** en `https://facturacion.pearandco.es/react/` servida por el mismo servidor Node legacy (`serveReactApp` en `server.mjs`, ruta pública `/react/*`). Deploy integrado en `deploy-to-macmini.sh --local`.
 - [x] **Gestión de miembros del sistema** en Configuración: lista de usuarios, crear, editar y borrar vía `GET/POST /api/users`.
+- [x] **Exportación y vista compartida en React:** uso de `POST /api/accounting/export`, `POST /api/control-workbook-export` y `POST /api/share-reports` según `server.mjs` (Gastos e Historial).
 
 ---
 
@@ -99,6 +100,7 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
   - [x] `?recordId=...` para abrir detalle directo
 - [x] Microcopy operativo para reforzar el flujo con Facturar.
 - [x] **Filtros por estado contable y perfil de plantilla:** dropdowns con persistencia en URL (`?status=...&profile=...`); texto de búsqueda ampliado a `templateProfileLabel`; cada fila del listado muestra perfil y estado.
+- [x] **Vista compartida (solo lectura):** `POST /api/share-reports` con URL devuelta por el servidor, campo de solo lectura y copiar al portapapeles (filtros de año y estado contable del listado se envían en el cuerpo).
 
 ### Parcial
 
@@ -170,6 +172,7 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] **Hints de claridad:** `vendor` ("Requerido si no hay descripción"), `description` ("Si se rellena, proveedor opcional"), `expenseConcept` ("Etiqueta contable; distinto de descripción").
 - [x] **`taxIdType` datalist:** NIF, CIF, NIE, Pasaporte, VAT.
 - [x] **`taxCountryCode` datalist:** ES, PT, FR, DE, IT, GB, NL, US, MX, AR, CN.
+- [x] **Exportación contable:** `POST /api/accounting/export` (Excel asesoría / Celia) y `POST /api/control-workbook-export` (libro de control Excel) desde la pantalla Gastos, con descarga en el navegador.
 
 ### Parcial
 
@@ -186,7 +189,6 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 ### Pendiente
 
 - [ ] Restaurar desde papelera si el contrato backend lo soporta.
-- [ ] Reporting/export si existe en legacy.
 
 ---
 

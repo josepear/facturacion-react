@@ -73,6 +73,11 @@ vi.mock("@/infrastructure/api/expensesApi", () => ({
   archiveExpenseYear: archiveExpenseYearMock,
 }));
 
+vi.mock("@/infrastructure/api/exportReportsApi", () => ({
+  runAccountingExportDownload: vi.fn().mockResolvedValue({ year: "2026", downloadUrl: "/api/storage-file?x=1" }),
+  downloadControlWorkbookExport: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/infrastructure/api/trashApi", () => ({
   fetchTrash: fetchTrashMock,
   deleteTrashEntries: deleteTrashEntriesMock,
@@ -94,8 +99,24 @@ describe("ExpensesPage regression", () => {
     });
     fetchExpensesMock.mockResolvedValue({
       items: [
-        { recordId: "g/1.json", year: "2026", vendor: "Proveedor Uno", category: "Software", invoiceNumber: "1", total: 100 },
-        { recordId: "g/2.json", year: "2025", vendor: "Proveedor Dos", category: "Asesoría", invoiceNumber: "2", total: 200 },
+        {
+          recordId: "g/1.json",
+          year: "2026",
+          issueDate: "2026-01-10",
+          vendor: "Proveedor Uno",
+          category: "Software",
+          invoiceNumber: "1",
+          total: 100,
+        },
+        {
+          recordId: "g/2.json",
+          year: "2025",
+          issueDate: "2025-06-01",
+          vendor: "Proveedor Dos",
+          category: "Asesoría",
+          invoiceNumber: "2",
+          total: 200,
+        },
       ],
       years: ["2026", "2025"],
     });
@@ -107,7 +128,15 @@ describe("ExpensesPage regression", () => {
       mode: "updated",
       id: "id-1",
       recordId: "g/1.json",
-      expense: { recordId: "g/1.json", vendor: "Proveedor Uno", description: "Licencia actualizada", subtotal: 100, taxRate: 7, withholdingRate: 0 },
+      expense: {
+        recordId: "g/1.json",
+        issueDate: "2026-01-10",
+        vendor: "Proveedor Uno",
+        description: "Licencia actualizada",
+        subtotal: 100,
+        taxRate: 7,
+        withholdingRate: 0,
+      },
     });
     archiveExpenseMock.mockResolvedValue({ ok: true });
     archiveExpenseYearMock.mockResolvedValue({ ok: true, archivedCount: 1 });
@@ -125,8 +154,8 @@ describe("ExpensesPage regression", () => {
 
     await userEvent.clear(screen.getByPlaceholderText("Buscar proveedor, descripción, categoría o factura"));
     await userEvent.click(screen.getByText("Proveedor Uno"));
-    await userEvent.clear(screen.getByLabelText("Descripción"));
-    await userEvent.type(screen.getByLabelText("Descripción"), "Licencia actualizada");
+    await userEvent.clear(screen.getByRole("textbox", { name: "Descripción del gasto" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Descripción del gasto" }), "Licencia actualizada");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
 
     await waitFor(() => {
@@ -170,7 +199,8 @@ describe("ExpensesPage regression", () => {
     render(<ExpensesPage />, { wrapper: createPageWrapper() });
 
     await screen.findByRole("button", { name: "Nuevo gasto" });
-    await userEvent.type(screen.getByLabelText("Proveedor"), "Proveedor X");
+    await userEvent.click(screen.getByRole("button", { name: "Poner fecha factura a hoy" }));
+    await userEvent.type(screen.getByRole("combobox", { name: "Proveedor del gasto" }), "Proveedor X");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));
 
     await waitFor(() => {

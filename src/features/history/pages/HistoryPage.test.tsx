@@ -77,6 +77,13 @@ vi.mock("@/infrastructure/api/trashApi", () => ({
   deleteTrashEntries: deleteTrashEntriesMock,
 }));
 
+vi.mock("@/infrastructure/api/exportReportsApi", () => ({
+  postShareReport: vi.fn().mockResolvedValue({
+    ok: true,
+    shareViewUrl: "https://example.com/share-view.html?t=abc",
+  }),
+}));
+
 describe("HistoryPage regression", () => {
   beforeEach(() => {
     searchState.query = "";
@@ -132,7 +139,10 @@ describe("HistoryPage regression", () => {
     render(<HistoryPage />, { wrapper: createPageWrapper() });
 
     await screen.findByText("F-1");
-    await userEvent.type(screen.getByPlaceholderText("Filtrar por número, cliente, recordId o texto del tipo"), "Beta");
+    await userEvent.type(
+      screen.getByPlaceholderText("Filtrar por número, cliente, perfil, recordId o tipo"),
+      "Beta",
+    );
     expect(screen.queryByText("F-1")).toBeNull();
     expect(screen.getByText("F-2")).toBeTruthy();
 
