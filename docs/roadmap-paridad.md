@@ -287,14 +287,14 @@ El legacy tiene una pestaña **"Datos"** (`tab-panel-control`) con cuatro sub-se
 
 ### Gastos — botones inline al catálogo (P1)
 
-- [ ] **(P1) Botones "Añadir" inline en Proveedor y Categoría:** en legacy el formulario de gasto tiene un botón "Añadir" junto al select de proveedor y otro junto al select de categoría; abren el modal `expense-options-modal` directamente desde el formulario. En React hay un select pero no este acceso directo.
+- [x] **(P1) Botones "Gestionar" inline en Proveedor y Categoría:** diálogo nativo con lista editable (añadir/eliminar) + drag-to-reorder, solo admin.
 - [ ] **(P1) Catálogo de conceptos visible:** chips `#expense-concept-catalog-list` que muestran las categorías disponibles encima del formulario de gasto, con acceso a "Gestionar conceptos".
 - [ ] **(P1) Drag-to-reorder en modal de opciones de gastos:** el modal `expense-options-modal` permite arrastrar filas para reordenar proveedores y categorías. La sección en React (`ExpenseOptionsSection`) no tiene drag-and-drop.
 - [ ] **(P1) `merge-expense-into-catalog`:** botón para añadir el proveedor/concepto actual al catálogo. No existe en React.
 
 ### Configuración / Emisor — pendiente
 
-- [ ] **(P1) Logo upload (imagen de marca):** campo de archivo `#business-brand-image-file` para subir SVG/PNG/WebP como logo; React tiene un campo de texto pero no input de archivo.
+- [x] **(P1) Logo upload (imagen de marca):** FileReader a base64, input de archivo SVG/PNG/WebP/JPEG, botón "Quitar logo", resumen del valor actual, input de ruta manual como fallback.
 - [ ] **(P1) Panel de resumen de perfil activo:** `#personal-active-summary-root` y `#personal-template-summary-root` — muestra estadísticas del perfil activo y su plantilla. No existe en React.
 - [ ] **(P1) Sugerencias de tag de número de factura:** panel `#invoice-tag-suggestions-panel` con chips de sugerencias cuando hay conflicto de prefijo. No existe en React.
 
@@ -306,7 +306,7 @@ El legacy tiene una pestaña **"Datos"** (`tab-panel-control`) con cuatro sub-se
 
 ### Facturar — extras no inventariados antes
 
-- [ ] **(P2) "Repetir última factura":** botón `#repeat-last-document-setup` que rellena el formulario con los datos del último documento guardado (sin `recordId`). Distinto de "Duplicar documento" (que copia el doc actual). No existe en React.
+- [x] **(P2) "Repetir última factura":** snapshot post-guardado en memoria; botón visible tras el primer guardado exitoso; rellena con datos del último doc guardado, fecha hoy, sin número ni recordId.
 - [ ] **(P2) Preview swatch de perfil:** franja de color del perfil activo encima del preview del PDF (`invoice-preview-profile-swatch` + `invoice-preview-profile-line`). En React el preview no muestra este indicador de perfil.
 
 ### Transversal — pendiente
