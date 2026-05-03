@@ -11,6 +11,8 @@ import { InvoiceItemsTable } from "@/features/invoices/components/InvoiceItemsTa
 import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotalsPanel";
 import { WorkflowModule } from "@/features/invoices/components/WorkflowModule";
 import { useFacturarForm } from "@/features/invoices/hooks/useFacturarForm";
+import { archiveDocument } from "@/infrastructure/api/documentsApi";
+import { useMutation } from "@tanstack/react-query";
 
 export function FacturarPage() {
   const [searchParams] = useSearchParams();
@@ -82,6 +84,10 @@ export function FacturarPage() {
   }, [templateProfileIdWatched, profileOptions]);
   const [historyYearFilter, setHistoryYearFilter] = useState("");
   const [historyTypeFilter, setHistoryTypeFilter] = useState("");
+
+  const archiveMutation = useMutation({
+    mutationFn: (recordId: string) => archiveDocument(recordId),
+  });
 
   const historyYearOptions = useMemo(() => {
     const years = new Set(
@@ -652,6 +658,20 @@ export function FacturarPage() {
                 {canOpenOfficialOutput ? (
                   <Button type="button" variant="outline" onClick={duplicateDocument}>
                     Duplicar documento
+                  </Button>
+                ) : null}
+                {canOpenOfficialOutput ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={archiveMutation.isPending}
+                    onClick={() => {
+                      if (!serverRecordId) return;
+                      if (!window.confirm("¿Archivar este documento? Se moverá a la papelera interna.")) return;
+                      archiveMutation.mutate(serverRecordId);
+                    }}
+                  >
+                    {archiveMutation.isPending ? "Archivando..." : "Archivar documento"}
                   </Button>
                 ) : null}
               </div>
