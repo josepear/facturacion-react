@@ -1130,7 +1130,7 @@ export function ExpensesPage() {
                     setCatalogDraft((prev) => {
                       const next = [...prev];
                       const [moved] = next.splice(from, 1);
-                      next.splice(i, 0, moved);
+                      if (moved !== undefined) next.splice(i, 0, moved);
                       return next;
                     });
                     dragIndexRef.current = null;
