@@ -1,6 +1,6 @@
 import { Calendar } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, unstable_useBlocker as useBlocker, useSearchParams } from "react-router-dom";
+import { Link, useBlocker, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
