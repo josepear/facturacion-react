@@ -11,7 +11,14 @@ import type { ExpenseRecord } from "@/domain/expenses/types";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
 import { downloadControlWorkbookExport, runAccountingExportDownload } from "@/infrastructure/api/exportReportsApi";
-import { archiveExpense, archiveExpenseYear, fetchExpenseOptions, fetchExpenses, saveExpense } from "@/infrastructure/api/expensesApi";
+import {
+  archiveExpense,
+  archiveExpenseYear,
+  fetchExpenseOptions,
+  fetchExpenses,
+  saveExpense,
+  saveExpenseOptions,
+} from "@/infrastructure/api/expensesApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { deleteTrashEntries, fetchTrash } from "@/infrastructure/api/trashApi";
 import { formatCurrency, toNumber } from "@/lib/utils";
@@ -103,6 +110,10 @@ export function ExpensesPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
   const didHydrateDefaultTemplateProfile = useRef(false);
+  const [catalogDialog, setCatalogDialog] = useState<"vendor" | "category" | null>(null);
+  const [catalogDraft, setCatalogDraft] = useState<string[]>([]);
+  const [newCatalogItem, setNewCatalogItem] = useState("");
+  const catalogDialogRef = useRef<HTMLDialogElement>(null);
 
   const configQuery = useQuery({
     queryKey: ["runtime-config"],
@@ -331,6 +342,46 @@ export function ExpensesPage() {
       setStatusTone("error");
     },
   });
+
+  const saveCatalogMutation = useMutation({
+    mutationFn: () =>
+      saveExpenseOptions({
+        vendors: catalogDialog === "vendor" ? catalogDraft : (expenseOptionsQuery.data?.vendors ?? []),
+        categories: catalogDialog === "category" ? catalogDraft : (expenseOptionsQuery.data?.categories ?? []),
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["expense-options"] });
+      setCatalogDialog(null);
+      setNewCatalogItem("");
+    },
+    onError: (error) => {
+      setStatusMessage(getErrorMessageFromUnknown(error) || "No se pudo guardar el catálogo.");
+      setStatusTone("error");
+    },
+  });
+
+  const addCatalogItem = () => {
+    const next = newCatalogItem.trim();
+    if (!next) {
+      return;
+    }
+    setCatalogDraft((prev) => [...prev, next]);
+    setNewCatalogItem("");
+  };
+
+  useEffect(() => {
+    const el = catalogDialogRef.current;
+    if (!el) {
+      return;
+    }
+    if (catalogDialog !== null) {
+      if (!el.open) {
+        el.showModal();
+      }
+    } else if (el.open) {
+      el.close();
+    }
+  }, [catalogDialog]);
 
   const computedDraft = useMemo(() => normalizeExpenseDraft(draft), [draft]);
 
@@ -704,17 +755,33 @@ export function ExpensesPage() {
               </div>
             </Field>
             <Field label="Proveedor" hint="Requerido si no se rellena la descripción.">
-              <Input
-                aria-label="Proveedor del gasto"
-                list="expense-vendors"
-                value={draft.vendor || ""}
-                onChange={(event) => setDraft((prev) => ({ ...prev, vendor: event.target.value }))}
-              />
-              <datalist id="expense-vendors">
-                {(expenseOptionsQuery.data?.vendors ?? []).map((vendor) => (
-                  <option key={vendor} value={vendor} />
-                ))}
-              </datalist>
+              <div className="grid gap-2">
+                <Input
+                  aria-label="Proveedor del gasto"
+                  list="expense-vendors"
+                  value={draft.vendor || ""}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, vendor: event.target.value }))}
+                />
+                <datalist id="expense-vendors">
+                  {(expenseOptionsQuery.data?.vendors ?? []).map((vendor) => (
+                    <option key={vendor} value={vendor} />
+                  ))}
+                </datalist>
+                {isAdmin ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-fit justify-self-start"
+                    onClick={() => {
+                      setCatalogDraft([...(expenseOptionsQuery.data?.vendors ?? [])]);
+                      setCatalogDialog("vendor");
+                    }}
+                  >
+                    Gestionar
+                  </Button>
+                ) : null}
+              </div>
             </Field>
             <Field label="NIF/CIF proveedor">
               <Input value={draft.taxId || ""} onChange={(event) => setDraft((prev) => ({ ...prev, taxId: event.target.value }))} />
@@ -726,16 +793,32 @@ export function ExpensesPage() {
               />
             </Field>
             <Field label="Categoría">
-              <Input
-                list="expense-categories"
-                value={draft.category || ""}
-                onChange={(event) => setDraft((prev) => ({ ...prev, category: event.target.value }))}
-              />
-              <datalist id="expense-categories">
-                {(expenseOptionsQuery.data?.categories ?? []).map((category) => (
-                  <option key={category} value={category} />
-                ))}
-              </datalist>
+              <div className="grid gap-2">
+                <Input
+                  list="expense-categories"
+                  value={draft.category || ""}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, category: event.target.value }))}
+                />
+                <datalist id="expense-categories">
+                  {(expenseOptionsQuery.data?.categories ?? []).map((category) => (
+                    <option key={category} value={category} />
+                  ))}
+                </datalist>
+                {isAdmin ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="w-fit justify-self-start"
+                    onClick={() => {
+                      setCatalogDraft([...(expenseOptionsQuery.data?.categories ?? [])]);
+                      setCatalogDialog("category");
+                    }}
+                  >
+                    Gestionar
+                  </Button>
+                ) : null}
+              </div>
             </Field>
             <Field label="Descripción" hint="Si se rellena, el proveedor pasa a ser opcional.">
               <Input
@@ -1013,6 +1096,69 @@ export function ExpensesPage() {
           </div>
         </CardContent>
       </Card>
+
+      <dialog
+        ref={catalogDialogRef}
+        className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-0 shadow-lg backdrop:bg-black/50"
+        onClose={() => {
+          setCatalogDialog(null);
+          setNewCatalogItem("");
+        }}
+      >
+        {catalogDialog !== null ? (
+          <div className="grid max-h-[min(32rem,85vh)] gap-4 overflow-auto p-6">
+            <h2 className="text-lg font-semibold leading-none tracking-tight">
+              {catalogDialog === "vendor" ? "Proveedores" : "Categorías"}
+            </h2>
+            <div className="grid gap-1 border-b border-border pb-3">
+              {catalogDraft.map((item, i) => (
+                <div key={`${item}-${i}`} className="flex items-center gap-2 py-1">
+                  <span className="min-w-0 flex-1 text-sm">{item}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => setCatalogDraft((prev) => prev.filter((_, idx) => idx !== i))}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <input
+                className="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={newCatalogItem}
+                onChange={(event) => setNewCatalogItem(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCatalogItem();
+                  }
+                }}
+                placeholder="Nuevo elemento..."
+              />
+              <Button type="button" onClick={addCatalogItem}>
+                Añadir
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" disabled={saveCatalogMutation.isPending} onClick={() => saveCatalogMutation.mutate()}>
+                {saveCatalogMutation.isPending ? "Guardando..." : "Guardar"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={saveCatalogMutation.isPending}
+                onClick={() => catalogDialogRef.current?.close()}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </dialog>
     </main>
   );
 }
