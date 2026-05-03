@@ -232,6 +232,55 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 
 ---
 
+## Auditoría completa: features legacy no cubiertas en React
+
+> Resultado de comparar `server.mjs` (rutas API) y `public/app.js` (UI) contra el código React actual.
+> Clasificación: **P1** = importante, backend disponible hoy. **P2** = nice-to-have o requiere más investigación.
+
+### Facturar — pendiente
+
+- [ ] **(P1) Archivar factura desde Facturar/Historial:** `POST /api/documents/archive` — legacy tiene botón "Archivar" en el formulario post-guardado y en cada fila de Historial. En React solo existe archivar gasto.
+- [ ] **(P1) Archivar año de facturas:** `POST /api/documents/archive-year` — equivalente al de gastos pero para documentos. No implementado en React.
+- [ ] **(P1) Propagar diseño de plantilla a histórico:** `POST /api/template-profiles/propagate` — botón "Guardar diseño y actualizar facturas anteriores" en legacy. React guarda el perfil pero no dispara la propagación a documentos existentes.
+- [ ] **(P2) Comprobar disponibilidad de número:** `GET /api/document-number-availability` — legacy valida en tiempo real si el número de factura ya existe antes de guardar. React usa `next-number` pero no hace esta comprobación.
+
+### Historial — pendiente
+
+- [ ] **(P1) Archivar documento desde Historial:** botón "Archivar" por fila en el listado. Conectado a `POST /api/documents/archive`. No existe en React.
+
+### Gastos — pendiente
+
+- [ ] **(P1) Campo `nextcloudUrl` en gasto:** legacy muestra/edita un enlace a carpeta Nextcloud por gasto y lo lista en la tabla de control. No visible en el formulario React.
+- [ ] **(P2) Importar gastos desde libro de control:** `POST /api/control-expenses-import` — legacy permite subir un Excel de control para importar gastos en bloque. No implementado en React.
+
+### Integraciones Gmail — sección nueva
+
+- [ ] **(P1) Enviar factura por Gmail desde Facturar:** botón "Guardar y enviar por Gmail" (visible solo si `gmailOAuthConfigured`). Usa `POST /api/gmail/send-invoice`. No existe en React.
+- [ ] **(P1) Enviar factura por Gmail desde Historial:** botón por fila y envío masivo desde el listado de control. No existe en React.
+- [ ] **(P2) Configurar Gmail OAuth en Configuración:** `GET /api/gmail/status`, `GET /api/gmail/profiles`, `GET /api/gmail/oauth/start` — sección en legacy para conectar cuenta Gmail por perfil. No existe en React.
+
+### Integraciones Nextcloud — sección nueva
+
+- [ ] **(P2) Ir a carpeta Nextcloud desde Facturar:** chip "Ir a la carpeta de Nextcloud" visible post-guardado si `nextcloudWebBaseUrl` configurado (`GET /api/nextcloud-folder`). No existe en React.
+
+### Importación histórica — sección nueva (completamente ausente)
+
+- [ ] **(P2) Importación histórica de documentos:** flujo completo con `POST /api/historical-import/scan`, `/upload`, `/pdf-upload`, `/run`, `/pdf-run`. Modal de revisión con selección de perfil y año. No existe en React.
+
+### Configuración / Diseño — pendiente
+
+- [ ] **(P2) Editor de diseño de plantilla (constructor):** legacy tiene un editor de diseño avanzado con canvas de widgets y previsualización en tiempo real. React solo edita `layout`, `colorKey` y datos básicos del perfil.
+- [ ] **(P2) Catálogo de fuentes:** `GET /api/fonts/catalog` — selector de fuentes personalizadas por perfil. No implementado en React.
+- [ ] **(P2) Logo / imagen de marca:** legacy permite subir una imagen como logo del emisor (base64 embebida). React tiene campo de texto pero no input de archivo.
+
+### Transversal — pendiente
+
+- [ ] **(P1) Modo oscuro / night mode:** legacy tiene toggle de tema claro/oscuro persistido en `localStorage`. No existe en React.
+- [ ] **(P2) Modo sandbox:** switch de ámbito de almacenamiento (producción vs. sandbox) persistido en `localStorage`. No existe en React.
+- [ ] **(P2) Página pública de informe compartido:** `GET /api/public-share-report/:id` — legacy genera una URL de solo lectura; React genera la URL pero no tiene página para renderizarla.
+
+---
+
 ## Regla operativa
 
 Cada vez que se cierre un bloque de verdad:
