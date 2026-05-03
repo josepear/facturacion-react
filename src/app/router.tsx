@@ -4,6 +4,7 @@ import { AppShell } from "@/app/AppShell";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RequireAuth } from "@/features/auth/RequireAuth";
 import { ClientsPage } from "@/features/clients/pages/ClientsPage";
+import { DataPage } from "@/features/data/pages/DataPage";
 import { ExpensesPage } from "@/features/expenses/pages/ExpensesPage";
 import { HistoryPage } from "@/features/history/pages/HistoryPage";
 import { FacturarPage } from "@/features/invoices/pages/FacturarPage";
@@ -45,6 +46,10 @@ export const router = createBrowserRouter(
         {
           path: "gastos",
           element: <ExpensesPage />,
+        },
+        {
+          path: "datos",
+          element: <DataPage />,
         },
         {
           path: "configuracion",

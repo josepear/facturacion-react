@@ -1,4 +1,4 @@
-import { LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
+import { BarChart2, LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
@@ -17,6 +17,7 @@ const navItems: ShellNavItem[] = [
   { to: "/facturar", label: "Facturar", icon: ReceiptText },
   { to: "/historial", label: "Historial", icon: LayoutGrid },
   { to: "/gastos", label: "Gastos", icon: WalletCards },
+  { to: "/datos", label: "Datos", icon: BarChart2 },
   { to: "/clientes", label: "Clientes", icon: Users },
   { to: "/configuracion", label: "Miembros / Emisor", icon: Settings },
 ];
