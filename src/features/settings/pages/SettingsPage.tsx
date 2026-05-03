@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
+import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { TemplateProfileConfig } from "@/domain/document/types";
@@ -316,7 +317,7 @@ function MembersSection({
                                     onChange={() => toggleAllowedProfile(profile.id)}
                                     className="h-4 w-4 rounded border-input"
                                   />
-                                  {profile.label || profile.id}
+                                  <ProfileBadge label={profile.label || profile.id} colorKey={profile.colorKey} />
                                 </label>
                               );
                             })}
@@ -402,7 +403,7 @@ function MembersSection({
                           onChange={() => toggleAllowedProfile(profile.id)}
                           className="h-4 w-4 rounded border-input"
                         />
-                        {profile.label || profile.id}
+                        <ProfileBadge label={profile.label || profile.id} colorKey={profile.colorKey} />
                       </label>
                     );
                   })}
@@ -1130,7 +1131,17 @@ export function SettingsPage() {
               </CardHeader>
               <CardContent className="grid gap-3 text-sm">
                 <p><strong>Id (servidor):</strong> {safeValue(serverActiveProfile?.id)}</p>
-                <p><strong>Nombre del usuario:</strong> {safeValue(serverActiveProfile?.label || serverActiveProfile?.id)}</p>
+                <p className="flex flex-wrap items-center gap-2">
+                  <strong>Nombre del usuario:</strong>
+                  {serverActiveProfile ? (
+                    <ProfileBadge
+                      label={String(serverActiveProfile.label || serverActiveProfile.id)}
+                      colorKey={serverActiveProfile.colorKey}
+                    />
+                  ) : (
+                    safeValue(undefined)
+                  )}
+                </p>
                 <p><strong>Forma de pago:</strong> {safeValue(serverActiveProfile?.defaults?.paymentMethod)}</p>
                 <p><strong>Cuenta:</strong> {safeValue(serverActiveProfile?.business?.bankAccount)}</p>
                 <p><strong>Plantilla PDF:</strong> {safeValue(serverActiveProfile?.design?.layout)}</p>

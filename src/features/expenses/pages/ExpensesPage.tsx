@@ -6,6 +6,7 @@ import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import type { ExpenseRecord } from "@/domain/expenses/types";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
@@ -627,7 +628,11 @@ export function ExpensesPage() {
                             {item.deductible ? "Deducible" : "No deducible"}
                           </p>
                           <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
-                            Perfil: {item.templateProfileLabel || item.templateProfileId || "por defecto"}
+                            Perfil:{" "}
+                            <ProfileBadge
+                              label={item.templateProfileLabel || item.templateProfileId || "por defecto"}
+                              colorKey={profileOptions.find((p) => p.id === item.templateProfileId)?.colorKey}
+                            />
                           </p>
                         </button>
                       </li>

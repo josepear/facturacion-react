@@ -5,6 +5,7 @@ import { Link, useBlocker, useSearchParams } from "react-router-dom";
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { DocumentLivePreview } from "@/features/invoices/components/DocumentLivePreview";
 import { InvoiceItemsTable } from "@/features/invoices/components/InvoiceItemsTable";
 import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotalsPanel";
@@ -69,6 +70,14 @@ export function FacturarPage() {
   } = form;
   const taxRateWatched = watch("taxRate");
   const withholdingRateWatched = watch("withholdingRate");
+  const templateProfileIdWatched = watch("templateProfileId");
+  const selectedTemplateProfile = useMemo(() => {
+    const id = String(templateProfileIdWatched || "").trim();
+    if (!id) {
+      return null;
+    }
+    return profileOptions.find((p) => p.id === id) ?? null;
+  }, [templateProfileIdWatched, profileOptions]);
   const [historyYearFilter, setHistoryYearFilter] = useState("");
   const [historyTypeFilter, setHistoryTypeFilter] = useState("");
 
@@ -141,21 +150,31 @@ export function FacturarPage() {
           >
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="Perfil plantilla">
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  {...register("templateProfileId")}
-                  onChange={(event) => {
-                    register("templateProfileId").onChange(event);
-                    applyTemplateProfile(event.target.value);
-                  }}
-                >
-                  <option value="">Selecciona perfil</option>
-                  {profileOptions.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="grid gap-1">
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    {...register("templateProfileId")}
+                    onChange={(event) => {
+                      register("templateProfileId").onChange(event);
+                      applyTemplateProfile(event.target.value);
+                    }}
+                  >
+                    <option value="">Selecciona perfil</option>
+                    {profileOptions.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.label}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedTemplateProfile ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ProfileBadge
+                        label={selectedTemplateProfile.label}
+                        colorKey={selectedTemplateProfile.colorKey}
+                      />
+                    </div>
+                  ) : null}
+                </div>
               </Field>
               <Field label="Plantilla/layout">
                 <select

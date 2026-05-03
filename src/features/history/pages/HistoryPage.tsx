@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
+import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
@@ -576,7 +577,15 @@ export function HistoryPage() {
                           </p>
                           <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
                             {formatCurrency(Number(item.total || 0))}
-                            {item.templateProfileLabel ? ` · ${item.templateProfileLabel}` : ""}
+                            {item.templateProfileLabel ? (
+                              <>
+                                {" · "}
+                                <ProfileBadge
+                                  label={item.templateProfileLabel}
+                                  colorKey={profileOptions.find((p) => p.id === item.templateProfileId)?.colorKey}
+                                />
+                              </>
+                            ) : null}
                             {item.status ? ` · ${formatAccountingStatusLabel(item.status)}` : ""}
                           </p>
                         </button>
