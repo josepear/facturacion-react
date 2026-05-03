@@ -10,6 +10,7 @@
 - Mapa de reutilización: `docs/phase-0-reuse-map.md`.
 - Matriz Facturar (campos / bloques): `docs/facturar-field-parity-matrix.md`.
 - Matriz Gastos (campos / bloques): `docs/gastos-field-parity-matrix.md`.
+- Candidatos «solo React» vs legacy (anti-inventos): `docs/parity-anti-invent-candidates.md`.
 
 **Limitación explícita:** el detalle pixel-a-pixel y cada atajo de teclado del legacy no se inventan; donde el código React no expone una capacidad que el legacy suele tener en producción, la brecha se marca **pendiente** y la verificación exige **checklist manual en legacy**.
 

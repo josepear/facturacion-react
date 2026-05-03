@@ -13,11 +13,13 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [legacy-react-parity-audit.md](/Volumes/RAID/Repos/apps/facturacion/facturacion-react/docs/legacy-react-parity-audit.md)
 - [facturar-field-parity-matrix.md](/Volumes/RAID/Repos/apps/facturacion/facturacion-react/docs/facturar-field-parity-matrix.md)
 - [gastos-field-parity-matrix.md](/Volumes/RAID/Repos/apps/facturacion/facturacion-react/docs/gastos-field-parity-matrix.md)
+- [parity-anti-invent-candidates.md](/Volumes/RAID/Repos/apps/facturacion/facturacion-react/docs/parity-anti-invent-candidates.md) — tabla de candidatos «solo React» vs `public/` legacy
 
 ---
 
 ## P0 transversal
 
+- [x] **TanStack Query Devtools:** solo en entorno de desarrollo (`import.meta.env.DEV` en `src/app/providers.tsx`); en build de producción no se muestra el panel flotante (legacy no tiene equivalente).
 - [x] Proxy `/api/*` unificado en local para `dev` y `preview`.
 - [x] Flujo feliz de Facturar cerrado: crear -> guardar -> recargar -> editar -> HTML/PDF.
 - [x] Smoke E2E de Gastos contra backend real.
