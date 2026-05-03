@@ -1,5 +1,5 @@
-import { LayoutGrid, LogOut, Menu, ReceiptText, Settings, Users, WalletCards, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -23,11 +23,13 @@ const navItems: ShellNavItem[] = [
 
 type SidebarContentProps = {
   collapsed: boolean;
+  isDark: boolean;
+  toggle: () => void;
   onNavigate?: () => void;
   onLogout?: () => void;
 };
 
-function SidebarContent({ collapsed, onNavigate, onLogout }: SidebarContentProps) {
+function SidebarContent({ collapsed, isDark, toggle, onNavigate, onLogout }: SidebarContentProps) {
   return (
     <div className="flex h-full flex-col gap-4 p-3">
       <div className={cn("rounded-lg border bg-card px-3 py-3", collapsed ? "text-center" : "")}>
@@ -65,6 +67,16 @@ function SidebarContent({ collapsed, onNavigate, onLogout }: SidebarContentProps
           type="button"
           variant="ghost"
           className={cn("w-full justify-start gap-2 text-muted-foreground", collapsed ? "justify-center px-2" : "")}
+          onClick={toggle}
+          aria-label={isDark ? "Modo claro" : "Modo oscuro"}
+        >
+          {isDark ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
+          {!collapsed ? <span>{isDark ? "Modo claro" : "Modo oscuro"}</span> : null}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          className={cn("w-full justify-start gap-2 text-muted-foreground", collapsed ? "justify-center px-2" : "")}
           onClick={() => {
             onLogout?.();
             onNavigate?.();
@@ -78,9 +90,23 @@ function SidebarContent({ collapsed, onNavigate, onLogout }: SidebarContentProps
   );
 }
 
+function useTheme() {
+  const [isDark, setIsDark] = useState(() => {
+    return localStorage.getItem("facturacion-ui-theme") === "dark";
+  });
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDark);
+    localStorage.setItem("facturacion-ui-theme", isDark ? "dark" : "light");
+  }, [isDark]);
+
+  return { isDark, toggle: () => setIsDark((v) => !v) };
+}
+
 export function AppShell() {
   const { logout } = useAuth();
   const navigate = useNavigate();
+  const { isDark, toggle } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
@@ -105,6 +131,15 @@ export function AppShell() {
           <Button type="button" variant="ghost" size="sm" onClick={handleLogout} aria-label="Cerrar sesión">
             <LogOut className="h-4 w-4" />
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={toggle}
+            aria-label={isDark ? "Modo claro" : "Modo oscuro"}
+          >
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => setMobileOpen(true)} aria-label="Abrir menú">
             <Menu className="h-4 w-4" />
           </Button>
@@ -126,6 +161,8 @@ export function AppShell() {
             </div>
             <SidebarContent
               collapsed={false}
+              isDark={isDark}
+              toggle={toggle}
               onNavigate={() => setMobileOpen(false)}
               onLogout={handleLogout}
             />
@@ -152,7 +189,7 @@ export function AppShell() {
               <Menu className="h-4 w-4" />
             </Button>
           </div>
-          <SidebarContent collapsed={collapsed} onLogout={handleLogout} />
+          <SidebarContent collapsed={collapsed} isDark={isDark} toggle={toggle} onLogout={handleLogout} />
         </aside>
 
         <main className="min-h-[calc(100vh-57px)] w-full min-w-0 flex-1 lg:min-h-screen">
