@@ -345,11 +345,20 @@ export function ExpensesPage() {
   });
 
   const saveCatalogMutation = useMutation({
-    mutationFn: () =>
-      saveExpenseOptions({
-        vendors: catalogDialog === "vendor" ? catalogDraft : (expenseOptionsQuery.data?.vendors ?? []),
-        categories: catalogDialog === "category" ? catalogDraft : (expenseOptionsQuery.data?.categories ?? []),
-      }),
+    mutationFn: (arg?: { type: "vendors" | "categories"; items: string[] }) => {
+      const baseVendors = expenseOptionsQuery.data?.vendors ?? [];
+      const baseCategories = expenseOptionsQuery.data?.categories ?? [];
+      if (arg) {
+        return saveExpenseOptions({
+          vendors: arg.type === "vendors" ? arg.items : baseVendors,
+          categories: arg.type === "categories" ? arg.items : baseCategories,
+        });
+      }
+      return saveExpenseOptions({
+        vendors: catalogDialog === "vendor" ? catalogDraft : baseVendors,
+        categories: catalogDialog === "category" ? catalogDraft : baseCategories,
+      });
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["expense-options"] });
       setCatalogDialog(null);
@@ -770,12 +779,32 @@ export function ExpensesPage() {
             </Field>
             <Field label="Proveedor" hint="Requerido si no se rellena la descripción.">
               <div className="grid gap-2">
-                <Input
-                  aria-label="Proveedor del gasto"
-                  list="expense-vendors"
-                  value={draft.vendor || ""}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, vendor: event.target.value }))}
-                />
+                <div className="flex min-w-0 flex-wrap items-center gap-1">
+                  <Input
+                    aria-label="Proveedor del gasto"
+                    list="expense-vendors"
+                    className="min-w-0 flex-1"
+                    value={draft.vendor || ""}
+                    onChange={(event) => setDraft((prev) => ({ ...prev, vendor: event.target.value }))}
+                  />
+                  {String(draft.vendor || "").trim()
+                  && !(expenseOptionsQuery.data?.vendors ?? []).includes(String(draft.vendor || "").trim()) ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="ml-1 shrink-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      disabled={saveCatalogMutation.isPending}
+                      onClick={() =>
+                        saveCatalogMutation.mutate({
+                          type: "vendors",
+                          items: [...(expenseOptionsQuery.data?.vendors ?? []), String(draft.vendor || "").trim()],
+                        })
+                      }
+                    >
+                      Añadir al catálogo
+                    </Button>
+                  ) : null}
+                </div>
                 <datalist id="expense-vendors">
                   {(expenseOptionsQuery.data?.vendors ?? []).map((vendor) => (
                     <option key={vendor} value={vendor} />
@@ -943,11 +972,48 @@ export function ExpensesPage() {
                   />
                 </Field>
                 <div className="sm:col-span-2">
+                  {(expenseOptionsQuery.data?.categories ?? []).length ? (
+                    <div className="mb-1 flex flex-wrap gap-1">
+                      {(expenseOptionsQuery.data?.categories ?? []).map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          className="cursor-pointer rounded-full border border-input bg-background px-2 py-0.5 text-xs transition-colors hover:bg-accent"
+                          onClick={() => setDraft((prev) => ({ ...prev, expenseConcept: category }))}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   <Field label="Concepto gasto" hint="Etiqueta contable interna; distinto del campo descripción.">
-                    <Input
-                      value={draft.expenseConcept || ""}
-                      onChange={(event) => setDraft((prev) => ({ ...prev, expenseConcept: event.target.value }))}
-                    />
+                    <div className="flex min-w-0 flex-wrap items-center gap-1">
+                      <Input
+                        className="min-w-0 flex-1"
+                        value={draft.expenseConcept || ""}
+                        onChange={(event) => setDraft((prev) => ({ ...prev, expenseConcept: event.target.value }))}
+                      />
+                      {String(draft.expenseConcept || "").trim()
+                      && !(expenseOptionsQuery.data?.categories ?? []).includes(String(draft.expenseConcept || "").trim()) ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="ml-1 shrink-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                          disabled={saveCatalogMutation.isPending}
+                          onClick={() =>
+                            saveCatalogMutation.mutate({
+                              type: "categories",
+                              items: [
+                                ...(expenseOptionsQuery.data?.categories ?? []),
+                                String(draft.expenseConcept || "").trim(),
+                              ],
+                            })
+                          }
+                        >
+                          Añadir al catálogo
+                        </Button>
+                      ) : null}
+                    </div>
                   </Field>
                 </div>
               </div>
