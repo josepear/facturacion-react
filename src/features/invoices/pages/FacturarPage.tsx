@@ -60,6 +60,8 @@ export function FacturarPage() {
     loadingConfig,
     liveDocument,
     duplicateDocument,
+    hasLastSetup,
+    repeatLastSetup,
     isDirty,
   } = useFacturarForm(initialRecordId, initialTemplateProfileId);
   const {
@@ -642,15 +644,16 @@ export function FacturarPage() {
                 >
                   {officialOutputLoading === "pdf" ? "Abriendo PDF..." : "Abrir PDF oficial"}
                 </Button>
-                {canOpenOfficialOutput && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={duplicateDocument}
-                  >
+                {hasLastSetup ? (
+                  <Button type="button" variant="outline" onClick={repeatLastSetup}>
+                    Repetir última factura
+                  </Button>
+                ) : null}
+                {canOpenOfficialOutput ? (
+                  <Button type="button" variant="outline" onClick={duplicateDocument}>
                     Duplicar documento
                   </Button>
-                )}
+                ) : null}
               </div>
               {officialOutputError ? <p className="text-sm text-red-600">{officialOutputError}</p> : null}
               <span className="text-sm text-muted-foreground">

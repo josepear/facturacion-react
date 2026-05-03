@@ -52,8 +52,10 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const [withoutWithholding, setWithoutWithholding] = useState(true);
   const [officialOutputError, setOfficialOutputError] = useState<string | null>(null);
   const [officialOutputLoading, setOfficialOutputLoading] = useState<OfficialDocumentOutputKind | null>(null);
+  const [hasLastSetup, setHasLastSetup] = useState(false);
   const bootstrappedRecordIdRef = useRef("");
   const bootstrappedTemplateProfileRef = useRef("");
+  const lastSavedSnapshotRef = useRef<InvoiceDocument | null>(null);
 
   const form = useForm<InvoiceDocument>({
     resolver: zodResolver(invoiceDocumentSchema),
@@ -445,6 +447,12 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       setServerRecordId(recordId);
       setOfficialOutputError(null);
       form.reset(mapped);
+      lastSavedSnapshotRef.current = mapped;
+      const snap = mapped;
+      const hasClient = Boolean(snap.client?.name?.trim() || snap.client?.taxId?.trim());
+      const hasItems =
+        Array.isArray(snap.items) && snap.items.some((item) => String(item.concept || item.description || "").trim());
+      setHasLastSetup(hasClient || hasItems);
       syncSelectedClientOptionByName(mapped.client?.name || "");
       setNumberAvailabilityText("Guardado correcto.");
       setNumberAvailabilityTone("success");
@@ -627,6 +635,30 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     setNumberAvailabilityTone("neutral");
   };
 
+  const repeatLastSetup = () => {
+    const snap = lastSavedSnapshotRef.current;
+    if (!snap) {
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    const copy: InvoiceDocument = {
+      ...snap,
+      number: "",
+      numberEnd: "",
+      issueDate: today,
+      dueDate: "",
+      reference: "",
+      accounting: { ...snap.accounting, status: "ENVIADA" },
+    };
+    setServerRecordId("");
+    setRecordIdInput("");
+    setSelectedHistoryRecordId("");
+    setOfficialOutputError(null);
+    form.reset(copy);
+    setNumberAvailabilityText("Factura repetitiva lista. Revisa y guarda.");
+    setNumberAvailabilityTone("neutral");
+  };
+
   return {
     form,
     submit,
@@ -637,6 +669,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     activeTemplateProfileId,
     applyTemplateProfile,
     duplicateDocument,
+    hasLastSetup,
+    repeatLastSetup,
     taxValidation,
     withoutWithholding,
     setWithoutWithholding,
