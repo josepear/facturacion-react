@@ -311,7 +311,7 @@ El legacy tiene una pestaña **"Datos"** (`tab-panel-control`) con cuatro sub-se
 
 ### Transversal — pendiente
 
-- [ ] **(P1) Modo oscuro / night mode:** legacy tiene toggle de tema claro/oscuro persistido en `localStorage`. No existe en React.
+- [x] **(P1) Modo oscuro / night mode:** toggle luna/sol en sidebar y header móvil, persistido en `localStorage` ("facturacion-ui-theme"), clase `dark` en `<html>`, variables CSS `.dark` en `tokens.css`.
 - [ ] **(P2) Modo sandbox:** switch de ámbito de almacenamiento (producción vs. sandbox) persistido en `localStorage`. No existe en React.
 - [ ] **(P2) Página pública de informe compartido:** `GET /api/public-share-report/:id` — legacy genera una URL de solo lectura; React genera la URL pero no tiene página para renderizarla.
 - [ ] **(P2) First-use wizard:** modal `first-use-wizard-modal` con guía de orden sugerido la primera vez (emisor → plantilla → facturar). No existe en React.
