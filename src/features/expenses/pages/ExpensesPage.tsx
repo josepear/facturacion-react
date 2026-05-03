@@ -686,6 +686,19 @@ export function ExpensesPage() {
                               colorKey={profileOptions.find((p) => p.id === item.templateProfileId)?.colorKey}
                             />
                           </p>
+                          {String(item.nextcloudUrl || "").trim() ? (
+                            <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                              <a
+                                href={String(item.nextcloudUrl).trim()}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="underline"
+                              >
+                                Carpeta Nextcloud
+                              </a>
+                            </p>
+                          ) : null}
                         </button>
                       </li>
                     );
