@@ -16,6 +16,7 @@ import {
   archiveExpenseYear,
   fetchExpenseOptions,
   fetchExpenses,
+  importControlExpenses,
   saveExpense,
   saveExpenseOptions,
 } from "@/infrastructure/api/expensesApi";
@@ -115,6 +116,9 @@ export function ExpensesPage() {
   const [newCatalogItem, setNewCatalogItem] = useState("");
   const catalogDialogRef = useRef<HTMLDialogElement>(null);
   const dragIndexRef = useRef<number | null>(null);
+  const [importProfileId, setImportProfileId] = useState("");
+  const [importResult, setImportResult] = useState<{ created?: number; skipped?: string[] } | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const configQuery = useQuery({
     queryKey: ["runtime-config"],
@@ -343,6 +347,37 @@ export function ExpensesPage() {
       setStatusTone("error");
     },
   });
+
+  const importExpensesMutation = useMutation({
+    mutationFn: (payload: { templateProfileId: string; files: { name: string; contentBase64: string }[] }) =>
+      importControlExpenses(payload),
+    onSuccess: (data) => {
+      setImportResult({ created: data.created, skipped: data.skipped });
+      void queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      if (importFileRef.current) {
+        importFileRef.current.value = "";
+      }
+    },
+    onError: () => {
+      setImportResult(null);
+    },
+  });
+
+  function handleImportExpenses() {
+    const file = importFileRef.current?.files?.[0];
+    if (!file || !importProfileId) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const contentBase64 = String(e.target?.result || "").split(",")[1] ?? "";
+      importExpensesMutation.mutate({
+        templateProfileId: importProfileId,
+        files: [{ name: file.name, contentBase64 }],
+      });
+    };
+    reader.readAsDataURL(file);
+  }
 
   const saveCatalogMutation = useMutation({
     mutationFn: (arg?: { type: "vendors" | "categories"; items: string[] }) => {
@@ -1176,6 +1211,64 @@ export function ExpensesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {isAdmin ? (
+        <Card>
+          <div className="grid gap-4 p-4">
+            <h2 className="text-base font-semibold">Importar gastos</h2>
+            <p className="text-xs text-muted-foreground">
+              Sube el libro de control (.xlsx) o uno o varios PDFs de facturas para importar gastos en bloque.
+            </p>
+
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Perfil destino</label>
+              <select
+                value={importProfileId}
+                onChange={(e) => setImportProfileId(e.target.value)}
+                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+              >
+                <option value="">— Selecciona perfil —</option>
+                {profileOptions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label || p.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Archivo (.xlsx o .pdf)</label>
+              <input ref={importFileRef} type="file" accept=".xlsx,.pdf" className="text-sm" />
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleImportExpenses}
+              disabled={importExpensesMutation.isPending || !importProfileId}
+            >
+              {importExpensesMutation.isPending ? "Importando..." : "Importar gastos"}
+            </Button>
+
+            {importExpensesMutation.isError ? (
+              <p className="text-sm text-red-600">
+                {(importExpensesMutation.error as Error)?.message || "Error al importar."}
+              </p>
+            ) : null}
+
+            {importResult ? (
+              <div className="grid gap-1">
+                <p className="text-sm text-green-700">Importados: {importResult.created ?? 0}</p>
+                {(importResult.skipped ?? []).length > 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Omitidos: {(importResult.skipped ?? []).join(", ")}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      ) : null}
 
       <dialog
         ref={catalogDialogRef}

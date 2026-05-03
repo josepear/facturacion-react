@@ -65,3 +65,13 @@ export async function archiveExpenseYear(input: ArchiveExpenseYearInput) {
   });
 }
 
+export async function importControlExpenses(payload: {
+  templateProfileId: string;
+  files: { name: string; contentBase64: string }[];
+}): Promise<{ created?: number; skipped?: string[]; error?: string }> {
+  return request<{ created?: number; skipped?: string[]; error?: string }>("/api/control-expenses-import", {
+    method: "POST",
+    body: payload,
+  });
+}
+
