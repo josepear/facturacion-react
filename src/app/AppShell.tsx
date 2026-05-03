@@ -6,6 +6,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/AuthContext";
 import { getAuthToken } from "@/infrastructure/api/httpClient";
+import { hasFirstUseWizardBeenDismissed, markFirstUseWizardDismissed } from "@/infrastructure/wizardFirstUseStorage";
 import { cn } from "@/lib/utils";
 
 type ShellNavItem = {
@@ -172,14 +173,7 @@ export function AppShell() {
   }, [location.pathname, location.search, navigate, queryClient]);
 
   useEffect(() => {
-    try {
-      if (typeof localStorage === "undefined" || typeof localStorage.getItem !== "function") {
-        return;
-      }
-      if (localStorage.getItem("facturacion-wizard-seen") === "1") {
-        return;
-      }
-    } catch {
+    if (hasFirstUseWizardBeenDismissed()) {
       return;
     }
     if (!getAuthToken()) {
@@ -298,9 +292,7 @@ export function AppShell() {
         className="fixed left-1/2 top-1/2 z-[60] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-auto bg-background text-foreground shadow-lg backdrop:bg-black/50"
         style={{ borderRadius: 8, padding: 24, maxWidth: 420, width: "90vw", border: "1px solid #ccc" }}
         onClose={() => {
-          try {
-            localStorage.setItem("facturacion-wizard-seen", "1");
-          } catch {}
+          markFirstUseWizardDismissed();
           setWizardVisible(false);
           setWizardStep(0);
         }}

@@ -3,7 +3,8 @@
 **Referencia legacy:** aplicación en `facturacion.pearandco.es` (no SaaS fallida).  
 **Referencia React:** `FacturarPage.tsx`, `useFacturarForm.ts`, `InvoiceDocument` (`src/domain/document/types.ts`), `invoiceDocumentSchema` (`src/domain/document/schemas.ts`), `documentMapper.ts`, componentes en `src/features/invoices/components/`.
 
-**Nota metodológica:** la columna «Legacy» describe el comportamiento esperable en producción y **debe contrastarse con checklist manual** en la UI legacy. Donce pone «validar en legacy», la fila queda **parcial** hasta completar esa revisión.
+**Nota metodológica:** la columna «Legacy» describe el comportamiento esperable en producción y **debe contrastarse con checklist manual** en la UI legacy. Donce pone «validar en legacy», la fila queda **parcial** hasta completar esa revisión.  
+**Lectura estática del monolito en repo:** [`parity-partials-legacy-code-evidence.md`](./parity-partials-legacy-code-evidence.md) (workflow previo a guardar, tipos de documento, etc.).
 
 **Leyenda estado:** `cerrado` · `parcial` · `pendiente`  
 **Leyenda prioridad:** P0 (bloquea operación diaria acordada) · P1 · P2
@@ -49,7 +50,7 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `type` (`factura` / `presupuesto`) | Selector tipos operativos | `select` solo factura/presupuesto | Si legacy incluye más tipos, faltan en modelo | Ampliar `DocumentType` + API si backend lo permite | Lista tipos legacy = React | **parcial** | P1 |
+| `type` (`factura` / `presupuesto`) | Solo `factura` y `presupuesto`: `normalizeDocumentTypeValue` en `public/app.js` (~L3778–3780) | `select` solo factura/presupuesto | Ninguna: el cliente legacy no normaliza otros tipos | — | Igual que referencia | **cerrado** | P1 |
 
 ---
 
@@ -66,7 +67,7 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `series` | Opcional / obligatorio según política | `Input` `register("series")`; usado en numeración | Validar reglas legacy (obligatoriedad) | Reforzar validación Zod si legacy exige serie | Guardar sin serie: mismo error/éxito que legacy | **parcial** | P1 |
+| `series` | **No** entra en el checklist `document` de `evaluateBillingWorkflow` (~L1430–1440): solo tipo, `issueDate`, número y estado contable. La serie alimenta datos/numeración pero no desbloquea el paso «documento» en JS legacy. | `Input` `register("series")`; usado en numeración | Política exacta de numeración por serie (API/servidor) puede diferir; **obligatoriedad UI pre-POST** alineada con legacy | Reforzar Zod solo si prod exige serie en otro punto | Guardar sin serie: mismo comportamiento de bloqueo que legacy en UI | **parcial** | P1 |
 
 ---
 
@@ -88,7 +89,7 @@
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `issueDate` | Obligatoria | `type="date"`; Zod `min(1)` | Ninguna obvia | — | E2E | **cerrado** | P0 |
-| `dueDate` | Opcional / obligatoria según legacy | `type="date"`; Zod permite vacío | Validar obligatoriedad legacy | `refine` en schema si aplica | — | **parcial** | P1 |
+| `dueDate` | **No** requerida en `evaluateBillingWorkflow` bloque `document` (misma función; no forma parte de `document.complete`). | `type="date"`; Zod permite vacío | Validar si el **backend** rechaza algún caso sin vencimiento; en cliente legacy no bloquea el workflow | `refine` en schema solo con evidencia API | — | **parcial** | P1 |
 | `reference` | Opcional | `Input` | Ninguna obvia | — | Aparece en preview/HTML | **cerrado** | P1 |
 
 ---
@@ -98,7 +99,7 @@
 | Campo | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Nombre | Obligatorio | `client.name`; Zod `min(1)`; datalist + select guardados | Ninguna obvia | — | E2E | **cerrado** | P0 |
-| NIF/CIF | Obligatorio según caso | `client.taxId` | Validar obligatoriedad vs legacy | Zod condicional o aviso | — | **parcial** | P1 |
+| NIF/CIF | **No** exigido para `client.complete` en `evaluateBillingWorkflow` (~L1442–1446): solo nombre. | `client.taxId` | Posible exigencia en **API/PDF**; en checklist JS legacy antes de guardar no aparece | Zod condicional solo si backend lo documenta | — | **parcial** | P1 |
 | Email | Opcional / obligatorio | `client.email` | — | — | PDF | **cerrado** | P1 |
 | Dirección, ciudad, provincia | Típicamente en factura | Inputs presentes | — | — | Preview | **cerrado** | P1 |
 | País (`taxCountryCode`) | Código | Input | — | Select ISO si legacy usa lista | — | **parcial** | P2 |
@@ -121,7 +122,7 @@
 
 | Campo / bloque | Legacy (ref.) | React actual | Brecha exacta | Implementación | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| IGIC (`taxRate`) | Porcentaje | Input numérico; Zod `nonnegative` | Validar topes/catálogo legacy | — | Total cuadra con legacy | **parcial** | P1 |
+| IGIC (`taxRate`) | Bloque `taxes` del workflow: valor no vacío y numérico finito (~L1462–1465). Sin catálogo fijo de porcentajes en ese chequeo. | Input numérico; Zod `nonnegative`; `taxValidation` alinea guardado con IGIC+IRPF | «Topes» solo si negocio los impone fuera de `app.js` | — | Misma condición de bloqueo que legacy en cliente | **cerrado** | P1 |
 | IRPF / sin IRPF | Típicamente 15/19/21 o ninguno | Atajos + input; Zod solo `"" \| 15 \| 19 \| 21`; `taxValidation` bloquea guardado | Input libre puede dejar valores inválidos hasta blur | Mejor UX: solo select o sincronizar con atajos | No guardar con IRPF inválido | **cerrado** | P0 |
 | Totales | Mostrados y coherentes | `calculateTotals` + `TotalsSummary`; guardado exige coherencia | Ninguna obvia | — | E2E + manual | **cerrado** | P0 |
 
@@ -201,7 +202,7 @@
 
 1. Campos **contables extendidos** en Facturar: expuestos en «Más campos del documento» + mapper; obligatoriedad estricta solo con evidencia legacy/backend.  
 2. **`client.contactPerson`**: editable en Facturar (desplegable «Más datos del cliente»); E2E y round-trip cubiertos.
-3. **Catálogos** alineados con legacy: `paymentMethod`, tipo documento si hay más tipos, tipo NIF, obligatoriedad NIF/fecha vencimiento.  
+3. **Catálogos** alineados con legacy: `paymentMethod`, tipo NIF, obligatoriedad NIF/fecha vencimiento a nivel **API/plantilla** (en `app.js` solo `factura`|`presupuesto`; NIF y `dueDate` no bloquean el workflow cliente — ver doc de evidencia).  
 4. **Histórico**: límite 40 ítems; puede ser insuficiente vs legacy.  
 5. **PDF**: confirmar disponibilidad endpoint en todos los despliegues.
 

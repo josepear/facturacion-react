@@ -8,12 +8,14 @@ Tablero operativo para seguir el cierre de paridad contra `facturacion.pearandco
 - `[ ]` pendiente.
 - `(parcial)` hecho en parte, pero aún necesita checklist manual en legacy, reglas confirmadas o backend.
 
+**Parciales y código legacy:** lectura estática de `public/app.js` para cerrar dudas de UI (sin sustituir checklist en prod cuando afecte API/PDF): [`parity-partials-legacy-code-evidence.md`](./parity-partials-legacy-code-evidence.md).
+
 Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en:
 
-- [legacy-react-parity-audit.md](/Volumes/RAID/Repos/apps/facturacion/facturacion-react/docs/legacy-react-parity-audit.md)
-- [facturar-field-parity-matrix.md](/Volumes/RAID/Repos/apps/facturacion/facturacion-react/docs/facturar-field-parity-matrix.md)
-- [gastos-field-parity-matrix.md](/Volumes/RAID/Repos/apps/facturacion/facturacion-react/docs/gastos-field-parity-matrix.md)
-- [parity-anti-invent-candidates.md](/Volumes/RAID/Repos/apps/facturacion/facturacion-react/docs/parity-anti-invent-candidates.md) — tabla de candidatos «solo React» vs `public/` legacy
+- [legacy-react-parity-audit.md](./legacy-react-parity-audit.md)
+- [facturar-field-parity-matrix.md](./facturar-field-parity-matrix.md)
+- [gastos-field-parity-matrix.md](./gastos-field-parity-matrix.md)
+- [parity-anti-invent-candidates.md](./parity-anti-invent-candidates.md) — tabla de candidatos «solo React» vs `public/` legacy
 
 ---
 
@@ -24,9 +26,9 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] Flujo feliz de Facturar cerrado: crear -> guardar -> recargar -> editar -> HTML/PDF.
 - [x] Smoke E2E de Gastos contra backend real.
 - [x] **Identidad y permisos en React** vía `GET /api/session` (rol, `tenantId` de sesión). **`GET /api/config`** solo para datos de negocio compartidos (`templateProfiles`, `activeTemplateProfileId`, defaults, metadatos de runtime); la SPA no usa `currentUser` del JSON de config para rol ni tenant.
-- [x] Checklist manual sistemático contra legacy en producción para cerrar filas marcadas como parciales.
+- [ ] **Checklist manual sistemático** contra legacy en producción para cerrar filas marcadas como `(parcial)` (Facturar, Gastos, Clientes, etc.). **Guía de sesión (tabla + criterios):** [`parity-manual-prod-checklist.md`](./parity-manual-prod-checklist.md). Se va tachando fila a fila en las matrices y en este roadmap cuando haya evidencia (fecha o nota breve).
 - [x] **App React desplegada en producción** en `https://facturacion.pearandco.es/react/` servida por el mismo servidor Node legacy (`serveReactApp` en `server.mjs`, ruta pública `/react/*`). Deploy integrado en `deploy-to-macmini.sh --local`.
-- [x] **Gestión de miembros del sistema** en Configuración: lista de usuarios, crear, editar y borrar vía `GET/POST /api/users`.
+- `(parcial)` **Gestión de miembros del sistema** en Configuración: la SPA usa `GET/POST /api/users` y `POST /api/users/delete` ([`usersApi.ts`](../src/infrastructure/api/usersApi.ts)). Legacy no expone ese REST en `public/app.js`; los logins viven en `users[]` de `facturacion.config.json` y los emisores en perfiles plantilla (Personal). **Auditoría estática 2026-05-03:** en el `server.mjs` del monorepo no aparece el literal `/api/users` entre las rutas `/api/...` — confirmar en el servidor desplegado o completar backend antes de dar el ítem por cerrado al 100%.
 - [x] **Exportación y vista compartida en React:** uso de `POST /api/accounting/export`, `POST /api/control-workbook-export` y `POST /api/share-reports` según `server.mjs` (Gastos e Historial).
 
 ---
@@ -58,27 +60,30 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 
 ### Parcial
 
+Evidencia ya extraíble del monolito (`evaluateBillingWorkflow`, guardado gastos, tipos doc.): ver [`parity-partials-legacy-code-evidence.md`](./parity-partials-legacy-code-evidence.md). Varios ítems de «obligatoriedad en UI» pueden acotarse ahí; lo que dependa del POST o del PDF sigue aquí hasta prueba en prod.
+
 - [ ] (parcial) `applyTemplateProfile` alineado al 100% con defaults del legacy.
 - [ ] (parcial) Metadatos de perfil en solo lectura: confirmar si legacy muestra más contexto.
 - [ ] (parcial) `paymentMethod`: confirmar si debe ser catálogo cerrado.
-- [ ] (parcial) `series`: confirmar obligatoriedad/regla exacta.
+- [ ] (parcial) `series`: regla de **numeración / servidor** si difiere del checklist UI (en cliente legacy la serie **no** forma parte de `document.complete` en `evaluateBillingWorkflow`; ver doc de evidencia).
 - [ ] (parcial) `accounting.paymentDate`: expuesto y con round-trip, pero sin regla estricta confirmada.
 - [ ] (parcial) `accounting.quarter`: expuesto y persistente, pendiente validación de formato/regla.
 - [ ] (parcial) `accounting.invoiceId`: expuesto y persistente, pendiente validación de formato/regla.
 - [ ] (parcial) `accounting.netCollected`: expuesto y persistente, pendiente validación de negocio.
 - [ ] (parcial) `accounting.taxes`: expuesto y persistente, pendiente checklist legacy.
-- [ ] (parcial) `dueDate`: confirmar obligatoriedad real.
-- [ ] (parcial) `client.taxId`: confirmar obligatoriedad exacta.
+- [ ] (parcial) `dueDate`: confirmar si el **backend o la plantilla** exigen vencimiento en algún caso (en UI legacy no bloquea el paso «documento» antes del POST; ver doc de evidencia).
+- [ ] (parcial) `client.taxId`: confirmar validación en **API/PDF** si aplica (en checklist JS legacy antes de guardar solo se exige nombre de cliente; ver doc de evidencia).
 - [ ] (parcial) `client.taxCountryCode`: confirmar si debe ser lista/ISO cerrada.
 - [ ] (parcial) `client.taxIdType`: confirmar si debe ser catálogo.
 - [ ] (parcial) `totalsBasis`: confirmar etiquetas y reglas exactas frente a legacy.
-- [ ] (parcial) `taxRate`: confirmar topes/catálogo — presets IGIC añadidos (0 %, 3 %, 7 %, 15 %); valor libre sigue disponible.
+- [ ] (parcial) `taxRate`: confirmar **topes de negocio** si existen fuera del cliente (el workflow legacy exige IGIC numérico no vacío; presets 0/3/7/15 % en React; ver doc de evidencia).
 - [ ] (parcial) Preview local frente a HTML oficial/pixel-perfect.
 - [ ] (parcial) PDF oficial: confirmar disponibilidad estable en todos los entornos.
 
 ### Pendiente
 
 - [x] **Duplicar documento:** implementado en cliente (ver Hecho arriba).
+- [x] **Workflow de guardado vs `public/app.js`:** lectura de `evaluateBillingWorkflow` y `normalizeDocumentTypeValue` documentada en [`parity-partials-legacy-code-evidence.md`](./parity-partials-legacy-code-evidence.md) (tipos doc., impuestos, qué no bloquea el cliente legacy antes del POST).
 
 ---
 
@@ -178,7 +183,9 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 
 ### Parcial
 
-- [ ] (parcial) `vendor`: confirmar obligatoriedad real frente a legacy/backend.
+Evidencia de guardado en cliente (`public/app.js`): [`parity-partials-legacy-code-evidence.md`](./parity-partials-legacy-code-evidence.md).
+
+- [x] **`vendor` / `description` (UI):** el legacy exige al menos uno de los dos antes del POST (~L17042–17046); React ya alinea la regla OR.
 - [ ] (parcial) `category`: confirmar si debe ser lista cerrada.
 - [ ] (parcial) `invoiceNumberEnd`: confirmar formato/regla legacy.
 - [ ] (parcial) `operationDate`: visible, pero pendiente checklist de obligatoriedad/regla.
@@ -315,7 +322,7 @@ En React existe la ruta **`/datos`** con dashboard y tablas; el legacy añade su
 - [x] **(P1) Modo oscuro / night mode:** toggle luna/sol en sidebar y header móvil, persistido en `localStorage` ("facturacion-ui-theme"), clase `dark` en `<html>`, variables CSS `.dark` en `tokens.css`.
 - [x] **(P2) Modo sandbox:** toggle "Prueba ON/OFF" en sidebar, banner ámbar en main, `storageScope=sandbox` propagado a `saveDocument`, `next-number`, `document-number-availability`; persistido en `localStorage` (commit `4fa99d2`).
 - [x] **(P2) Página pública de informe compartido:** el servidor devuelve `shareViewUrl` apuntando a `/share-view.html?t=TOKEN` (página standalone del legacy); React solo genera el enlace y lo muestra en Historial para copiar. Ya funciona.
-- [x] **(P2) First-use wizard:** modal nativo de primera visita (localStorage `facturacion-wizard-seen`) con 3 pasos: bienvenida → configurar emisor → facturar (commit `63b4c34`).
+- [x] **(P2) First-use wizard:** modal nativo de primera visita con 3 pasos: bienvenida → configurar emisor → facturar (commit `63b4c34`). **localStorage:** al cerrar se escriben `facturacion-wizard-seen` y `facturacion-first-use-wizard-dismissed` (`"1"`), en línea con el wizard legacy (`public/app.js`); al comprobar si ya se vio, se acepta cualquiera de las dos claves.
 
 ---
 

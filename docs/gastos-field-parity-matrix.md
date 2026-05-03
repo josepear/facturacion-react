@@ -3,7 +3,8 @@
 **Referencia legacy:** `facturacion.pearandco.es` (no SaaS fallida).  
 **Referencia React:** `ExpensesPage.tsx` (`src/features/expenses/pages/ExpensesPage.tsx`), `ExpenseRecord` / `ExpenseOptions` (`src/domain/expenses/types.ts`), `expensesApi.ts` (`src/infrastructure/api/expensesApi.ts`), configuración compartida `GET /api/config` vía `fetchRuntimeConfig`.
 
-**Nota metodológica:** la columna «Legacy» describe el comportamiento esperable en producción; las filas con «validar en legacy» quedan en estado **parcial** hasta checklist manual.
+**Nota metodológica:** la columna «Legacy» describe el comportamiento esperable en producción; las filas con «validar en legacy» quedan en estado **parcial** hasta checklist manual.  
+**Código legacy en repo:** reglas de guardado en cliente en [`parity-partials-legacy-code-evidence.md`](./parity-partials-legacy-code-evidence.md).
 
 **Leyenda:** `cerrado` · `parcial` · `pendiente` — **Pri.** P0 / P1 / P2
 
@@ -13,7 +14,7 @@
 
 | Campo / bloque | Legacy (ref.; validar) | React actual | Brecha exacta | Implementación sugerida | Verificación | Estado | Pri. |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `vendor` | Típicamente obligatorio o fuerte convención operativa | Input + `datalist` alimentado por `expenseOptions.vendors` | Validación React: basta `vendor` **o** `description`; legacy puede exigir proveedor siempre | Alinear reglas con legacy / backend | Guardar mismos casos límite que prod | **parcial** | P1 |
+| `vendor` | Antes de `POST`, el legacy exige **`vendor` o `description`** (`public/app.js` ~L17042–17046). | Input + `datalist` alimentado por `expenseOptions.vendors` | Ninguna en validación cliente vs legacy | — | Mismo criterio OR que prod | **cerrado** | P1 |
 | `taxIdType` | Tipo de identificación fiscal del proveedor | Input en «Más campos del gasto» | «validar en legacy» catálogo/forma | — | Guardar/recargar conserva valor | **parcial** | P2 |
 | `taxCountryCode` | País fiscal del proveedor (código) | Input `maxLength=2` en «Más campos del gasto» | «validar en legacy» formato/obligatoriedad | — | Guardar/recargar conserva valor en mayúsculas | **parcial** | P2 |
 

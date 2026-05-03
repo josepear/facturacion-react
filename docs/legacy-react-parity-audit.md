@@ -11,6 +11,8 @@
 - Matriz Facturar (campos / bloques): `docs/facturar-field-parity-matrix.md`.
 - Matriz Gastos (campos / bloques): `docs/gastos-field-parity-matrix.md`.
 - Candidatos «solo React» vs legacy (anti-inventos): `docs/parity-anti-invent-candidates.md`.
+- Parciales con evidencia leída en `public/app.js`: `docs/parity-partials-legacy-code-evidence.md`.
+- Sesión manual en producción (tabla operativa): `docs/parity-manual-prod-checklist.md`.
 
 **Limitación explícita:** el detalle pixel-a-pixel y cada atajo de teclado del legacy no se inventan; donde el código React no expone una capacidad que el legacy suele tener en producción, la brecha se marca **pendiente** y la verificación exige **checklist manual en legacy**.
 
@@ -28,6 +30,7 @@
 - React ya cubre **cinco módulos** con datos reales: Facturar, Clientes, Historial, Gastos, Configuración (`src/app/router.tsx`).
 - La paridad **no** es solo pantalla: depende de que el navegador reciba **JSON** de `/api/*` (auth + proxy). **P0-1 (proxy):** cerrado en repo: `vite.config.ts` aplica el mismo proxy a `server` (dev) y `preview`; el fallo típico era `vite preview` sin proxy (HTML de SPA en `/api/*`). Ver README «API en desarrollo local».
 - **Identidad vs configuración de negocio:** la SPA usa **`GET /api/session`** (misma cabecera `Authorization`) para **rol** en UI (admin / solo lectura) y **`tenantId` de sesión** donde aplica. **`GET /api/config`** cubre **perfiles plantilla**, perfil activo, defaults y metadatos de runtime; en React **no** se usa `currentUser` del JSON de config para permisos ni tenant.
+- **Miembros del sistema (React) vs `users[]` (legacy):** la pantalla de Configuración en React consume **`/api/users`** (lista / alta-edición / borrado) según [`src/infrastructure/api/usersApi.ts`](../src/infrastructure/api/usersApi.ts). El monolito legacy no tiene ese REST en `public/app.js`; los usuarios con contraseña viven en **`users[]` dentro de `facturacion.config.json`** y se enlazan con perfiles plantilla (véase `app/controllers/authController.mjs`). Una auditoría por literales en `server.mjs` del monorepo (2026-05-03) no listó `/api/users` entre las rutas `/api/...` — tratar la paridad de este bloque como **hasta confirmar en el servidor desplegado** (ver [`parity-anti-invent-candidates.md`](./parity-anti-invent-candidates.md) § Miembros del sistema).
 - **Gastos** y **Historial** declaran explícitamente límites de papelera (restauración no soportada por contrato actual en UI).
 - **Facturar — P0-2 (flujo diario):** el camino acordado *crear → guardar → recargar → editar → salida HTML/PDF* está cubierto por E2E y por el modelo actual; la **paridad campo a campo** frente al legacy está desglosada en `docs/facturar-field-parity-matrix.md` (estado global de esa matriz: **parcial**, pendiente validación manual en prod en filas marcadas).
 - **Facturar — brechas P1 destacadas (desde la matriz):** campos `accounting.*` con paridad aún parcial (p. ej. `paymentDate`, `quarter`, `invoiceId` y `netCollected` expuestos con round-trip pero sin regla estricta/formato/cálculo confirmados), catálogos texto libre vs legacy, histórico reciente capado a 40, comprobación PDF por entorno.

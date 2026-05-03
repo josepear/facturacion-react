@@ -1,11 +1,10 @@
 import { test as setup, expect, type Page } from "@playwright/test";
 
+import { FIRST_USE_WIZARD_STORAGE_KEYS } from "../src/infrastructure/wizardFirstUseStorage";
 import { fetchBearerToken } from "./bearer";
 import { readBearerFile, USER_STORAGE_PATH, writeBearerFile } from "./authStorage";
 
 const AUTH_TOKEN_KEY = "facturacion-auth-token";
-/** Misma clave que `AppShell`: sin esto el diálogo de bienvenida bloquea clics en toda la app (Gastos, Facturar…). */
-const WIZARD_SEEN_KEY = "facturacion-wizard-seen";
 
 setup.setTimeout(60000);
 
@@ -38,11 +37,17 @@ setup("login and save storage state", async ({ page }) => {
   writeBearerFile(resolvedToken);
 
   await page.context().addInitScript(
-    ([tokenKey, token, wizardKey]) => {
+    ([tokenKey, token, reactWizardKey, legacyWizardKey]) => {
       localStorage.setItem(tokenKey, token);
-      localStorage.setItem(wizardKey, "1");
+      localStorage.setItem(reactWizardKey, "1");
+      localStorage.setItem(legacyWizardKey, "1");
     },
-    [AUTH_TOKEN_KEY, resolvedToken, WIZARD_SEEN_KEY] as [string, string, string],
+    [
+      AUTH_TOKEN_KEY,
+      resolvedToken,
+      FIRST_USE_WIZARD_STORAGE_KEYS.react,
+      FIRST_USE_WIZARD_STORAGE_KEYS.legacy,
+    ] as [string, string, string, string],
   );
 
   await openFacturarWithRetry(page);

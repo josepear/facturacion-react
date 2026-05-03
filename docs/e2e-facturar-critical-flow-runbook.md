@@ -142,11 +142,11 @@ Target page, context or browser has been closed
 
 Causa:
 
-Con sesión válida, `AppShell` abre un **modal de bienvenida** si `localStorage.getItem("facturacion-wizard-seen") !== "1"`. El `<dialog>` tiene `z-[60]` y tapa toda la app: los tests hacen clic en botones de `main` pero los eventos los intercepta el diálogo.
+Con sesión válida, `AppShell` abre un **modal de bienvenida** si el usuario no ha descartado el wizard: ni `localStorage.getItem("facturacion-wizard-seen") === "1"` ni `localStorage.getItem("facturacion-first-use-wizard-dismissed") === "1"` (esta segunda clave es la del monolito legacy en `public/app.js`). El `<dialog>` tiene `z-[60]` y tapa toda la app: los tests hacen clic en botones de `main` pero los eventos los intercepta el diálogo.
 
 Decisión:
 
-En **`e2e/auth.setup.ts`**, el `addInitScript` que inyecta el token debe también hacer `localStorage.setItem("facturacion-wizard-seen", "1")` **antes** del primer `goto`, para que el `storageState` guardado ya lleve el wizard desactivado en todos los tests que dependen del setup.
+En **`e2e/auth.setup.ts`**, el `addInitScript` que inyecta el token debe también fijar **ambas** claves de wizard (`facturacion-wizard-seen` y `facturacion-first-use-wizard-dismissed`, valor `"1"`) **antes** del primer `goto`, para que el `storageState` guardado ya lleve el wizard desactivado en todos los tests que dependen del setup (misma lógica que `markFirstUseWizardDismissed` en la app).
 
 Si un entorno reutiliza un `e2e/.auth/user.json` antiguo sin esa clave, borrar `e2e/.auth/` y volver a ejecutar el proyecto `setup`.
 
@@ -450,7 +450,7 @@ Confirmar:
 
 ### Si un `<dialog>` bloquea clics (timeout en Gastos o Facturar)
 
-Ver sección **«0. El diálogo de bienvenida»** arriba. Comprobar en captura o vídeo que el modal de bienvenida está abierto; revisar que `auth.setup.ts` fija `facturacion-wizard-seen` y que no se reutiliza un `storageState` obsoleto.
+Ver sección **«0. El diálogo de bienvenida»** arriba. Comprobar en captura o vídeo que el modal de bienvenida está abierto; revisar que `auth.setup.ts` fija las dos claves de wizard y que no se reutiliza un `storageState` obsoleto.
 
 ## Principios que no deben romperse
 
