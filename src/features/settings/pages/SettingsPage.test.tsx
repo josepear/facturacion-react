@@ -70,6 +70,34 @@ vi.mock("@/infrastructure/api/sessionApi", () => ({
   fetchSession: fetchSessionMock,
 }));
 
+vi.mock("@/infrastructure/api/expensesApi", () => ({
+  fetchExpenseOptions: vi.fn().mockResolvedValue({ vendors: [], categories: [] }),
+  saveExpenseOptions: vi.fn().mockResolvedValue({ vendors: [], categories: [] }),
+}));
+
+vi.mock("@/infrastructure/api/usersApi", () => ({
+  fetchSystemUsers: vi.fn().mockResolvedValue({ items: [] }),
+  upsertSystemUser: vi.fn().mockResolvedValue({
+    id: "u1",
+    name: "Admin",
+    email: "admin@test",
+    role: "admin",
+    tenantId: "default",
+    allowedTemplateProfileIds: [],
+  }),
+  deleteSystemUser: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/infrastructure/api/trashApi", () => ({
+  fetchTrash: vi.fn().mockResolvedValue({
+    items: [],
+    groups: [],
+    summary: { total: 0, totalGroups: 0, byCategory: {}, byFileType: {} },
+  }),
+  emptyTrash: vi.fn().mockResolvedValue(undefined),
+  deleteTrashEntries: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/features/shared/hooks/useSessionQuery", () => ({
   SESSION_QUERY_KEY: ["session"],
   useSessionQuery: () => useSessionQueryMock(),
