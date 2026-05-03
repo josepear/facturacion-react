@@ -88,3 +88,7 @@ export async function checkDocumentNumberAvailability(
 export async function fetchNextcloudFolder(recordId: string): Promise<{ url: string }> {
   return request<{ url: string }>(`/api/nextcloud-folder?recordId=${encodeURIComponent(recordId)}`, { method: "GET" });
 }
+
+export async function fetchFontsCatalog(): Promise<{ families: string[] }> {
+  return request<{ families: string[] }>("/api/fonts/catalog");
+}

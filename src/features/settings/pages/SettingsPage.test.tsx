@@ -63,6 +63,7 @@ vi.mock("react-router-dom", async () => {
 
 vi.mock("@/infrastructure/api/documentsApi", () => ({
   fetchRuntimeConfig: fetchRuntimeConfigMock,
+  fetchFontsCatalog: vi.fn().mockResolvedValue({ families: [] }),
   saveTemplateProfilesConfig: saveTemplateProfilesConfigMock,
 }));
 

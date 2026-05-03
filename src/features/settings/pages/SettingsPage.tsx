@@ -9,7 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import type { TemplateProfileConfig } from "@/domain/document/types";
 import { fetchExpenseOptions, saveExpenseOptions } from "@/infrastructure/api/expensesApi";
-import { fetchRuntimeConfig, propagateTemplateProfile, saveTemplateProfilesConfig } from "@/infrastructure/api/documentsApi";
+import {
+  fetchFontsCatalog,
+  fetchRuntimeConfig,
+  propagateTemplateProfile,
+  saveTemplateProfilesConfig,
+} from "@/infrastructure/api/documentsApi";
 import { fetchGmailOAuthStartUrl, fetchGmailProfiles, type GmailProfileItem } from "@/infrastructure/api/gmailApi";
 import { ApiError, getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { deleteTrashEntries, emptyTrash, fetchTrash, type TrashItem } from "@/infrastructure/api/trashApi";
@@ -733,6 +738,7 @@ type ProfileDraft = {
   bankAccount: string;
   bankBrand: string;
   layout: string;
+  fontFamily: string;
   brand: string;
   contactName: string;
   headline: string;
@@ -760,6 +766,7 @@ function toProfileDraft(profile: TemplateProfileConfig | null): ProfileDraft {
     bankAccount: String(profile?.business?.bankAccount || "").trim(),
     bankBrand: String(profile?.business?.bankBrand || "").trim(),
     layout: String(profile?.design?.layout || "").trim(),
+    fontFamily: String(profile?.design?.fontFamily || "").trim(),
     brand: String(profile?.business?.brand || "").trim(),
     contactName: String(profile?.business?.contactName || "").trim(),
     headline: String(profile?.business?.headline || "").trim(),
@@ -828,10 +835,19 @@ function mergeProfileWithDraft(profile: TemplateProfileConfig, draft: ProfileDra
       brandImage: draft.brandImage.trim() || undefined,
       signatureImage: draft.signatureImage.trim() || undefined,
     },
-    design: {
-      ...(profile.design || {}),
-      layout: draft.layout.trim() || profile.design?.layout,
-    },
+    design: (() => {
+      const next: NonNullable<TemplateProfileConfig["design"]> = {
+        ...(profile.design || {}),
+        layout: draft.layout.trim() || profile.design?.layout,
+      };
+      const ff = String(draft.fontFamily ?? "").trim();
+      if (ff) {
+        next.fontFamily = ff;
+      } else {
+        delete next.fontFamily;
+      }
+      return next;
+    })(),
   };
 }
 
@@ -843,6 +859,12 @@ export function SettingsPage() {
     queryKey: ["runtime-config"],
     queryFn: fetchRuntimeConfig,
   });
+  const fontsCatalogQuery = useQuery({
+    queryKey: ["fonts-catalog"],
+    queryFn: fetchFontsCatalog,
+    staleTime: 3_600_000,
+  });
+  const fontFamilies: string[] = fontsCatalogQuery.data?.families ?? [];
   const sessionQuery = useSessionQuery();
   const [activeProfileIdDraft, setActiveProfileIdDraft] = useState("");
   const [editingProfileId, setEditingProfileId] = useState("");
@@ -1462,6 +1484,21 @@ export function SettingsPage() {
                           {PROFILE_COLOR_KEYS.map((key) => (
                             <option key={key} value={key}>
                               {PROFILE_COLOR_LABELS[key]}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Field label="Fuente del documento">
+                        <select
+                          value={String(editingDraft.fontFamily ?? "")}
+                          onChange={(event) => updateDraft({ fontFamily: event.target.value })}
+                          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                          disabled={!canEdit}
+                        >
+                          <option value="">— Por defecto —</option>
+                          {fontFamilies.map((f) => (
+                            <option key={f} value={f}>
+                              {f}
                             </option>
                           ))}
                         </select>

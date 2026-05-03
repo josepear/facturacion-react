@@ -101,6 +101,7 @@ export type TemplateProfileConfig = {
   };
   design?: {
     layout?: string;
+    fontFamily?: string;
   };
 };
 
