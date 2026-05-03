@@ -19,6 +19,10 @@ import {
 import { fetchGmailOAuthStartUrl, fetchGmailStatus, sendGmailInvoice } from "@/infrastructure/api/gmailApi";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
+/** Badge de valor en módulo Emisor (misma estética que estado «Completo», solo lectura). */
+const facturarIssuerValueBadgeClass =
+  "inline-flex h-5 max-h-[1.25rem] min-h-[1.25rem] items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0 text-xs font-medium leading-none text-emerald-700";
+
 export function FacturarPage() {
   const [searchParams] = useSearchParams();
   const initialRecordId = String(searchParams.get("recordId") || "").trim();
@@ -80,6 +84,8 @@ export function FacturarPage() {
   const taxRateWatched = watch("taxRate");
   const withholdingRateWatched = watch("withholdingRate");
   const templateProfileIdWatched = watch("templateProfileId");
+  const paymentMethodWatched = watch("paymentMethod");
+  const bankAccountWatched = watch("bankAccount");
   const templateProfileIdForGmail = String(templateProfileIdWatched || "").trim();
   const numberWatched = watch("number");
   const [debouncedNumber, setDebouncedNumber] = useState(numberWatched);
@@ -283,18 +289,24 @@ export function FacturarPage() {
                 </select>
               </Field>
               <Field label="Forma de pago">
-                <Input placeholder="Transferencia" list="facturar-payment-methods" {...register("paymentMethod")} />
-                <datalist id="facturar-payment-methods">
-                  <option value="Transferencia bancaria" />
-                  <option value="Tarjeta de crédito" />
-                  <option value="Tarjeta de débito" />
-                  <option value="Domiciliación bancaria" />
-                  <option value="Efectivo" />
-                  <option value="PayPal" />
-                </datalist>
+                <span
+                  className={facturarIssuerValueBadgeClass}
+                  style={{ lineHeight: 0 }}
+                  aria-label={`Forma de pago: ${String(paymentMethodWatched || "").trim() || "sin definir"}`}
+                >
+                  {String(paymentMethodWatched || "").trim() || "—"}
+                </span>
+                <input type="hidden" {...register("paymentMethod")} />
               </Field>
               <Field label="Cuenta bancaria">
-                <Input placeholder="ES..." {...register("bankAccount")} />
+                <span
+                  className={facturarIssuerValueBadgeClass}
+                  style={{ lineHeight: 0 }}
+                  aria-label={`Cuenta bancaria: ${String(bankAccountWatched || "").trim() || "sin definir"}`}
+                >
+                  {String(bankAccountWatched || "").trim() || "—"}
+                </span>
+                <input type="hidden" {...register("bankAccount")} />
               </Field>
             </div>
             <p className="text-sm text-muted-foreground">

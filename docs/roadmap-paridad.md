@@ -258,14 +258,15 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [x] **(P1) Enviar factura por Gmail desde Facturar:** botón "Enviar por Gmail" (visible si `gmailConfigured && gmailConnected`) con dialog de revisión (email destino + mensaje opcional); "Conectar Gmail" si configurado pero no conectado. Solo cuando hay `serverRecordId`.
 - [x] **(P1) Enviar factura por Gmail desde Historial:** botón en panel de detalle (documento seleccionado); email pre-rellenado desde `openedDocument.client.email`; mismo patrón de dialog que Facturar.
 - [x] **(P2) Configurar Gmail OAuth en Configuración:** sección "Integración Gmail" en SettingsPage (admin) con estado por perfil y botones Conectar/Reconectar vía OAuth (commit `ea53673`).
+- [x] **(P1) Gmail masivo desde Historial:** selección múltiple (facturas visibles, máx. 20, mismo `templateProfileId`), `sendGmailInvoiceBatch` → `POST /api/gmail/send-invoice` con `recordIds` (commit `e19cc70`).
 
 ### Integraciones Nextcloud — sección nueva
 
 - [x] **(P2) Ir a carpeta Nextcloud desde Facturar:** enlace "Ir a carpeta Nextcloud" visible post-guardado si el servidor tiene `nextcloudWebBaseUrl` configurado; llama a `GET /api/nextcloud-folder?recordId=...` (commit `393a383`).
 
-### Importación histórica — sección nueva (completamente ausente)
+### Importación histórica — sección nueva
 
-- [ ] **(P2) Importación histórica de documentos:** flujo completo con `POST /api/historical-import/scan`, `/upload`, `/pdf-upload`, `/run`, `/pdf-run`. Modal de revisión con selección de perfil y año. No existe en React.
+- [x] **(P2) Importación histórica de documentos:** mismas rutas que el servidor: `POST /api/historical-import/scan`, `/upload`, `/pdf-upload`, `/run`, `/pdf-run`. En React, tarjeta admin **«Importación histórica»** en **`/datos`** (`DataHistoricalImportPanel.tsx` + `historicalImportApi.ts`): escaneo carpeta servidor + Excel + **PDF** (subida → tabla previa/avisos → edición mínima → `reviewRows` opcional → importar facturas). Equivale al legado **Datos → Importar → importación histórica** (importador PDF con parse del servidor); no hay sub-rutas anidadas, todo en un panel.
 
 ### Configuración / Diseño — pendiente
 
@@ -275,12 +276,13 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 
 ### Tab "Datos" — paridad con legacy (`tab-panel-control`) (P1)
 
-En React existe la ruta **`/datos`** con dashboard y tablas; el legacy añade sub-paneles extra (columnas Celia configurables, importación histórica, Gmail masivo, etc.) que siguen pendientes abajo.
+En React existe la ruta **`/datos`** con dashboard y tablas; el legacy añade sub-paneles extra (p. ej. columnas Celia configurables) que pueden seguir pendientes o parciales. **Importación histórica** (incl. PDF → facturas) está en la misma página, solo admin. El envío Gmail masivo está cubierto en **Historial** (no hace falta duplicarlo en `/datos` salvo que quieras el mismo atajo allí).
 
 - [x] **(P1) Dashboard financiero:** página `/datos` con tarjetas Facturado / Gastos / Resultado, filtros año y perfil, tablas separadas de facturas y gastos, stats calculadas en cliente (commit `cc04e61`).
 - [x] **(P1) Tabla unificada facturas + gastos** con filtros combinados (perfil, año) en la página `/datos` (commit `cc04e61`).
 - [x] **(P1) Botón "Vista compartida / Asesor"** en página `/datos` vía `postShareReport` (mismo contrato que Historial) (commit `cc04e61`).
 - [x] **(P1) Sub-panel "Celia: Excel"** en página `/datos` — botón "Exportar Excel Celia" admin con `runAccountingExportDownload` (commit `cc04e61`).
+- [x] **(P2) Sub-panel «Importación histórica»** en página `/datos` (admin): escaneo `historico/<tenant>`, subida Excel/PDF, import vía `/api/historical-import/*` (paridad con legado Datos → Importar → importación histórica).
 
 ### Gastos — botones inline al catálogo (P1)
 

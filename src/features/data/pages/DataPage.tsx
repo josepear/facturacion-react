@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
+import { DataHistoricalImportPanel } from "@/features/data/components/DataHistoricalImportPanel";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
 import { postShareReport, runAccountingExportDownload } from "@/infrastructure/api/exportReportsApi";
@@ -264,70 +265,75 @@ export function DataPage() {
       </Card>
 
       {isAdmin ? (
-        <Card>
-          <CardContent className="grid gap-4 pt-6">
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={accountingExportMutation.isPending}
-                onClick={() => accountingExportMutation.mutate()}
-              >
-                {accountingExportMutation.isPending ? "Exportando…" : "Exportar Excel Celia"}
-              </Button>
-            </div>
-            {accountingExportMutation.isError ? (
-              <p className="text-sm text-red-600">{getErrorMessageFromUnknown(accountingExportMutation.error)}</p>
-            ) : null}
-            <div className="grid gap-2 rounded-md border p-3">
-              <p className="text-xs font-medium text-muted-foreground">Vista compartida (solo lectura)</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={shareProfileId}
-                  onChange={(e) => setShareProfileId(e.target.value)}
-                  aria-label="Perfil para enlace compartido"
-                >
-                  <option value="">Elige perfil…</option>
-                  {profileOptions.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label || p.id}
-                    </option>
-                  ))}
-                </select>
+        <>
+          <Card>
+            <CardContent className="grid gap-4 pt-6">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={shareReportMutation.isPending || !profileOptions.length}
-                  onClick={() => shareReportMutation.mutate()}
+                  disabled={accountingExportMutation.isPending}
+                  onClick={() => accountingExportMutation.mutate()}
                 >
-                  {shareReportMutation.isPending ? "Generando…" : "Generar enlace compartido"}
+                  {accountingExportMutation.isPending ? "Exportando…" : "Exportar Excel Celia"}
                 </Button>
               </div>
-              {shareUrl ? (
-                <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                  <Input readOnly value={shareUrl} aria-label="URL de vista compartida" />
-                  <Button type="button" variant="outline" onClick={() => void copyShareUrl()}>
-                    Copiar
+              {accountingExportMutation.isError ? (
+                <p className="text-sm text-red-600">{getErrorMessageFromUnknown(accountingExportMutation.error)}</p>
+              ) : null}
+              <div className="grid gap-2 rounded-md border p-3">
+                <p className="text-xs font-medium text-muted-foreground">Vista compartida (solo lectura)</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={shareProfileId}
+                    onChange={(e) => setShareProfileId(e.target.value)}
+                    aria-label="Perfil para enlace compartido"
+                  >
+                    <option value="">Elige perfil…</option>
+                    {profileOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label || p.id}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={shareReportMutation.isPending || !profileOptions.length}
+                    onClick={() => shareReportMutation.mutate()}
+                  >
+                    {shareReportMutation.isPending ? "Generando…" : "Generar enlace compartido"}
                   </Button>
                 </div>
-              ) : null}
-              {shareMessage ? (
-                <p
-                  className={`text-xs ${
-                    shareMessage.tone === "error"
-                      ? "text-red-600"
-                      : shareMessage.tone === "success"
-                        ? "text-emerald-600"
-                        : "text-muted-foreground"
-                  }`}
-                >
-                  {shareMessage.text}
-                </p>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
+                {shareUrl ? (
+                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                    <Input readOnly value={shareUrl} aria-label="URL de vista compartida" />
+                    <Button type="button" variant="outline" onClick={() => void copyShareUrl()}>
+                      Copiar
+                    </Button>
+                  </div>
+                ) : null}
+                {shareMessage ? (
+                  <p
+                    className={`text-xs ${
+                      shareMessage.tone === "error"
+                        ? "text-red-600"
+                        : shareMessage.tone === "success"
+                          ? "text-emerald-600"
+                          : "text-muted-foreground"
+                    }`}
+                  >
+                    {shareMessage.text}
+                  </p>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+          <DataHistoricalImportPanel
+            templateProfiles={profileOptions.map((p) => ({ id: p.id, label: p.label ?? undefined }))}
+          />
+        </>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-2">

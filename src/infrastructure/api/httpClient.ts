@@ -74,6 +74,10 @@ export function getErrorMessageFromUnknown(error: unknown): string {
       if (fromDetail) {
         return fromDetail;
       }
+      const fromErrorField = typeof rec.error === "string" ? rec.error.trim() : "";
+      if (fromErrorField) {
+        return fromErrorField;
+      }
     }
     const base = String(error.message || "").trim();
     if (base) {
