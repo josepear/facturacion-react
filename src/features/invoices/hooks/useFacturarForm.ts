@@ -400,6 +400,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       if (!draft.templateProfileId) {
         throw new Error("Selecciona perfil antes de pedir el número.");
       }
+      const profileMeta = (configQuery.data?.templateProfiles ?? []).find((p) => p.id === draft.templateProfileId);
+      const invoiceNumberTag = String(profileMeta?.invoiceNumberTag || "").trim() || undefined;
       const number = await getNextNumber({
         type: draft.type,
         issueDate: draft.issueDate,
@@ -407,6 +409,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         templateProfileId: draft.templateProfileId,
         recordId: serverRecordId || undefined,
         storageScope: readStorageScopeForNumbering(),
+        invoiceNumberTag,
       });
       form.setValue("number", number, { shouldDirty: true, shouldValidate: true });
       return number;
@@ -423,6 +426,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       if (!draft.templateProfileId) {
         throw new Error("Selecciona perfil para validar número.");
       }
+      const profileMeta = (configQuery.data?.templateProfiles ?? []).find((p) => p.id === draft.templateProfileId);
+      const invoiceNumberTag = String(profileMeta?.invoiceNumberTag || "").trim() || undefined;
       const payload = await validateNumberAvailability({
         number: draft.number,
         type: draft.type,
@@ -431,6 +436,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         templateProfileId: draft.templateProfileId,
         recordId: serverRecordId || undefined,
         storageScope: readStorageScopeForNumbering(),
+        invoiceNumberTag,
       });
       return payload;
     },

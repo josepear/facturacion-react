@@ -7,6 +7,7 @@ type NextNumberParams = {
   templateProfileId: string;
   recordId?: string;
   storageScope?: string;
+  invoiceNumberTag?: string;
 };
 
 export type NumberAvailabilityResponse = {
@@ -25,6 +26,10 @@ export async function fetchNextNumber(params: NextNumberParams) {
   });
   if (params.storageScope === "sandbox") {
     query.set("storageScope", "sandbox");
+  }
+  const tag = String(params.invoiceNumberTag || "").trim();
+  if (tag) {
+    query.set("invoiceNumberTag", tag);
   }
 
   return request<{ number: string }>(`/api/next-number?${query.toString()}`);

@@ -10,6 +10,12 @@ const PROFILE_BADGE_PALETTE: Record<string, { backgroundColor: string; color: st
 
 const TEAL = PROFILE_BADGE_PALETTE.teal;
 
+/** Color de acento (texto del badge) para franjas / previews alineadas con legacy. */
+export function getProfileAccentColor(colorKey?: string): string {
+  const key = String(colorKey ?? "").trim().toLowerCase();
+  return (PROFILE_BADGE_PALETTE[key] ?? TEAL).color;
+}
+
 export function ProfileBadge({ label, colorKey }: { label: string; colorKey?: string }) {
   const key = String(colorKey ?? "").trim().toLowerCase();
   const palette = PROFILE_BADGE_PALETTE[key] ?? TEAL;

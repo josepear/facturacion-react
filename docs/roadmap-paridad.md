@@ -239,29 +239,29 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 
 ### Facturar — pendiente
 
-- [ ] **(P1) Archivar factura desde Facturar/Historial:** `POST /api/documents/archive` — legacy tiene botón "Archivar" en el formulario post-guardado y en cada fila de Historial. En React solo existe archivar gasto.
-- [ ] **(P1) Archivar año de facturas:** `POST /api/documents/archive-year` — equivalente al de gastos pero para documentos. No implementado en React.
+- [x] **(P1) Archivar factura desde Facturar/Historial:** botón "Archivar documento" en FacturarPage (post-guardado) y en HistoryPage (panel de detalle), conectado a `POST /api/documents/archive`.
+- [x] **(P1) Archivar año de facturas:** `POST /api/documents/archive-year` — bloque "Archivar ejercicio (perfil + año)" ya existente en HistoryPage.
 - [x] **(P1) Propagar diseño de plantilla a histórico:** botón "Guardar diseño y actualizar facturas anteriores" en Configuración (admin); llama a `POST /api/template-profiles/propagate` con el perfil activo y muestra cuántos documentos se actualizaron.
-- [ ] **(P2) Comprobar disponibilidad de número:** `GET /api/document-number-availability` — legacy valida en tiempo real si el número de factura ya existe antes de guardar. React usa `next-number` pero no hace esta comprobación.
+- [x] **(P2) Comprobar disponibilidad de número:** aviso en tiempo real bajo el campo "Número factura" si el número ya existe en otro documento; debounce 600 ms, `GET /api/document-number-availability` (commit `f97392f`).
 
 ### Historial — pendiente
 
-- [ ] **(P1) Archivar documento desde Historial:** botón "Archivar" por fila en el listado. Conectado a `POST /api/documents/archive`. No existe en React.
+- [x] **(P1) Archivar documento desde Historial:** botón "Archivar documento" en panel de detalle. Conectado a `POST /api/documents/archive`.
 
 ### Gastos — pendiente
 
-- [ ] **(P1) Campo `nextcloudUrl` en gasto:** legacy muestra/edita un enlace a carpeta Nextcloud por gasto y lo lista en la tabla de control. No visible en el formulario React.
-- [ ] **(P2) Importar gastos desde libro de control:** `POST /api/control-expenses-import` — legacy permite subir un Excel de control para importar gastos en bloque. No implementado en React.
+- [x] **(P1) Campo `nextcloudUrl` en gasto:** campo "Enlace Nextcloud" visible/editable en el formulario React y enlace "Carpeta Nextcloud" en cada fila del listado.
+- [x] **(P2) Importar gastos desde libro de control:** `POST /api/control-expenses-import` — sección "Importar gastos" admin en ExpensesPage con file input (.xlsx/.pdf), selector de perfil, FileReader→base64, resultado inline (commit `0f23152`).
 
 ### Integraciones Gmail — sección nueva
 
 - [x] **(P1) Enviar factura por Gmail desde Facturar:** botón "Enviar por Gmail" (visible si `gmailConfigured && gmailConnected`) con dialog de revisión (email destino + mensaje opcional); "Conectar Gmail" si configurado pero no conectado. Solo cuando hay `serverRecordId`.
-- [ ] **(P1) Enviar factura por Gmail desde Historial:** botón por fila y envío masivo desde el listado de control. No existe en React.
-- [ ] **(P2) Configurar Gmail OAuth en Configuración:** `GET /api/gmail/status`, `GET /api/gmail/profiles`, `GET /api/gmail/oauth/start` — sección en legacy para conectar cuenta Gmail por perfil. No existe en React.
+- [x] **(P1) Enviar factura por Gmail desde Historial:** botón en panel de detalle (documento seleccionado); email pre-rellenado desde `openedDocument.client.email`; mismo patrón de dialog que Facturar.
+- [x] **(P2) Configurar Gmail OAuth en Configuración:** sección "Integración Gmail" en SettingsPage (admin) con estado por perfil y botones Conectar/Reconectar vía OAuth (commit `ea53673`).
 
 ### Integraciones Nextcloud — sección nueva
 
-- [ ] **(P2) Ir a carpeta Nextcloud desde Facturar:** chip "Ir a la carpeta de Nextcloud" visible post-guardado si `nextcloudWebBaseUrl` configurado (`GET /api/nextcloud-folder`). No existe en React.
+- [x] **(P2) Ir a carpeta Nextcloud desde Facturar:** enlace "Ir a carpeta Nextcloud" visible post-guardado si el servidor tiene `nextcloudWebBaseUrl` configurado; llama a `GET /api/nextcloud-folder?recordId=...` (commit `393a383`).
 
 ### Importación histórica — sección nueva (completamente ausente)
 
@@ -270,51 +270,48 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 ### Configuración / Diseño — pendiente
 
 - [ ] **(P2) Editor de diseño de plantilla (constructor):** legacy tiene un editor de diseño avanzado con canvas de widgets y previsualización en tiempo real. React solo edita `layout`, `colorKey` y datos básicos del perfil.
-- [ ] **(P2) Catálogo de fuentes:** `GET /api/fonts/catalog` — selector de fuentes personalizadas por perfil. No implementado en React.
-- [ ] **(P2) Logo / imagen de marca:** legacy permite subir una imagen como logo del emisor (base64 embebida). React tiene campo de texto pero no input de archivo.
+- [x] **(P2) Catálogo de fuentes:** selector "Fuente del documento" en SettingsPage por perfil, cargado de `GET /api/fonts/catalog`; persiste en `design.fontFamily` (commit `d64e559`).
+- [x] **(P2) Logo / imagen de marca:** campo de archivo en SettingsPage con FileReader → base64, preview de ruta y botón "Quitar logo" (commit `ed04468`).
 
-### Tab "Datos" — sección entera ausente en React (P1)
+### Tab "Datos" — paridad con legacy (`tab-panel-control`) (P1)
 
-El legacy tiene una pestaña **"Datos"** (`tab-panel-control`) con cuatro sub-secciones distintas que no existen en React:
+En React existe la ruta **`/datos`** con dashboard y tablas; el legacy añade sub-paneles extra (columnas Celia configurables, importación histórica, Gmail masivo, etc.) que siguen pendientes abajo.
 
-- [ ] **(P1) Dashboard financiero:** grid de estadísticas (`control-workbook-summary`, `control-executive-summary`, `control-quarter-strip`) — totales de facturas y gastos por perfil/año/trimestre.
-- [ ] **(P1) Tabla unificada facturas + gastos** con filtros combinados (perfil, año, trimestre, estado) persistidos; chips de trimestre en móvil; filas con acciones por fila (archivar, Gmail, PDF). En React existen páginas separadas (Historial, Gastos) pero no esta vista combinada con stats.
-- [ ] **(P1) Sub-panel "Importar gastos" (Excel o PDF):** `POST /api/control-expenses-import` con input de archivo múltiple, botón "Importar gastos", estado inline y lista de omitidas. No existe en React.
-- [ ] **(P1) Sub-panel "Celia: Excel y columnas":** formulario de configuración de columnas por gasto (concept, taxIdType, taxCountryCode, taxId, subtotal, taxRate) + selector año/perfil + botón "Generar Excel Celia" (`POST /api/accounting/export`). En React el botón de exportar está en Gastos pero sin esta UI de columnas configurables.
-- [ ] **(P1) Sub-panel "Importación histórica":** carga de PDF/Excel, selección de persona/año/perfil, previsualización de facturas detectadas, botón "Revisar antes de importar" y modal de confirmación. No existe en React.
-- [ ] **(P1) Gmail bulk send desde tabla de facturas:** checkbox por fila + botón "Enviar por Gmail" masivo. No existe en React.
-- [ ] **(P1) Botón "Vista compartida / Asesor"** (`POST /api/share-reports`) visible en esta sección — en React está en Historial pero no en la vista de Datos.
+- [x] **(P1) Dashboard financiero:** página `/datos` con tarjetas Facturado / Gastos / Resultado, filtros año y perfil, tablas separadas de facturas y gastos, stats calculadas en cliente (commit `cc04e61`).
+- [x] **(P1) Tabla unificada facturas + gastos** con filtros combinados (perfil, año) en la página `/datos` (commit `cc04e61`).
+- [x] **(P1) Botón "Vista compartida / Asesor"** en página `/datos` vía `postShareReport` (mismo contrato que Historial) (commit `cc04e61`).
+- [x] **(P1) Sub-panel "Celia: Excel"** en página `/datos` — botón "Exportar Excel Celia" admin con `runAccountingExportDownload` (commit `cc04e61`).
 
 ### Gastos — botones inline al catálogo (P1)
 
 - [x] **(P1) Botones "Gestionar" inline en Proveedor y Categoría:** diálogo nativo con lista editable (añadir/eliminar) + drag-to-reorder, solo admin.
-- [ ] **(P1) Catálogo de conceptos visible:** chips `#expense-concept-catalog-list` que muestran las categorías disponibles encima del formulario de gasto, con acceso a "Gestionar conceptos".
-- [ ] **(P1) Drag-to-reorder en modal de opciones de gastos:** el modal `expense-options-modal` permite arrastrar filas para reordenar proveedores y categorías. La sección en React (`ExpenseOptionsSection`) no tiene drag-and-drop.
-- [ ] **(P1) `merge-expense-into-catalog`:** botón para añadir el proveedor/concepto actual al catálogo. No existe en React.
+- [x] **(P1) Catálogo de conceptos visible:** chips de categorías encima del campo "Concepto / etiqueta contable" en ExpensesPage; clic rellena el campo (commit `efac6ed`).
+- [x] **(P1) `merge-expense-into-catalog`:** botón "Añadir al catálogo" inline junto a vendor y expenseConcept cuando el valor no está en el catálogo; llama a `saveCatalogMutation` (commit `efac6ed`).
+- [x] **(P1) Drag-to-reorder en modal de opciones de gastos:** arrastrar filas para reordenar proveedores y categorías en el dialog inline de ExpensesPage (commit `211a6cc`).
 
 ### Configuración / Emisor — pendiente
 
 - [x] **(P1) Logo upload (imagen de marca):** FileReader a base64, input de archivo SVG/PNG/WebP/JPEG, botón "Quitar logo", resumen del valor actual, input de ruta manual como fallback.
-- [ ] **(P1) Panel de resumen de perfil activo:** `#personal-active-summary-root` y `#personal-template-summary-root` — muestra estadísticas del perfil activo y su plantilla. No existe en React.
-- [ ] **(P1) Sugerencias de tag de número de factura:** panel `#invoice-tag-suggestions-panel` con chips de sugerencias cuando hay conflicto de prefijo. No existe en React.
+- [x] **(P1) Panel de resumen de perfil activo:** tarjeta encima de «Perfil activo (servidor)» con badge, logo (`business.brandImage`), marca/NIF, conteo/total/última fecha de facturas del perfil activo vía `["history-invoices"]` + `fetchHistoryInvoices` (commit `298f43f`). Resumen de plantilla legacy (`#personal-template-summary-root`) no replicado al detalle.
+- [x] **(P1) Sugerencias de tag de número de factura:** chips bajo «ID en el número de factura» cuando `POST /api/config` devuelve `suggestions` en el error (mismo contrato que legacy `notifyTemplateProfilesSaveFailure`).
 
 ### Configuración / Diseño (Plantilla) — sección parcialmente ausente
 
 - [ ] **(P2) Editor de diseño avanzado completo:** la pestaña "Plantilla" tiene selectores de color hex (`design-accent-hex`, `design-dark-hex`), sliders de tamaño de fuente/columna (pt, mm) y selectores de alineación por zona (issuer, client, side, items). React solo gestiona `layout`, `colorKey` y datos básicos.
-- [ ] **(P2) "Nueva base de diseño" modal:** modal `new-design-template-modal` para crear una base de diseño desde cero con selector de tipo. No existe en React.
-- [ ] **(P2) Guardar diseño + propagar a histórico:** botón "Guardar diseño y actualizar facturas anteriores" (`POST /api/template-profiles/propagate`). No existe en React.
+- [x] **(P2) "Nueva base de diseño" modal:** diálogo nativo «Nueva base de diseño» (nombre + plantilla pear/editorial/voulita), perfil mínimo en memoria y `syncLauncherSelection` hasta guardar en servidor.
+- [x] **(P2) Guardar diseño + propagar a histórico:** botón "Guardar diseño y actualizar facturas anteriores" en SettingsPage llamando a `POST /api/template-profiles/propagate` (commit `516f817`).
 
 ### Facturar — extras no inventariados antes
 
 - [x] **(P2) "Repetir última factura":** snapshot post-guardado en memoria; botón visible tras el primer guardado exitoso; rellena con datos del último doc guardado, fecha hoy, sin número ni recordId.
-- [ ] **(P2) Preview swatch de perfil:** franja de color del perfil activo encima del preview del PDF (`invoice-preview-profile-swatch` + `invoice-preview-profile-line`). En React el preview no muestra este indicador de perfil.
+- [x] **(P2) Preview swatch de perfil:** franja de color (`getProfileAccentColor`) encima del bloque `DocumentLivePreview` en Facturar según `colorKey` del perfil seleccionado.
 
 ### Transversal — pendiente
 
 - [x] **(P1) Modo oscuro / night mode:** toggle luna/sol en sidebar y header móvil, persistido en `localStorage` ("facturacion-ui-theme"), clase `dark` en `<html>`, variables CSS `.dark` en `tokens.css`.
-- [ ] **(P2) Modo sandbox:** switch de ámbito de almacenamiento (producción vs. sandbox) persistido en `localStorage`. No existe en React.
+- [x] **(P2) Modo sandbox:** toggle "Prueba ON/OFF" en sidebar, banner ámbar en main, `storageScope=sandbox` propagado a `saveDocument`, `next-number`, `document-number-availability`; persistido en `localStorage` (commit `4fa99d2`).
 - [x] **(P2) Página pública de informe compartido:** el servidor devuelve `shareViewUrl` apuntando a `/share-view.html?t=TOKEN` (página standalone del legacy); React solo genera el enlace y lo muestra en Historial para copiar. Ya funciona.
-- [ ] **(P2) First-use wizard:** modal `first-use-wizard-modal` con guía de orden sugerido la primera vez (emisor → plantilla → facturar). No existe en React.
+- [x] **(P2) First-use wizard:** modal nativo de primera visita (localStorage `facturacion-wizard-seen`) con 3 pasos: bienvenida → configurar emisor → facturar (commit `63b4c34`).
 
 ---
 

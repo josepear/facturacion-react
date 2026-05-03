@@ -1,16 +1,26 @@
 import type { InvoiceDocument } from "@/domain/document/types";
 import { buildLegacyPreviewModel } from "@/features/invoices/adapters/renderLegacyPreview";
+import { getProfileAccentColor } from "@/components/ui/ProfileBadge";
 import "@/features/invoices/components/document-live-preview.css";
 
 type DocumentLivePreviewProps = {
   document: InvoiceDocument;
+  profileColorKey?: string;
 };
 
-export function DocumentLivePreview({ document }: DocumentLivePreviewProps) {
+export function DocumentLivePreview({ document, profileColorKey }: DocumentLivePreviewProps) {
   const model = buildLegacyPreviewModel(document);
+  const accent = profileColorKey ? getProfileAccentColor(profileColorKey) : "";
 
   return (
     <section className="preview-shell">
+      {accent ? (
+        <div
+          className="preview-profile-accent-strip"
+          style={{ backgroundColor: accent }}
+          aria-hidden
+        />
+      ) : null}
       <header className="preview-shell-header">
         <h3>Preview salida oficial (adaptación fiel)</h3>
         <span>React · temporal</span>

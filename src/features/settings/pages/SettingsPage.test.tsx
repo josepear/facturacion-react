@@ -65,6 +65,16 @@ vi.mock("@/infrastructure/api/documentsApi", () => ({
   fetchRuntimeConfig: fetchRuntimeConfigMock,
   fetchFontsCatalog: vi.fn().mockResolvedValue({ families: [] }),
   saveTemplateProfilesConfig: saveTemplateProfilesConfigMock,
+  propagateTemplateProfile: vi.fn().mockResolvedValue({ updated: 0, skipped: 0, failed: 0 }),
+}));
+
+vi.mock("@/infrastructure/api/historyApi", () => ({
+  fetchHistoryInvoices: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("@/infrastructure/api/gmailApi", () => ({
+  fetchGmailProfiles: vi.fn().mockResolvedValue({ items: [], configured: false }),
+  fetchGmailOAuthStartUrl: vi.fn().mockResolvedValue({ authUrl: "https://example.com/oauth" }),
 }));
 
 vi.mock("@/infrastructure/api/sessionApi", () => ({

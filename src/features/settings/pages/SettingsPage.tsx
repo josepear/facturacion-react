@@ -878,6 +878,11 @@ export function SettingsPage() {
   const [newProfileSourceId, setNewProfileSourceId] = useState("");
   const brandImageFileInputRef = useRef<HTMLInputElement>(null);
   const [brandImageFileError, setBrandImageFileError] = useState("");
+  const [invoiceTagSuggestions, setInvoiceTagSuggestions] = useState<string[]>([]);
+  const newBaseDialogRef = useRef<HTMLDialogElement>(null);
+  const [newBaseOpen, setNewBaseOpen] = useState(false);
+  const [newBaseLabel, setNewBaseLabel] = useState("");
+  const [newBaseLayout, setNewBaseLayout] = useState<(typeof LAYOUT_OPTIONS)[number]["value"]>("pear");
 
   const serverProfiles = useMemo(
     () => configQuery.data?.templateProfiles ?? [],
@@ -1001,6 +1006,20 @@ export function SettingsPage() {
     }
   }, [effectiveEditingProfileId]);
 
+  useEffect(() => {
+    const el = newBaseDialogRef.current;
+    if (!el) {
+      return;
+    }
+    if (newBaseOpen) {
+      if (!el.open) {
+        el.showModal();
+      }
+    } else if (el.open) {
+      el.close();
+    }
+  }, [newBaseOpen]);
+
   const saveConfigMutation = useMutation({
     mutationFn: async () => {
       const safeActiveProfileId = String(effectiveActiveProfileId || "").trim();
@@ -1040,10 +1059,17 @@ export function SettingsPage() {
       }
       setStatusMessage("Datos del emisor guardados.");
       setStatusTone("success");
+      setInvoiceTagSuggestions([]);
     },
     onError: (error) => {
-      setStatusMessage((error as Error).message || "No se pudo guardar la configuración.");
+      setStatusMessage(getErrorMessageFromUnknown(error));
       setStatusTone("error");
+      if (error instanceof ApiError && error.payload && typeof error.payload === "object" && !Array.isArray(error.payload)) {
+        const raw = (error.payload as Record<string, unknown>).suggestions;
+        setInvoiceTagSuggestions(Array.isArray(raw) ? raw.map((x) => String(x).trim()).filter(Boolean) : []);
+      } else {
+        setInvoiceTagSuggestions([]);
+      }
     },
   });
 
@@ -1183,6 +1209,44 @@ export function SettingsPage() {
     setNewProfileLabelDraft("");
     setNewProfileSourceId("");
     setStatusMessage("Perfil nuevo en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
+    setStatusTone("neutral");
+  };
+
+  const confirmNewProfileFromBase = () => {
+    if (!canEdit) {
+      return;
+    }
+    const nextLabel = String(newBaseLabel || "").trim();
+    if (!nextLabel) {
+      setStatusMessage("Indica un nombre para el nuevo perfil.");
+      setStatusTone("error");
+      return;
+    }
+    const first = profiles[0];
+    if (!first) {
+      setStatusMessage("No hay perfiles de referencia en configuración.");
+      setStatusTone("error");
+      return;
+    }
+    const used = new Set(profiles.map((p) => p.id));
+    const newId = buildClientProfileId(nextLabel, used);
+    const nextProfile: TemplateProfileConfig = {
+      id: newId,
+      label: nextLabel,
+      tenantId: String(first.tenantId || "default").trim() || "default",
+      colorKey: getNextProfileColorKey(profiles),
+      invoiceNumberTag: suggestUniqueInvoiceNumberTag(newId, profiles),
+      defaults: first.defaults ? { ...first.defaults } : undefined,
+      design: { layout: newBaseLayout },
+      business: {},
+    };
+    setProfileListOverride([...profiles, nextProfile]);
+    syncLauncherSelection(newId);
+    setNewBaseOpen(false);
+    setNewBaseLabel("");
+    setNewBaseLayout("pear");
+    newBaseDialogRef.current?.close();
+    setStatusMessage("Perfil nuevo desde plantilla en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
     setStatusTone("neutral");
   };
 
@@ -1449,6 +1513,18 @@ export function SettingsPage() {
                     <Button
                       type="button"
                       variant="outline"
+                      disabled={!canEdit || isCreatingProfile || newBaseOpen}
+                      onClick={() => {
+                        setNewBaseLabel("");
+                        setNewBaseLayout("pear");
+                        setNewBaseOpen(true);
+                      }}
+                    >
+                      Nueva base de diseño
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
                       className="text-destructive hover:text-destructive"
                       disabled={!canEdit || profiles.length <= 1}
                       onClick={handleDeleteTemplateProfile}
@@ -1531,12 +1607,33 @@ export function SettingsPage() {
                         <Input
                           placeholder="Ej. JOS → JOS_1-2026"
                           value={editingDraft.invoiceNumberTag}
-                          onChange={(event) => updateDraft({ invoiceNumberTag: event.target.value.toUpperCase() })}
+                          onChange={(event) => {
+                            setInvoiceTagSuggestions([]);
+                            updateDraft({ invoiceNumberTag: event.target.value.toUpperCase() });
+                          }}
                           maxLength={5}
                           autoComplete="off"
                           spellCheck={false}
                           disabled={!canEdit}
                         />
+                        {invoiceTagSuggestions.length > 0 ? (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            <p className="w-full text-xs text-muted-foreground">Prefijos sugeridos (elige uno):</p>
+                            {invoiceTagSuggestions.map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                className="rounded-full border border-input bg-background px-2 py-0.5 text-xs font-medium text-foreground hover:bg-accent"
+                                onClick={() => {
+                                  updateDraft({ invoiceNumberTag: tag });
+                                  setInvoiceTagSuggestions([]);
+                                }}
+                              >
+                                {tag}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                       </Field>
                       <Field label="Color en listados y vista previa">
                         <select
@@ -1828,6 +1925,59 @@ export function SettingsPage() {
           ) : null}
 
           <TrashSection canEdit={canEdit} />
+
+          <dialog
+            ref={newBaseDialogRef}
+            onClose={() => {
+              setNewBaseOpen(false);
+              setNewBaseLabel("");
+              setNewBaseLayout("pear");
+            }}
+            className="z-[60] w-[min(100vw-2rem,420px)] rounded-lg border border-border bg-background p-6 text-foreground shadow-lg"
+          >
+            <div className="grid gap-4">
+              <h2 className="text-base font-semibold">Nueva base de diseño</h2>
+              <p className="text-sm text-muted-foreground">
+                Crea un perfil vacío con la plantilla visual elegida. Completa datos del emisor y guarda en el servidor.
+              </p>
+              <Field label="Nombre del perfil">
+                <Input
+                  value={newBaseLabel}
+                  onChange={(e) => setNewBaseLabel(e.target.value)}
+                  placeholder="Ej. Eventos Canarias"
+                  autoComplete="off"
+                />
+              </Field>
+              <Field label="Plantilla base">
+                <select
+                  aria-label="Plantilla base del nuevo perfil"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={newBaseLayout}
+                  onChange={(e) => setNewBaseLayout(e.target.value as (typeof LAYOUT_OPTIONS)[number]["value"])}
+                >
+                  {LAYOUT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    newBaseDialogRef.current?.close();
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button type="button" onClick={confirmNewProfileFromBase} disabled={!canEdit}>
+                  Crear en memoria
+                </Button>
+              </div>
+            </div>
+          </dialog>
 
           <MembersSection
             canEdit={canEdit}

@@ -716,7 +716,7 @@ export function FacturarPage() {
             />
           </WorkflowModule>
 
-          <DocumentLivePreview document={liveDocument} />
+          <DocumentLivePreview document={liveDocument} profileColorKey={selectedTemplateProfile?.colorKey} />
         </div>
 
         <div className="grid gap-6">

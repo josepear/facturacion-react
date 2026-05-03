@@ -7,6 +7,7 @@ type NumberingInput = {
   templateProfileId: string;
   recordId?: string;
   storageScope?: string;
+  invoiceNumberTag?: string;
 };
 
 export async function getNextNumber(input: NumberingInput) {
