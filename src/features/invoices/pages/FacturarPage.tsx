@@ -1,5 +1,5 @@
 import { Calendar } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useBlocker, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
@@ -12,7 +12,8 @@ import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotals
 import { WorkflowModule } from "@/features/invoices/components/WorkflowModule";
 import { useFacturarForm } from "@/features/invoices/hooks/useFacturarForm";
 import { archiveDocument } from "@/infrastructure/api/documentsApi";
-import { useMutation } from "@tanstack/react-query";
+import { fetchGmailOAuthStartUrl, fetchGmailStatus, sendGmailInvoice } from "@/infrastructure/api/gmailApi";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 export function FacturarPage() {
   const [searchParams] = useSearchParams();
@@ -75,6 +76,7 @@ export function FacturarPage() {
   const taxRateWatched = watch("taxRate");
   const withholdingRateWatched = watch("withholdingRate");
   const templateProfileIdWatched = watch("templateProfileId");
+  const templateProfileIdForGmail = String(templateProfileIdWatched || "").trim();
   const selectedTemplateProfile = useMemo(() => {
     const id = String(templateProfileIdWatched || "").trim();
     if (!id) {
@@ -84,6 +86,52 @@ export function FacturarPage() {
   }, [templateProfileIdWatched, profileOptions]);
   const [historyYearFilter, setHistoryYearFilter] = useState("");
   const [historyTypeFilter, setHistoryTypeFilter] = useState("");
+  const [gmailDialog, setGmailDialog] = useState(false);
+  const [gmailTo, setGmailTo] = useState("");
+  const [gmailBodyText, setGmailBodyText] = useState("");
+  const [gmailSentMessage, setGmailSentMessage] = useState("");
+  const gmailDialogRef = useRef<HTMLDialogElement>(null);
+
+  const gmailStatusQuery = useQuery({
+    queryKey: ["gmail-status", templateProfileIdForGmail],
+    queryFn: () => fetchGmailStatus(templateProfileIdForGmail),
+    enabled: Boolean(serverRecordId && templateProfileIdForGmail),
+    staleTime: 60_000,
+  });
+
+  const gmailConfigured = Boolean(gmailStatusQuery.data?.configured);
+  const gmailConnected = Boolean(gmailStatusQuery.data?.connected);
+
+  const gmailSendMutation = useMutation({
+    mutationFn: () =>
+      sendGmailInvoice({
+        recordId: serverRecordId,
+        templateProfileId: templateProfileIdForGmail,
+        to: gmailTo,
+        bodyText: gmailBodyText || undefined,
+      }),
+    onSuccess: () => {
+      setGmailSentMessage("Factura enviada por Gmail.");
+      setGmailDialog(false);
+    },
+    onError: (err) => {
+      setGmailSentMessage((err as Error).message || "Error al enviar por Gmail.");
+    },
+  });
+
+  useEffect(() => {
+    const el = gmailDialogRef.current;
+    if (!el) {
+      return;
+    }
+    if (gmailDialog) {
+      if (!el.open) {
+        el.showModal();
+      }
+    } else if (el.open) {
+      el.close();
+    }
+  }, [gmailDialog]);
 
   const archiveMutation = useMutation({
     mutationFn: (recordId: string) => archiveDocument(recordId),
@@ -674,6 +722,34 @@ export function FacturarPage() {
                     {archiveMutation.isPending ? "Archivando..." : "Archivar documento"}
                   </Button>
                 ) : null}
+                {canOpenOfficialOutput && gmailConfigured && !gmailConnected ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        const { authUrl } = await fetchGmailOAuthStartUrl(templateProfileIdForGmail);
+                        window.open(authUrl, "_blank");
+                      } catch {}
+                    }}
+                  >
+                    Conectar Gmail
+                  </Button>
+                ) : null}
+                {canOpenOfficialOutput && gmailConfigured && gmailConnected ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setGmailTo(form.getValues("client.email") || "");
+                      setGmailBodyText("");
+                      setGmailSentMessage("");
+                      setGmailDialog(true);
+                    }}
+                  >
+                    Enviar por Gmail
+                  </Button>
+                ) : null}
               </div>
               {officialOutputError ? <p className="text-sm text-red-600">{officialOutputError}</p> : null}
               <span className="text-sm text-muted-foreground">
@@ -696,6 +772,59 @@ export function FacturarPage() {
           </WorkflowModule>
         </div>
       </form>
+
+      <dialog
+        ref={gmailDialogRef}
+        onClose={() => setGmailDialog(false)}
+        style={{ borderRadius: 8, padding: 24, maxWidth: 480, width: "90vw", border: "1px solid #ccc" }}
+      >
+        <h2 style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar factura por Gmail</h2>
+        <div style={{ display: "grid", gap: 12 }}>
+          <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
+            Para (email)
+            <input
+              type="email"
+              value={gmailTo}
+              onChange={(e) => setGmailTo(e.target.value)}
+              placeholder="cliente@ejemplo.com"
+              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem" }}
+            />
+          </label>
+          <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
+            Mensaje (opcional)
+            <textarea
+              value={gmailBodyText}
+              onChange={(e) => setGmailBodyText(e.target.value)}
+              rows={4}
+              placeholder="Texto adicional del correo..."
+              style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem", resize: "vertical" }}
+            />
+          </label>
+          {gmailSentMessage ? (
+            <p
+              style={{
+                fontSize: "0.875rem",
+                color: gmailSendMutation.isError ? "#dc2626" : "#16a34a",
+                margin: 0,
+              }}
+            >
+              {gmailSentMessage}
+            </p>
+          ) : null}
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Button type="button" variant="ghost" onClick={() => setGmailDialog(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={!gmailTo.trim() || gmailSendMutation.isPending}
+              onClick={() => gmailSendMutation.mutate()}
+            >
+              {gmailSendMutation.isPending ? "Enviando..." : "Enviar"}
+            </Button>
+          </div>
+        </div>
+      </dialog>
     </main>
   );
 }
