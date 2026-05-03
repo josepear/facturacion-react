@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
@@ -852,6 +852,8 @@ export function SettingsPage() {
   const [isCreatingProfile, setIsCreatingProfile] = useState(false);
   const [newProfileLabelDraft, setNewProfileLabelDraft] = useState("");
   const [newProfileSourceId, setNewProfileSourceId] = useState("");
+  const brandImageFileInputRef = useRef<HTMLInputElement>(null);
+  const [brandImageFileError, setBrandImageFileError] = useState("");
 
   const serverProfiles = useMemo(
     () => configQuery.data?.templateProfiles ?? [],
@@ -935,6 +937,24 @@ export function SettingsPage() {
     return draftByProfileId[effectiveEditingProfileId] ?? toProfileDraft(editingProfile);
   }, [draftByProfileId, editingProfile, effectiveEditingProfileId]);
 
+  const brandImageSummary = useMemo(() => {
+    const bi = String(editingDraft.brandImage || "").trim();
+    if (bi.startsWith("data:")) {
+      return "Logo embebido en el perfil (base64)";
+    }
+    if (bi.startsWith("/") || bi.startsWith("http")) {
+      return bi;
+    }
+    return "Sin logo";
+  }, [editingDraft.brandImage]);
+
+  useEffect(() => {
+    setBrandImageFileError("");
+    if (brandImageFileInputRef.current) {
+      brandImageFileInputRef.current.value = "";
+    }
+  }, [effectiveEditingProfileId]);
+
   const saveConfigMutation = useMutation({
     mutationFn: async () => {
       const safeActiveProfileId = String(effectiveActiveProfileId || "").trim();
@@ -992,6 +1012,39 @@ export function SettingsPage() {
         ...patch,
       },
     }));
+  };
+
+  const handleBrandImageFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setBrandImageFileError("El logo tiene que ser un SVG o una imagen válida.");
+      event.target.value = "";
+      return;
+    }
+    setBrandImageFileError("");
+    const profileId = String(effectiveEditingProfileId || "").trim();
+    if (!profileId) {
+      event.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      if (typeof dataUrl !== "string") {
+        return;
+      }
+      setDraftByProfileId((prev) => {
+        const current = prev[profileId];
+        if (!current) {
+          return prev;
+        }
+        return { ...prev, [profileId]: { ...current, brandImage: dataUrl } };
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   const syncLauncherSelection = (profileId: string) => {
@@ -1446,12 +1499,46 @@ export function SettingsPage() {
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       <div className="sm:col-span-2 lg:col-span-3">
                         <Field label="Logo / imagen de marca">
-                          <Input
-                            placeholder="/assets/logo.svg o ruta absoluta (opcional)"
-                            value={editingDraft.brandImage}
-                            onChange={(event) => updateDraft({ brandImage: event.target.value })}
-                            disabled={!canEdit}
-                          />
+                          <div className="grid gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <input
+                                ref={brandImageFileInputRef}
+                                type="file"
+                                accept=".svg,image/svg+xml,image/png,image/webp,image/jpeg"
+                                disabled={!canEdit}
+                                onChange={handleBrandImageFileChange}
+                                className="max-w-full text-sm file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:font-medium"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={!canEdit}
+                                onClick={() => {
+                                  updateDraft({ brandImage: "" });
+                                  setBrandImageFileError("");
+                                  if (brandImageFileInputRef.current) {
+                                    brandImageFileInputRef.current.value = "";
+                                  }
+                                }}
+                              >
+                                Quitar logo
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground">{brandImageSummary}</p>
+                            {brandImageFileError ? (
+                              <p className="text-xs text-red-600">{brandImageFileError}</p>
+                            ) : null}
+                            <Input
+                              placeholder="/assets/logo.svg o ruta absoluta (opcional)"
+                              value={editingDraft.brandImage}
+                              onChange={(event) => {
+                                setBrandImageFileError("");
+                                updateDraft({ brandImage: event.target.value });
+                              }}
+                              disabled={!canEdit}
+                            />
+                          </div>
                         </Field>
                       </div>
                       <div className="sm:col-span-2 lg:col-span-3">
