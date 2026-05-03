@@ -1,9 +1,10 @@
 import { BarChart2, LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/AuthContext";
+import { getAuthToken } from "@/infrastructure/api/httpClient";
 import { cn } from "@/lib/utils";
 
 type ShellNavItem = {
@@ -132,10 +133,13 @@ function useSandbox() {
 }
 
 export function AppShell() {
-  const { logout } = useAuth();
+  const { logout, authVersion } = useAuth();
   const navigate = useNavigate();
   const { isDark, toggle } = useTheme();
   const { sandbox, toggleSandbox } = useSandbox();
+  const wizardDialogRef = useRef<HTMLDialogElement>(null);
+  const [wizardVisible, setWizardVisible] = useState(false);
+  const [wizardStep, setWizardStep] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
@@ -148,6 +152,37 @@ export function AppShell() {
   const shellTitle = useMemo(() => {
     return navItems.find((item) => location.pathname.startsWith(item.to))?.label || "Facturación";
   }, [location.pathname]);
+
+  useEffect(() => {
+    try {
+      if (typeof localStorage === "undefined" || typeof localStorage.getItem !== "function") {
+        return;
+      }
+      if (localStorage.getItem("facturacion-wizard-seen") === "1") {
+        return;
+      }
+    } catch {
+      return;
+    }
+    if (!getAuthToken()) {
+      return;
+    }
+    setWizardVisible(true);
+  }, [authVersion]);
+
+  useEffect(() => {
+    const el = wizardDialogRef.current;
+    if (!el) {
+      return;
+    }
+    if (wizardVisible) {
+      if (!el.open) {
+        el.showModal();
+      }
+    } else if (el.open) {
+      el.close();
+    }
+  }, [wizardVisible]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -239,6 +274,79 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      <dialog
+        ref={wizardDialogRef}
+        className="fixed left-1/2 top-1/2 z-[60] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-auto bg-background text-foreground shadow-lg backdrop:bg-black/50"
+        style={{ borderRadius: 8, padding: 24, maxWidth: 420, width: "90vw", border: "1px solid #ccc" }}
+        onClose={() => {
+          try {
+            localStorage.setItem("facturacion-wizard-seen", "1");
+          } catch {}
+          setWizardVisible(false);
+          setWizardStep(0);
+        }}
+      >
+        <div style={{ display: "grid", gap: 16 }}>
+          {wizardStep === 0 ? (
+            <>
+              <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>¡Bienvenido a Facturación!</h2>
+              <p style={{ margin: 0, fontSize: "0.875rem", color: "#666" }}>
+                Antes de crear tu primera factura, configura el emisor y la plantilla.
+              </p>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <Button type="button" onClick={() => setWizardStep(1)}>
+                  Empezar →
+                </Button>
+              </div>
+            </>
+          ) : null}
+          {wizardStep === 1 ? (
+            <>
+              <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>Paso 1: Configura el emisor</h2>
+              <p style={{ margin: 0, fontSize: "0.875rem", color: "#666" }}>
+                Ve a Configuración para rellenar los datos de tu empresa y el logo.
+              </p>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <Button type="button" variant="ghost" onClick={() => setWizardStep(2)}>
+                  Omitir
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    navigate("/configuracion");
+                    wizardDialogRef.current?.close();
+                  }}
+                >
+                  Ir a Configuración
+                </Button>
+              </div>
+            </>
+          ) : null}
+          {wizardStep === 2 ? (
+            <>
+              <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>Paso 2: Factura</h2>
+              <p style={{ margin: 0, fontSize: "0.875rem", color: "#666" }}>
+                Ya puedes crear tu primera factura en la sección Facturar.
+              </p>
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <Button type="button" variant="ghost" onClick={() => wizardDialogRef.current?.close()}>
+                  Cerrar
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => {
+                    navigate("/facturar");
+                    wizardDialogRef.current?.close();
+                  }}
+                >
+                  Ir a Facturar
+                </Button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </dialog>
     </div>
   );
 }
