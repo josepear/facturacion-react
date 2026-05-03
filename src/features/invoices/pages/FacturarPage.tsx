@@ -11,7 +11,11 @@ import { InvoiceItemsTable } from "@/features/invoices/components/InvoiceItemsTa
 import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotalsPanel";
 import { WorkflowModule } from "@/features/invoices/components/WorkflowModule";
 import { useFacturarForm } from "@/features/invoices/hooks/useFacturarForm";
-import { archiveDocument, checkDocumentNumberAvailability } from "@/infrastructure/api/documentsApi";
+import {
+  archiveDocument,
+  checkDocumentNumberAvailability,
+  fetchNextcloudFolder,
+} from "@/infrastructure/api/documentsApi";
 import { fetchGmailOAuthStartUrl, fetchGmailStatus, sendGmailInvoice } from "@/infrastructure/api/gmailApi";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -118,6 +122,14 @@ export function FacturarPage() {
   const numberConflict =
     numberAvailabilityQuery.data?.available === false &&
     numberAvailabilityQuery.data?.conflictRecordId !== serverRecordId;
+
+  const nextcloudQuery = useQuery({
+    queryKey: ["nextcloud-folder", serverRecordId],
+    queryFn: () => fetchNextcloudFolder(String(serverRecordId)),
+    enabled: Boolean(serverRecordId),
+    staleTime: 300_000,
+  });
+  const nextcloudUrl = String(nextcloudQuery.data?.url || "").trim();
 
   const gmailSendMutation = useMutation({
     mutationFn: () =>
@@ -749,6 +761,16 @@ export function FacturarPage() {
                   >
                     {archiveMutation.isPending ? "Archivando..." : "Archivar documento"}
                   </Button>
+                ) : null}
+                {nextcloudUrl ? (
+                  <a
+                    href={nextcloudUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    Ir a carpeta Nextcloud
+                  </a>
                 ) : null}
                 {canOpenOfficialOutput && gmailConfigured && !gmailConnected ? (
                   <Button
