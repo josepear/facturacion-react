@@ -114,6 +114,7 @@ export function ExpensesPage() {
   const [catalogDraft, setCatalogDraft] = useState<string[]>([]);
   const [newCatalogItem, setNewCatalogItem] = useState("");
   const catalogDialogRef = useRef<HTMLDialogElement>(null);
+  const dragIndexRef = useRef<number | null>(null);
 
   const configQuery = useQuery({
     queryKey: ["runtime-config"],
@@ -1112,13 +1113,41 @@ export function ExpensesPage() {
             </h2>
             <div className="grid gap-1 border-b border-border pb-3">
               {catalogDraft.map((item, i) => (
-                <div key={`${item}-${i}`} className="flex items-center gap-2 py-1">
-                  <span className="min-w-0 flex-1 text-sm">{item}</span>
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={() => {
+                    dragIndexRef.current = i;
+                  }}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                  }}
+                  onDrop={() => {
+                    const from = dragIndexRef.current;
+                    if (from === null || from === i) {
+                      return;
+                    }
+                    setCatalogDraft((prev) => {
+                      const next = [...prev];
+                      const [moved] = next.splice(from, 1);
+                      next.splice(i, 0, moved);
+                      return next;
+                    });
+                    dragIndexRef.current = null;
+                  }}
+                  onDragEnd={() => {
+                    dragIndexRef.current = null;
+                  }}
+                  className="flex cursor-grab items-center gap-2 py-1"
+                >
+                  <span aria-hidden="true" className="select-none text-muted-foreground">
+                    ⠿
+                  </span>
+                  <span className="flex-1 text-sm">{item}</span>
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="shrink-0"
                     onClick={() => setCatalogDraft((prev) => prev.filter((_, idx) => idx !== i))}
                   >
                     ✕
