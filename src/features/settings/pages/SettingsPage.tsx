@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import type { TemplateProfileConfig } from "@/domain/document/types";
 import { fetchExpenseOptions, saveExpenseOptions } from "@/infrastructure/api/expensesApi";
-import { fetchRuntimeConfig, saveTemplateProfilesConfig } from "@/infrastructure/api/documentsApi";
+import { fetchRuntimeConfig, propagateTemplateProfile, saveTemplateProfilesConfig } from "@/infrastructure/api/documentsApi";
 import { ApiError, getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { deleteTrashEntries, emptyTrash, fetchTrash, type TrashItem } from "@/infrastructure/api/trashApi";
 import { type SystemUser, type UpsertUserInput, deleteSystemUser, fetchSystemUsers, upsertSystemUser } from "@/infrastructure/api/usersApi";
@@ -1001,6 +1001,22 @@ export function SettingsPage() {
     },
   });
 
+  const propagateMutation = useMutation({
+    mutationFn: (templateProfileId: string) => propagateTemplateProfile(templateProfileId),
+    onSuccess: (result) => {
+      const label = result.templateProfileLabel ? ` (${result.templateProfileLabel})` : "";
+      setStatusMessage(
+        `Diseño propagado${label}: ${result.updated} documento${result.updated === 1 ? "" : "s"} actualizados, ${result.skipped} sin cambios.`,
+      );
+      setStatusTone("success");
+    },
+    onError: (err) => {
+      const msg = err instanceof ApiError ? err.message : String(err);
+      setStatusMessage(`Error al propagar: ${msg}`);
+      setStatusTone("error");
+    },
+  });
+
   const updateDraft = (patch: Partial<ProfileDraft>) => {
     if (!effectiveEditingProfileId) {
       return;
@@ -1351,6 +1367,26 @@ export function SettingsPage() {
                     >
                       {saveConfigMutation.isPending ? "Guardando..." : "Guardar datos del emisor"}
                     </Button>
+                    {canEdit ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={propagateMutation.isPending || saveConfigMutation.isPending}
+                        onClick={() => {
+                          const profileId = String(effectiveActiveProfileId || "").trim();
+                          if (!profileId) {
+                            setStatusMessage("Selecciona un perfil activo antes de propagar.");
+                            setStatusTone("error");
+                            return;
+                          }
+                          propagateMutation.mutate(profileId);
+                        }}
+                      >
+                        {propagateMutation.isPending
+                          ? "Propagando..."
+                          : "Guardar diseño y actualizar facturas anteriores"}
+                      </Button>
+                    ) : null}
                     <Button
                       type="button"
                       variant="outline"

@@ -33,6 +33,13 @@ export async function saveTemplateProfilesConfig(input: SaveTemplateProfilesInpu
   });
 }
 
+export async function propagateTemplateProfile(templateProfileId: string) {
+  return request<{ updated: number; skipped: number; failed: number; templateProfileLabel?: string }>(
+    "/api/template-profiles/propagate",
+    { method: "POST", body: { templateProfileId } },
+  );
+}
+
 export async function fetchDocumentDetail(recordId: string) {
   const url = `/api/documents/detail?recordId=${encodeURIComponent(recordId)}`;
   return request<{ recordId: string; document: InvoiceDocument }>(url);
