@@ -16,6 +16,7 @@ import {
   saveTemplateProfilesConfig,
 } from "@/infrastructure/api/documentsApi";
 import { fetchGmailOAuthStartUrl, fetchGmailProfiles, type GmailProfileItem } from "@/infrastructure/api/gmailApi";
+import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import { ApiError, getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { deleteTrashEntries, emptyTrash, fetchTrash, type TrashItem } from "@/infrastructure/api/trashApi";
 import { type SystemUser, type UpsertUserInput, deleteSystemUser, fetchSystemUsers, upsertSystemUser } from "@/infrastructure/api/usersApi";
@@ -923,6 +924,21 @@ export function SettingsPage() {
     return serverProfiles.find((profile) => profile.id === id) || null;
   }, [serverActiveProfileId, serverProfiles]);
 
+  const historyForSummaryQuery = useQuery({
+    queryKey: ["history-invoices"],
+    queryFn: fetchHistoryInvoices,
+    staleTime: 120_000,
+    enabled: Boolean(serverActiveProfileId),
+  });
+
+  const activeProfileStats = useMemo(() => {
+    const items = historyForSummaryQuery.data ?? [];
+    const forProfile = items.filter((i) => i.templateProfileId === serverActiveProfileId && i.type === "factura");
+    const total = forProfile.reduce((s, i) => s + Number(i.total || 0), 0);
+    const lastIssueDate = forProfile.map((i) => String(i.issueDate || "")).sort().reverse()[0] ?? "";
+    return { count: forProfile.length, total, lastIssueDate };
+  }, [historyForSummaryQuery.data, serverActiveProfileId]);
+
   const activeProfileForNextSave = useMemo(() => {
     if (!effectiveActiveProfileId) {
       return null;
@@ -1218,6 +1234,55 @@ export function SettingsPage() {
         </Card>
       ) : (
         <>
+          {serverActiveProfile ? (
+            <Card>
+              <div className="grid gap-3 p-4">
+                <div className="flex items-center gap-3">
+                  <ProfileBadge
+                    label={serverActiveProfile.label || serverActiveProfile.id}
+                    colorKey={serverActiveProfile.colorKey}
+                  />
+                  <span className="text-sm font-medium text-muted-foreground">Perfil activo</span>
+                </div>
+
+                {serverActiveProfile.business?.brandImage ? (
+                  <img
+                    src={serverActiveProfile.business.brandImage}
+                    alt="Logo del emisor"
+                    style={{ maxHeight: 40, maxWidth: 120, objectFit: "contain" }}
+                  />
+                ) : null}
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg border p-2">
+                    <p className="text-lg font-semibold">{activeProfileStats.count}</p>
+                    <p className="text-xs text-muted-foreground">Facturas</p>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <p className="text-lg font-semibold">
+                      {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(
+                        activeProfileStats.total,
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Facturado</p>
+                  </div>
+                  <div className="rounded-lg border p-2">
+                    <p className="text-lg font-semibold">
+                      {activeProfileStats.lastIssueDate ? activeProfileStats.lastIssueDate.slice(0, 10) : "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Última factura</p>
+                  </div>
+                </div>
+
+                {serverActiveProfile.business?.brand || serverActiveProfile.business?.taxId ? (
+                  <p className="text-sm text-muted-foreground">
+                    {[serverActiveProfile.business?.brand, serverActiveProfile.business?.taxId].filter(Boolean).join(" · ")}
+                  </p>
+                ) : null}
+              </div>
+            </Card>
+          ) : null}
+
           <section className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>
