@@ -85,7 +85,7 @@ Tras un **guardado correcto** del documento, los módulos del flujo (Emisor, Doc
 ## 7. Emisores, roles y nomenclatura (Configuración y app)
 
 - **Copy:** En la interfaz, lo que antes se llamaba «perfil» (plantilla/emisor) pasa a **emisor / emisores** en Facturar, Historial, Gastos, Datos, importación histórica, cabecera legacy, E2E y navegación (`AppShell`: entrada «Emisores»). Los identificadores de API (`templateProfileId`, etc.) no cambian.
-- **Roles:** Los **administradores** pueden crear o borrar emisores, propagar diseño a facturas antiguas, papelera, catálogo de gastos, Gmail y la tarjeta **Miembros del sistema**. Los **editores** pueden **editar y guardar** emisores ya existentes y cambiar el emisor activo; no pueden crear/borrar emisores ni gestionar miembros. Los **viewers** siguen en solo lectura en Configuración.
+- **Roles:** Los **administradores** pueden crear o borrar emisores, propagar diseño a facturas antiguas, papelera, Gmail y la tarjeta **Miembros del sistema**. El **catálogo de gastos** (proveedores/categorías) se administra en el módulo **Gastos**, no en Emisores. Los **editores** pueden **editar y guardar** emisores ya existentes y cambiar el emisor activo; no pueden crear/borrar emisores ni gestionar miembros. Los **viewers** siguen en solo lectura en Configuración.
 - **Servidor:** Si `POST /api/template-profiles` devolviera 403 para editores, habría que alinear la política en backend con esta UI.
 
 ### Corrección de bucle (papelera / no admin)

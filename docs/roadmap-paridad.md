@@ -220,7 +220,7 @@ Evidencia de guardado en cliente (`public/app.js`): [`parity-partials-legacy-cod
 
 ### Hecho (Configuración)
 
-- [x] **Catálogo de gastos (`expenseOptions`):** sección admin para editar listas de proveedores y categorías vía `POST /api/expense-options`; solo lectura para no-admin.
+- [x] **Catálogo de gastos (`expenseOptions`):** en el módulo **Gastos** (no en Emisores): tarjeta admin para editar listas de proveedores y categorías vía `POST /api/expense-options`; solo lectura para no-admin; además diálogos «Gestionar» en el formulario.
 - [x] **Edición de miembro inline:** formulario de edición se despliega debajo del usuario concreto en lugar de al final de la lista.
 - [x] **Papelera admin:** sección visible solo para administradores con `GET /api/trash`, vaciado global (`POST /api/trash/empty`) y borrado selectivo (`POST /api/trash/delete`).
 

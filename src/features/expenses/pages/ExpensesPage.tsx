@@ -20,7 +20,7 @@ import {
   saveExpense,
   saveExpenseOptions,
 } from "@/infrastructure/api/expensesApi";
-import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
+import { ApiError, getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { deleteTrashEntries, fetchTrash } from "@/infrastructure/api/trashApi";
 import { formatCurrency, toNumber } from "@/lib/utils";
 
@@ -50,6 +50,134 @@ function createEmptyExpense(profileId?: string): ExpenseRecord {
     notes: "",
     templateProfileId: profileId || "",
   };
+}
+
+function ExpenseCatalogBulkSection({ canEdit }: { canEdit: boolean }) {
+  const queryClient = useQueryClient();
+  const optionsQuery = useQuery({
+    queryKey: ["expense-options"],
+    queryFn: fetchExpenseOptions,
+  });
+  const [vendorsDraft, setVendorsDraft] = useState<string | null>(null);
+  const [categoriesDraft, setCategoriesDraft] = useState<string | null>(null);
+  const [status, setStatus] = useState<{ text: string; tone: "success" | "error" | "neutral" } | null>(null);
+
+  const serverVendors = (optionsQuery.data?.vendors ?? []).join("\n");
+  const serverCategories = (optionsQuery.data?.categories ?? []).join("\n");
+
+  const toList = (raw: string) =>
+    raw
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      saveExpenseOptions({
+        vendors: toList(vendorsDraft ?? serverVendors),
+        categories: toList(categoriesDraft ?? serverCategories),
+      }),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ["expense-options"] });
+      setVendorsDraft(null);
+      setCategoriesDraft(null);
+      setStatus({
+        text: `Guardado: ${(data.vendors ?? []).length} proveedores, ${(data.categories ?? []).length} categorías.`,
+        tone: "success",
+      });
+    },
+    onError: (err) => {
+      const msg = err instanceof ApiError ? err.message : String(err);
+      setStatus({ text: `Error al guardar: ${msg}`, tone: "error" });
+    },
+  });
+
+  const hasPendingChanges = vendorsDraft !== null || categoriesDraft !== null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Catálogo de gastos</CardTitle>
+        <CardDescription>
+          Proveedores y categorías del formulario (listas sugeridas y «Gestionar» en cada campo).{" "}
+          {canEdit ? "Solo administradores pueden guardar aquí." : "Solo lectura."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        {optionsQuery.isLoading && <p className="text-informative">Cargando catálogo...</p>}
+        {optionsQuery.isError && (
+          <p className="text-sm text-red-600">No se pudo cargar el catálogo de gastos.</p>
+        )}
+        {optionsQuery.isSuccess && (
+          <>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-1">
+                <label className="text-informative font-medium">
+                  Proveedores ({toList(vendorsDraft ?? serverVendors).length})
+                </label>
+                <textarea
+                  className="flex min-h-[160px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                  readOnly={!canEdit}
+                  value={vendorsDraft ?? serverVendors}
+                  onChange={(e) => setVendorsDraft(e.target.value)}
+                  aria-label="Lista de proveedores, uno por línea"
+                />
+              </div>
+              <div className="grid gap-1">
+                <label className="text-informative font-medium">
+                  Categorías ({toList(categoriesDraft ?? serverCategories).length})
+                </label>
+                <textarea
+                  className="flex min-h-[160px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                  readOnly={!canEdit}
+                  value={categoriesDraft ?? serverCategories}
+                  onChange={(e) => setCategoriesDraft(e.target.value)}
+                  aria-label="Lista de categorías, uno por línea"
+                />
+              </div>
+            </div>
+            {canEdit && (
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  disabled={!hasPendingChanges || saveMutation.isPending}
+                  onClick={() => saveMutation.mutate()}
+                >
+                  {saveMutation.isPending ? "Guardando..." : "Guardar catálogo"}
+                </Button>
+                {hasPendingChanges ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setVendorsDraft(null);
+                      setCategoriesDraft(null);
+                      setStatus(null);
+                    }}
+                  >
+                    Descartar cambios
+                  </Button>
+                ) : null}
+                {status ? (
+                  <p
+                    className={
+                      status.tone === "error"
+                        ? "text-sm text-red-600"
+                        : status.tone === "success"
+                          ? "text-sm text-emerald-600"
+                          : "text-informative"
+                    }
+                  >
+                    {status.text}
+                  </p>
+                ) : null}
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 function normalizeExpenseDraft(expense: ExpenseRecord): ExpenseRecord {
@@ -513,6 +641,8 @@ export function ExpensesPage() {
           Módulo real conectado a `/api/expenses` con ciclo de vida y control por emisor.
         </p>
       </header>
+
+      <ExpenseCatalogBulkSection canEdit={isAdmin} />
 
       <section className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
         <Card>

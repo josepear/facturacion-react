@@ -85,11 +85,6 @@ vi.mock("@/infrastructure/api/sessionApi", () => ({
   fetchSession: fetchSessionMock,
 }));
 
-vi.mock("@/infrastructure/api/expensesApi", () => ({
-  fetchExpenseOptions: vi.fn().mockResolvedValue({ vendors: [], categories: [] }),
-  saveExpenseOptions: vi.fn().mockResolvedValue({ vendors: [], categories: [] }),
-}));
-
 vi.mock("@/infrastructure/api/usersApi", () => ({
   fetchSystemUsers: vi.fn().mockResolvedValue({ items: [] }),
   upsertSystemUser: vi.fn().mockResolvedValue({
