@@ -1,14 +1,14 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
+import { AdvisorSummaryDialog } from "@/features/data/components/AdvisorSummaryDialog";
 import { DataHistoricalImportPanel } from "@/features/data/components/DataHistoricalImportPanel";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
-import { postShareReport, runAccountingExportDownload } from "@/infrastructure/api/exportReportsApi";
+import { runAccountingExportDownload } from "@/infrastructure/api/exportReportsApi";
 import { fetchExpenses } from "@/infrastructure/api/expensesApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
@@ -22,9 +22,7 @@ function formatDate(value: string): string {
 export function DataPage() {
   const [filterYear, setFilterYear] = useState("");
   const [filterProfile, setFilterProfile] = useState("");
-  const [shareUrl, setShareUrl] = useState("");
-  const [shareMessage, setShareMessage] = useState<{ text: string; tone: "neutral" | "success" | "error" } | null>(null);
-  const [shareProfileId, setShareProfileId] = useState("");
+  const [advisorSummaryOpen, setAdvisorSummaryOpen] = useState(false);
 
   const historyQuery = useQuery({
     queryKey: ["history-invoices"],
@@ -93,43 +91,6 @@ export function DataPage() {
   );
   const resultado = totalInvoiced - totalExpenses;
 
-  useEffect(() => {
-    if (filterProfile) {
-      setShareProfileId(filterProfile);
-    }
-  }, [filterProfile]);
-
-  const shareReportMutation = useMutation({
-    mutationFn: () => {
-      const pid = String(shareProfileId || "").trim();
-      if (!pid) {
-        throw new Error("Elige un emisor para el enlace.");
-      }
-      return postShareReport({
-        templateProfileId: pid,
-        year: filterYear || "all",
-        quarter: "all",
-        scope: "both",
-        invoiceStatus: "all",
-        client: "all",
-        expenseDeductible: "all",
-        vendor: "all",
-        category: "all",
-      });
-    },
-    onSuccess: (data) => {
-      const url = String(data.shareViewUrl || "").trim();
-      setShareUrl(url);
-      setShareMessage(
-        url ? { text: "Enlace generado. Puedes copiarlo o abrirlo.", tone: "success" } : { text: "Respuesta sin URL.", tone: "error" },
-      );
-    },
-    onError: (error) => {
-      setShareUrl("");
-      setShareMessage({ text: getErrorMessageFromUnknown(error), tone: "error" });
-    },
-  });
-
   const accountingExportMutation = useMutation({
     mutationFn: () => {
       const y = String(filterYear || "").trim();
@@ -143,35 +104,6 @@ export function DataPage() {
       });
     },
   });
-
-  const copyShareUrl = async () => {
-    const url = String(shareUrl || "").trim();
-    if (!url) {
-      return;
-    }
-    setShareMessage(null);
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = url;
-        ta.setAttribute("readonly", "");
-        ta.style.position = "fixed";
-        ta.style.left = "-9999px";
-        document.body.appendChild(ta);
-        ta.select();
-        const ok = document.execCommand("copy");
-        document.body.removeChild(ta);
-        if (!ok) {
-          throw new Error("copy");
-        }
-      }
-      setShareMessage({ text: "Copiado al portapapeles.", tone: "success" });
-    } catch {
-      setShareMessage({ text: "No se pudo copiar.", tone: "error" });
-    }
-  };
 
   const hasActiveFilters = Boolean(filterYear || filterProfile);
 
@@ -268,68 +200,39 @@ export function DataPage() {
         <>
           <Card>
             <CardContent className="grid gap-4 pt-6">
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={accountingExportMutation.isPending}
-                  onClick={() => accountingExportMutation.mutate()}
-                >
-                  {accountingExportMutation.isPending ? "Exportando…" : "Exportar Excel Celia"}
-                </Button>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" onClick={() => setAdvisorSummaryOpen(true)}>
+                    Resumen asesor
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={accountingExportMutation.isPending}
+                    onClick={() => accountingExportMutation.mutate()}
+                  >
+                    {accountingExportMutation.isPending ? "Exportando…" : "Exportar Excel Celia"}
+                  </Button>
+                </div>
+                <p className="max-w-xl text-sm text-informative">
+                  Mismo listado que en Datos, sin acciones; enlace de solo lectura para quien declare a Hacienda.
+                </p>
               </div>
               {accountingExportMutation.isError ? (
                 <p className="text-sm text-red-600">{getErrorMessageFromUnknown(accountingExportMutation.error)}</p>
               ) : null}
-              <div className="grid gap-2 rounded-md border p-3">
-                <p className="text-informative font-medium">Vista compartida (solo lectura)</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={shareProfileId}
-                    onChange={(e) => setShareProfileId(e.target.value)}
-                    aria-label="Emisor para enlace compartido"
-                  >
-                    <option value="">Elige emisor…</option>
-                    {profileOptions.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label || p.id}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={shareReportMutation.isPending || !profileOptions.length}
-                    onClick={() => shareReportMutation.mutate()}
-                  >
-                    {shareReportMutation.isPending ? "Generando…" : "Generar enlace compartido"}
-                  </Button>
-                </div>
-                {shareUrl ? (
-                  <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-                    <Input readOnly value={shareUrl} aria-label="URL de vista compartida" />
-                    <Button type="button" variant="outline" onClick={() => void copyShareUrl()}>
-                      Copiar
-                    </Button>
-                  </div>
-                ) : null}
-                {shareMessage ? (
-                  <p
-                    className={
-                      shareMessage.tone === "error"
-                        ? "text-xs text-red-600"
-                        : shareMessage.tone === "success"
-                          ? "text-xs text-emerald-600"
-                          : "text-informative"
-                    }
-                  >
-                    {shareMessage.text}
-                  </p>
-                ) : null}
-              </div>
             </CardContent>
           </Card>
+          <AdvisorSummaryDialog
+            open={advisorSummaryOpen}
+            onClose={() => setAdvisorSummaryOpen(false)}
+            historyItems={historyItems}
+            expenseItems={expenseItems}
+            profileOptions={profileOptions}
+            pageFilterYear={filterYear}
+            pageFilterProfile={filterProfile}
+            availableYears={availableYears}
+          />
           <DataHistoricalImportPanel
             templateProfiles={profileOptions.map((p) => ({ id: p.id, label: p.label ?? undefined }))}
           />

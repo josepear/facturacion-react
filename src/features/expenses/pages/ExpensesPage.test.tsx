@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -76,9 +76,12 @@ vi.mock("@/infrastructure/api/expensesApi", () => ({
   archiveExpenseYear: archiveExpenseYearMock,
 }));
 
+vi.mock("@/infrastructure/api/historyApi", () => ({
+  fetchHistoryInvoices: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("@/infrastructure/api/exportReportsApi", () => ({
-  runAccountingExportDownload: vi.fn().mockResolvedValue({ year: "2026", downloadUrl: "/api/storage-file?x=1" }),
-  downloadControlWorkbookExport: vi.fn().mockResolvedValue(undefined),
+  postShareReport: vi.fn().mockResolvedValue({ ok: true, shareViewUrl: "https://example.com/share" }),
 }));
 
 vi.mock("@/infrastructure/api/trashApi", () => ({
@@ -154,13 +157,20 @@ describe("ExpensesPage regression", () => {
 
     render(<ExpensesPage />, { wrapper: createPageWrapper() });
 
-    await screen.findByText("Proveedor Uno");
-    await userEvent.type(screen.getByPlaceholderText("Buscar proveedor, descripción, categoría o factura"), "Dos");
-    expect(screen.queryByText("Proveedor Uno")).toBeNull();
-    expect(screen.getByText("Proveedor Dos")).toBeTruthy();
+    const workbookTable = await screen.findByRole("table", { name: "Gastos del ejercicio filtrados" });
+    expect(within(workbookTable).getByText("Proveedor Uno")).toBeTruthy();
+    const searchInput = screen.getByLabelText("Filtrar filas de gastos por texto");
+    await userEvent.type(searchInput, "Dos");
+    expect(within(workbookTable).queryByText("Proveedor Uno")).toBeNull();
+    expect(within(workbookTable).getByText("Proveedor Dos")).toBeTruthy();
 
-    await userEvent.clear(screen.getByPlaceholderText("Buscar proveedor, descripción, categoría o factura"));
-    await userEvent.click(screen.getByText("Proveedor Uno"));
+    await userEvent.clear(searchInput);
+    const proveedorUnoInTable = within(workbookTable).getAllByText("Proveedor Uno");
+    const firstProveedorUno = proveedorUnoInTable[0];
+    if (!firstProveedorUno) {
+      throw new Error("expected Proveedor Uno in workbook table");
+    }
+    await userEvent.click(firstProveedorUno);
     await userEvent.clear(screen.getByRole("textbox", { name: "Descripción del gasto" }));
     await userEvent.type(screen.getByRole("textbox", { name: "Descripción del gasto" }), "Licencia actualizada");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));

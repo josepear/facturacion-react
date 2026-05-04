@@ -8,9 +8,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import type { ExpenseRecord } from "@/domain/expenses/types";
+import { AdvisorSummaryDialog } from "@/features/data/components/AdvisorSummaryDialog";
+import {
+  exerciseYearFromItem,
+  filterControlExpensesWorkbook,
+  filterExerciseScopeExpensesWorkbook,
+  formatAdvisorCompactDate,
+  formatQuarterShortLabel,
+  normalizeQuarterValue,
+  sortExpenseWorkbookDefault,
+} from "@/features/data/lib/advisorShareFilters";
+import {
+  groupExpensesByMonth,
+  mapReactExpenseProfileFilterToControl,
+  workbookQuarterRowToneClass,
+} from "@/features/expenses/lib/controlWorkbookExpenseMonths";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
-import { downloadControlWorkbookExport, runAccountingExportDownload } from "@/infrastructure/api/exportReportsApi";
+import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import {
   archiveExpense,
   archiveExpenseYear,
@@ -294,15 +309,30 @@ export function ExpensesPage() {
   const initialSearchTerm = String(searchParams.get("q") || "").trim();
   const initialYearFilter = String(searchParams.get("year") || "all").trim() || "all";
   const initialProfileFilter = String(searchParams.get("profile") || "all").trim() || "all";
+  const initialQuarterFilter = (() => {
+    const v = String(searchParams.get("qtr") || "all").trim().toUpperCase();
+    if (v === "T1" || v === "T2" || v === "T3" || v === "T4") {
+      return v;
+    }
+    return "all";
+  })();
+  const initialDeductibleFilter = (() => {
+    const v = String(searchParams.get("ded") || "all").trim().toLowerCase();
+    if (v === "yes" || v === "no") {
+      return v as "yes" | "no";
+    }
+    return "all" as const;
+  })();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [yearFilter, setYearFilter] = useState(initialYearFilter);
   const [profileFilter, setProfileFilter] = useState(initialProfileFilter);
+  const [quarterFilter, setQuarterFilter] = useState(initialQuarterFilter);
+  const [deductibleFilter, setDeductibleFilter] = useState<"all" | "yes" | "no">(initialDeductibleFilter);
+  const [advisorSummaryOpen, setAdvisorSummaryOpen] = useState(false);
   const [selectedRecordId, setSelectedRecordId] = useState("");
   const [archiveYear, setArchiveYear] = useState("");
   const [archiveProfileId, setArchiveProfileId] = useState("");
-  const [exportYear, setExportYear] = useState(() => String(new Date().getFullYear()));
-  const [exportProfile, setExportProfile] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
   const didHydrateDefaultTemplateProfile = useRef(false);
@@ -336,6 +366,12 @@ export function ExpensesPage() {
     queryFn: fetchExpenses,
   });
 
+  const historyQuery = useQuery({
+    queryKey: ["history-invoices"],
+    queryFn: fetchHistoryInvoices,
+    staleTime: 60_000,
+  });
+
   const expenseOptionsQuery = useQuery({
     queryKey: ["expense-options"],
     queryFn: fetchExpenseOptions,
@@ -360,45 +396,58 @@ export function ExpensesPage() {
     [trashQuery.data?.items],
   );
 
-  const filteredItems = useMemo(() => {
-    const term = String(searchTerm || "").trim().toLowerCase();
+  const profileControlToken = useMemo(() => mapReactExpenseProfileFilterToControl(profileFilter), [profileFilter]);
+
+  const workbookFilteredExpenses = useMemo(() => {
     const items = expensesQuery.data?.items ?? [];
-    return items.filter((item) => {
-      if (yearFilter !== "all" && String(item.year || "").trim() !== yearFilter) {
-        return false;
-      }
-      if (profileFilter !== "all") {
-        const itemProfileId = String(item.templateProfileId || "").trim();
-        if (profileFilter === "__default__") {
-          if (itemProfileId) {
-            return false;
-          }
-        } else if (itemProfileId !== profileFilter) {
-          return false;
-        }
-      }
-      if (!term) {
-        return true;
-      }
-      const vendor = String(item.vendor || "").toLowerCase();
-      const description = String(item.description || "").toLowerCase();
-      const category = String(item.category || "").toLowerCase();
-      const invoiceNumber = String(item.invoiceNumber || "").toLowerCase();
-      const recordId = String(item.recordId || "").toLowerCase();
-      const paymentMethod = String(item.paymentMethod || "").toLowerCase();
-      const quarter = String(item.quarter || "").toLowerCase();
-      return (
-        vendor.includes(term)
-        || description.includes(term)
-        || category.includes(term)
-        || invoiceNumber.includes(term)
-        || recordId.includes(term)
-        || paymentMethod.includes(term)
-        || quarter.includes(term)
-      );
+    const ded: "all" | "yes" | "no" = deductibleFilter;
+    const filtered = filterControlExpensesWorkbook(items, {
+      filterYear: yearFilter,
+      filterQuarter: quarterFilter,
+      filterDeductible: ded,
+      searchText: searchTerm,
+      selectedProfile: profileControlToken,
     });
-  }, [expensesQuery.data?.items, yearFilter, profileFilter, searchTerm]);
-  const hasActiveFilters = yearFilter !== "all" || profileFilter !== "all" || String(searchTerm || "").trim().length > 0;
+    return sortExpenseWorkbookDefault(filtered);
+  }, [deductibleFilter, expensesQuery.data?.items, profileControlToken, quarterFilter, searchTerm, yearFilter]);
+
+  const exerciseScopeExpenses = useMemo(() => {
+    const items = expensesQuery.data?.items ?? [];
+    return filterExerciseScopeExpensesWorkbook(items, {
+      filterYear: yearFilter,
+      selectedProfile: profileControlToken,
+    });
+  }, [expensesQuery.data?.items, profileControlToken, yearFilter]);
+
+  const expenseMonthGroups = useMemo(() => groupExpensesByMonth(workbookFilteredExpenses), [workbookFilteredExpenses]);
+
+  const workbookExpenseTotal = useMemo(
+    () => workbookFilteredExpenses.reduce((s, e) => s + (Number(e.total) || 0), 0),
+    [workbookFilteredExpenses],
+  );
+  const exerciseExpenseTotal = useMemo(
+    () => exerciseScopeExpenses.reduce((s, e) => s + (Number(e.total) || 0), 0),
+    [exerciseScopeExpenses],
+  );
+
+  const historyItems = historyQuery.data ?? [];
+  const advisorAvailableYears = useMemo(() => {
+    const fromExp = availableYears;
+    const fromHist = historyItems.map((i) => String(i.issueDate || "").slice(0, 4)).filter(Boolean);
+    return Array.from(new Set([...fromExp, ...fromHist])).sort().reverse();
+  }, [availableYears, historyItems]);
+
+  const deductibleFilterLabel =
+    deductibleFilter === "yes" ? "Solo deducibles" : deductibleFilter === "no" ? "Solo no deducibles" : "Todos los gastos";
+
+  const expenseTableMetaLine = `${deductibleFilterLabel} · ${workbookFilteredExpenses.length} visibles · ${formatCurrency(workbookExpenseTotal)} en el filtro · ${formatCurrency(exerciseExpenseTotal)} en el ejercicio`;
+
+  const hasActiveFilters =
+    yearFilter !== "all"
+    || profileFilter !== "all"
+    || quarterFilter !== "all"
+    || deductibleFilter !== "all"
+    || String(searchTerm || "").trim().length > 0;
   const setRecordIdSearchParam = (recordId: string) => {
     const next = new URLSearchParams(searchParams);
     if (recordId) {
@@ -475,66 +524,6 @@ export function ExpensesPage() {
     },
     onError: (error) => {
       setStatusMessage((error as Error).message || "No se pudo archivar el ejercicio de gastos.");
-      setStatusTone("error");
-    },
-  });
-
-  const accountingExportMutation = useMutation({
-    mutationFn: async () => {
-      const y = String(exportYear || "").trim();
-      if (y === "all") {
-        throw new Error("El Excel de asesoría requiere un ejercicio concreto.");
-      }
-      if (!/^\d{4}$/u.test(y)) {
-        throw new Error("Selecciona un ejercicio válido (AAAA).");
-      }
-      const pid = String(exportProfile || "").trim();
-      await runAccountingExportDownload({
-        year: y,
-        templateProfileId:
-          pid && pid !== "__all__" && pid !== "__unassigned__" ? pid : undefined,
-      });
-    },
-    onSuccess: () => {
-      setStatusMessage("Excel de asesoría generado. Revisa la descarga del navegador.");
-      setStatusTone("success");
-    },
-    onError: (error) => {
-      setStatusMessage(getErrorMessageFromUnknown(error));
-      setStatusTone("error");
-    },
-  });
-
-  const controlWorkbookMutation = useMutation({
-    mutationFn: async () => {
-      const yearToken = String(exportYear || "").trim() || "all";
-      const rawProfile = String(exportProfile || "").trim();
-      let invoiceProfile = "__all__";
-      let expenseProfile = "__all__";
-      if (rawProfile === "__unassigned__") {
-        invoiceProfile = "__unassigned__";
-        expenseProfile = "__unassigned__";
-      } else if (rawProfile && rawProfile !== "__all__") {
-        invoiceProfile = rawProfile;
-        expenseProfile = rawProfile;
-      }
-      await downloadControlWorkbookExport({
-        invoiceYear: yearToken,
-        expenseYear: yearToken,
-        invoiceQuarter: "all",
-        expenseQuarter: "all",
-        invoiceStatus: "all",
-        expenseDeductible: "all",
-        invoiceProfile,
-        expenseProfile,
-      });
-    },
-    onSuccess: () => {
-      setStatusMessage("Libro de control descargado.");
-      setStatusTone("success");
-    },
-    onError: (error) => {
-      setStatusMessage(getErrorMessageFromUnknown(error));
       setStatusTone("error");
     },
   });
@@ -716,12 +705,6 @@ export function ExpensesPage() {
    * «Emisor por defecto» con valor vacío explícito).
    */
   useEffect(() => {
-    if (yearFilter !== "all") {
-      setExportYear(yearFilter);
-    }
-  }, [yearFilter]);
-
-  useEffect(() => {
     if (selectedRecordId) {
       didHydrateDefaultTemplateProfile.current = false;
       return;
@@ -761,10 +744,20 @@ export function ExpensesPage() {
     } else {
       next.delete("profile");
     }
+    if (quarterFilter && quarterFilter !== "all") {
+      next.set("qtr", quarterFilter);
+    } else {
+      next.delete("qtr");
+    }
+    if (deductibleFilter && deductibleFilter !== "all") {
+      next.set("ded", deductibleFilter);
+    } else {
+      next.delete("ded");
+    }
     if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
     }
-  }, [profileFilter, searchParams, searchTerm, setSearchParams, yearFilter]);
+  }, [deductibleFilter, profileFilter, quarterFilter, searchParams, searchTerm, setSearchParams, yearFilter]);
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
@@ -775,51 +768,168 @@ export function ExpensesPage() {
         </p>
       </header>
 
-      <ExpenseCatalogBulkSection canEdit={isAdmin} onOpenLabelsEditor={() => openExpenseLabelsModal("vendor")} />
+      <div className={`grid gap-6 lg:items-start ${isAdmin ? "lg:grid-cols-2" : ""}`}>
+        {isAdmin ? (
+          <Card>
+            <div className="grid gap-4 p-4">
+              <h2 className="text-base font-semibold">Importar gastos</h2>
+              <p className="text-informative">
+                Sube el libro de control (.xlsx) o uno o varios PDFs de facturas para importar gastos en bloque.
+              </p>
+
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Emisor destino</label>
+                <select
+                  value={importProfileId}
+                  onChange={(e) => setImportProfileId(e.target.value)}
+                  className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                >
+                  <option value="">— Selecciona emisor —</option>
+                  {profileOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label || p.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Archivo (.xlsx o .pdf)</label>
+                <input ref={importFileRef} type="file" accept=".xlsx,.pdf" className="text-sm" />
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleImportExpenses}
+                disabled={importExpensesMutation.isPending || !importProfileId}
+              >
+                {importExpensesMutation.isPending ? "Importando..." : "Importar gastos"}
+              </Button>
+
+              {importExpensesMutation.isError ? (
+                <p className="text-sm text-red-600">
+                  {(importExpensesMutation.error as Error)?.message || "Error al importar."}
+                </p>
+              ) : null}
+
+              {importResult ? (
+                <div className="grid gap-1">
+                  <p className="text-sm text-green-700">Importados: {importResult.created ?? 0}</p>
+                  {(importResult.skipped ?? []).length > 0 ? (
+                    <p className="text-informative">
+                      Omitidos: {(importResult.skipped ?? []).join(", ")}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        ) : null}
+        <ExpenseCatalogBulkSection canEdit={isAdmin} onOpenLabelsEditor={() => openExpenseLabelsModal("vendor")} />
+      </div>
 
       <section className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
         <Card>
           <CardHeader>
-            <CardTitle>Listado de gastos</CardTitle>
-            <CardDescription>Consulta y filtro básico de gastos existentes.</CardDescription>
+            <CardTitle>Gastos</CardTitle>
+            <CardDescription>Vista del filtro actual; mismo criterio que la hoja de control (perfil, ejercicio, trimestre, deducible y búsqueda).</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3">
-            <div className="grid gap-2 sm:grid-cols-3">
-              <Input
-                placeholder="Buscar proveedor, descripción, categoría o factura"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-              />
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={yearFilter}
-                onChange={(event) => setYearFilter(event.target.value)}
-              >
-                <option value="all">Todos los años</option>
-                {availableYears.map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={profileFilter}
-                onChange={(event) => setProfileFilter(event.target.value)}
-              >
-                <option value="all">Todos los emisores</option>
-                <option value="__default__">Emisor por defecto</option>
-                {profileOptions.map((profile) => (
-                  <option key={profile.id} value={profile.id}>
-                    {profile.label || profile.id}
-                  </option>
-                ))}
-              </select>
+          <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              <label className="grid gap-1 text-sm" htmlFor="expense-workbook-search">
+                <span className="font-medium text-foreground">Buscar en gastos</span>
+                <Input
+                  id="expense-workbook-search"
+                  type="search"
+                  autoComplete="off"
+                  placeholder="Proveedor, concepto, categoría, NIF…"
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  aria-label="Filtrar filas de gastos por texto"
+                />
+              </label>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-informative">
-              <span>
-                Mostrando {filteredItems.length} de {(expensesQuery.data?.items ?? []).length} gastos
-              </span>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-foreground">Usuario o emisor</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={profileFilter}
+                  onChange={(event) => setProfileFilter(event.target.value)}
+                  aria-label="Perfil para gastos"
+                >
+                  <option value="all">Todos los emisores</option>
+                  <option value="__default__">Emisor por defecto</option>
+                  <option value="__unassigned__">Sin emisor asignado</option>
+                  {profileOptions.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.label || profile.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-foreground">Ejercicio</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={yearFilter}
+                  onChange={(event) => setYearFilter(event.target.value)}
+                  aria-label="Ejercicio para gastos"
+                >
+                  <option value="all">Todos los años</option>
+                  {availableYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-foreground">Trimestre</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={quarterFilter}
+                  onChange={(event) => setQuarterFilter(event.target.value)}
+                  aria-label="Trimestre para gastos"
+                >
+                  <option value="all">Todos</option>
+                  <option value="T1">T1</option>
+                  <option value="T2">T2</option>
+                  <option value="T3">T3</option>
+                  <option value="T4">T4</option>
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-foreground">Deducible</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={deductibleFilter}
+                  onChange={(event) => setDeductibleFilter(event.target.value as "all" | "yes" | "no")}
+                  aria-label="Filtro por deducibilidad"
+                >
+                  <option value="all">Todos</option>
+                  <option value="yes">Deducibles</option>
+                  <option value="no">No deducibles</option>
+                </select>
+              </label>
+            </div>
+            <p className="text-sm text-informative">{expenseTableMetaLine}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setSelectedRecordId("");
+                  setRecordIdSearchParam("");
+                  didHydrateDefaultTemplateProfile.current = false;
+                  setDraft(createEmptyExpense(activeProfileId));
+                  setStatusMessage("Nuevo gasto.");
+                  setStatusTone("neutral");
+                }}
+              >
+                Nuevo gasto
+              </Button>
               {hasActiveFilters ? (
                 <Button
                   type="button"
@@ -829,78 +939,18 @@ export function ExpensesPage() {
                     setSearchTerm("");
                     setYearFilter("all");
                     setProfileFilter("all");
+                    setQuarterFilter("all");
+                    setDeductibleFilter("all");
                   }}
                 >
-                  Limpiar filtros
+                  Limpiar filtro
                 </Button>
               ) : null}
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setSelectedRecordId("");
-                setRecordIdSearchParam("");
-                didHydrateDefaultTemplateProfile.current = false;
-                setDraft(createEmptyExpense(activeProfileId));
-                setStatusMessage("Nuevo gasto.");
-                setStatusTone("neutral");
-              }}
-            >
-              Nuevo gasto
-            </Button>
-            <div className="grid gap-2 rounded-md border p-3">
-              <p className="text-informative font-medium">Exportación (servidor)</p>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={exportYear}
-                  onChange={(event) => setExportYear(event.target.value)}
-                  aria-label="Ejercicio para exportación"
-                >
-                  <option value="all">Todos los ejercicios (solo libro de control)</option>
-                  {availableYears.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                  {availableYears.length === 0 ? (
-                    <option value={String(new Date().getFullYear())}>{String(new Date().getFullYear())}</option>
-                  ) : null}
-                </select>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={exportProfile}
-                  onChange={(event) => setExportProfile(event.target.value)}
-                  aria-label="Emisor para exportación"
-                >
-                  <option value="">Todos los emisores</option>
-                  <option value="__unassigned__">Sin emisor asignado</option>
-                  {profileOptions.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.label || profile.id}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={accountingExportMutation.isPending}
-                  onClick={() => accountingExportMutation.mutate()}
-                >
-                  {accountingExportMutation.isPending ? "Generando…" : "Excel asesoría (Celia)"}
+              {isAdmin ? (
+                <Button type="button" onClick={() => setAdvisorSummaryOpen(true)}>
+                  Resumen asesor
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={controlWorkbookMutation.isPending}
-                  onClick={() => controlWorkbookMutation.mutate()}
-                >
-                  {controlWorkbookMutation.isPending ? "Generando…" : "Libro de control (Excel)"}
-                </Button>
-              </div>
+              ) : null}
             </div>
             <div className="grid gap-2 rounded-md border p-3">
               <p className="text-informative font-medium">Archivar ejercicio (emisor + año)</p>
@@ -940,79 +990,165 @@ export function ExpensesPage() {
                 <p className="text-informative">Solo administradores.</p>
               )}
             </div>
-            <div className="max-h-[540px] overflow-auto rounded-md border">
+            <div className="max-h-[min(70vh,36rem)] overflow-auto rounded-md border">
               {expensesQuery.isLoading ? (
                 <p className="p-3 text-informative">Cargando gastos...</p>
-              ) : filteredItems.length ? (
-                <ul className="divide-y">
-                  {filteredItems.map((item) => {
-                    const isActive = item.recordId === selectedRecordId;
-                    return (
-                      <li key={item.recordId}>
-                        <button
-                          type="button"
-                          className={`w-full px-3 py-2 text-left text-sm transition-colors ${
-                            isActive ? "bg-primary text-primary-foreground" : "hover:bg-accent"
-                          }`}
-                          onClick={() => {
-                            const nextRecordId = String(item.recordId || "");
-                            setSelectedRecordId(nextRecordId);
-                            if (nextRecordId) {
-                              setRecordIdSearchParam(nextRecordId);
-                            }
-                            setDraft(normalizeExpenseDraft(item));
-                            setStatusMessage("Gasto cargado para edición.");
-                            setStatusTone("neutral");
-                          }}
-                        >
-                          <p className="font-medium">{item.vendor || item.description || "Sin referencia"}</p>
-                          <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
-                            {item.issueDate || "-"} · {item.category || "sin categoría"} · {item.invoiceNumber || "sin nº factura"}
-                          </p>
-                          <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
-                            {formatCurrency(Number(item.total || 0))} · {item.recordId}
-                          </p>
-                          {String(item.quarter || "").trim() ? (
-                            <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
-                              Trimestre: {String(item.quarter).trim()}
-                            </p>
-                          ) : null}
-                          {(String(item.operationDate || "").trim() || String(item.paymentMethod || "").trim()) ? (
-                            <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
-                              {String(item.operationDate || "").trim() ? `Devengo: ${String(item.operationDate).trim()}` : "Devengo: -"}
-                              {String(item.paymentMethod || "").trim() ? ` · Pago: ${String(item.paymentMethod).trim()}` : ""}
-                            </p>
-                          ) : null}
-                          <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
-                            {item.deductible ? "Deducible" : "No deducible"}
-                          </p>
-                          <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
-                            Emisor:{" "}
-                            <ProfileBadge
-                              label={item.templateProfileLabel || item.templateProfileId || "por defecto"}
-                              colorKey={profileOptions.find((p) => p.id === item.templateProfileId)?.colorKey}
-                            />
-                          </p>
-                          {String(item.nextcloudUrl || "").trim() ? (
-                            <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
-                              <a
-                                href={String(item.nextcloudUrl).trim()}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="underline"
-                              >
-                                Carpeta Nextcloud
-                              </a>
-                            </p>
-                          ) : null}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+              ) : workbookFilteredExpenses.length ? (
+                <table className="w-full min-w-[44rem] text-sm" aria-label="Gastos del ejercicio filtrados">
+                  <thead>
+                    <tr className="border-b bg-muted/40 text-left text-informative">
+                      <th className="p-2 font-medium">Trim.</th>
+                      <th className="p-2 font-medium">Fecha</th>
+                      <th className="p-2 font-medium">Proveedor</th>
+                      <th className="p-2 font-medium">Factura</th>
+                      <th className="p-2 text-right font-medium">Total</th>
+                      <th className="p-2 font-medium">Acciones</th>
+                    </tr>
+                  </thead>
+                  {expenseMonthGroups.map((group) => (
+                    <tbody key={group.monthKey} className="border-b border-border/80">
+                      <tr>
+                        <th colSpan={6} scope="colgroup" className="bg-muted/30 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-foreground">
+                          <span>{group.title}</span>
+                          <span className="ml-2 font-normal normal-case text-informative">
+                            {group.items.length} gasto(s) · {formatCurrency(group.monthTotal)}
+                          </span>
+                        </th>
+                      </tr>
+                      {group.items.map((item) => {
+                        const rid = String(item.recordId || item.id || "").trim();
+                        const qNorm = normalizeQuarterValue(String(item.quarter || ""), String(item.issueDate || ""));
+                        const qShort = formatQuarterShortLabel(qNorm || "SIN_TRIMESTRE") || "—";
+                        const dateMeta =
+                          String(item.operationDate || "").trim()
+                          && String(item.operationDate || "").trim() !== String(item.issueDate || "").trim()
+                            ? `Operación ${formatAdvisorCompactDate(String(item.operationDate || ""))}`
+                            : exerciseYearFromItem(item) || "";
+                        const vendorMeta = [
+                          item.taxId ? `NIF ${item.taxId}` : "",
+                          item.taxIdType ? `Tipo ${item.taxIdType}` : "",
+                          item.taxCountryCode ? `País ${item.taxCountryCode}` : "",
+                          item.templateProfileLabel ? `Perfil ${item.templateProfileLabel}` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ");
+                        const isActive = rid === selectedRecordId;
+                        const nc = String(item.nextcloudUrl || "").trim();
+                        return (
+                          <tr
+                            key={rid || `${group.monthKey}-${item.vendor}-${item.issueDate}`}
+                            className={`cursor-pointer border-b border-border/50 hover:bg-accent/50 ${workbookQuarterRowToneClass(qNorm)} ${
+                              isActive ? "bg-primary/10" : ""
+                            }`}
+                            onClick={() => {
+                              if (!rid) {
+                                return;
+                              }
+                              setSelectedRecordId(rid);
+                              setRecordIdSearchParam(rid);
+                              setDraft(normalizeExpenseDraft(item));
+                              setStatusMessage("Gasto cargado para edición.");
+                              setStatusTone("neutral");
+                            }}
+                          >
+                            <td className="p-2 align-top">
+                              <span className="inline-flex rounded border border-border bg-background px-1.5 py-0.5 text-xs font-medium tabular-nums">
+                                {qShort}
+                              </span>
+                            </td>
+                            <td className="p-2 align-top">
+                              <div className="grid gap-0.5">
+                                <span className="font-mono text-xs">{formatAdvisorCompactDate(String(item.issueDate || ""))}</span>
+                                {dateMeta ? <span className="text-xs text-informative">{dateMeta}</span> : null}
+                              </div>
+                            </td>
+                            <td className="p-2 align-top">
+                              <div className="grid gap-0.5">
+                                <span className="font-medium">{item.vendor || "—"}</span>
+                                {vendorMeta ? <span className="text-xs text-informative">{vendorMeta}</span> : null}
+                              </div>
+                            </td>
+                            <td className="max-w-[12rem] p-2 align-top break-all text-xs" onClick={(e) => e.stopPropagation()}>
+                              {!nc ? (
+                                <span className="text-informative">—</span>
+                              ) : /^https?:\/\//iu.test(nc) ? (
+                                <a href={nc} target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                                  {nc.length > 42 ? `${nc.slice(0, 39)}…` : nc}
+                                </a>
+                              ) : (
+                                <span title={nc}>{nc.length > 36 ? `${nc.slice(0, 33)}…` : nc}</span>
+                              )}
+                            </td>
+                            <td className="p-2 align-top text-right tabular-nums font-medium">{formatCurrency(Number(item.total || 0))}</td>
+                            <td className="p-2 align-top" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex flex-wrap gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-2"
+                                  aria-label="Editar gasto"
+                                  onClick={() => {
+                                    if (!rid) {
+                                      return;
+                                    }
+                                    setSelectedRecordId(rid);
+                                    setRecordIdSearchParam(rid);
+                                    setDraft(normalizeExpenseDraft(item));
+                                    setStatusMessage("Gasto cargado para edición.");
+                                    setStatusTone("neutral");
+                                  }}
+                                >
+                                  Editar
+                                </Button>
+                                {isAdmin && rid ? (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 px-2 text-red-600 hover:text-red-700"
+                                    disabled={archiveExpenseMutation.isPending}
+                                    onClick={() => archiveExpenseMutation.mutate(rid)}
+                                  >
+                                    Archivar
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="bg-muted/20 text-xs font-medium text-informative">
+                        <td colSpan={4} className="p-2">
+                          Total {group.title}
+                        </td>
+                        <td className="p-2 text-right tabular-nums text-foreground">{formatCurrency(group.monthTotal)}</td>
+                        <td />
+                      </tr>
+                    </tbody>
+                  ))}
+                  <tfoot>
+                    <tr className="border-t bg-muted/30 font-medium">
+                      <td colSpan={4} className="p-2">
+                        Totales gastos (filtro)
+                      </td>
+                      <td className="p-2 text-right tabular-nums">{formatCurrency(workbookExpenseTotal)}</td>
+                      <td />
+                    </tr>
+                    <tr className="bg-muted/15 font-medium">
+                      <td colSpan={4} className="p-2 text-informative">
+                        Total ejercicio
+                      </td>
+                      <td className="p-2 text-right tabular-nums">{formatCurrency(exerciseExpenseTotal)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
               ) : (
-                <p className="p-3 text-informative">No hay gastos para ese filtro.</p>
+                <p className="p-4 text-informative">
+                  Ningún gasto coincide con el filtro. Ajusta ejercicio, emisor o trimestre; si no hay datos, regístralos en el formulario
+                  de la derecha.
+                </p>
               )}
             </div>
           </CardContent>
@@ -1439,6 +1575,23 @@ export function ExpensesPage() {
         </Card>
       </section>
 
+      {isAdmin ? (
+        <AdvisorSummaryDialog
+          open={advisorSummaryOpen}
+          onClose={() => setAdvisorSummaryOpen(false)}
+          historyItems={historyItems}
+          expenseItems={expensesQuery.data?.items ?? []}
+          profileOptions={profileOptions}
+          pageFilterYear={yearFilter === "all" ? "" : yearFilter}
+          pageFilterProfile={
+            profileFilter === "all" || profileFilter === "__default__" || profileFilter === "__unassigned__"
+              ? ""
+              : profileFilter
+          }
+          availableYears={advisorAvailableYears}
+        />
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Papelera gastos</CardTitle>
@@ -1476,64 +1629,6 @@ export function ExpensesPage() {
           </div>
         </CardContent>
       </Card>
-
-      {isAdmin ? (
-        <Card>
-          <div className="grid gap-4 p-4">
-            <h2 className="text-base font-semibold">Importar gastos</h2>
-            <p className="text-informative">
-              Sube el libro de control (.xlsx) o uno o varios PDFs de facturas para importar gastos en bloque.
-            </p>
-
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Emisor destino</label>
-              <select
-                value={importProfileId}
-                onChange={(e) => setImportProfileId(e.target.value)}
-                className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-              >
-                <option value="">— Selecciona emisor —</option>
-                {profileOptions.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label || p.id}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Archivo (.xlsx o .pdf)</label>
-              <input ref={importFileRef} type="file" accept=".xlsx,.pdf" className="text-sm" />
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleImportExpenses}
-              disabled={importExpensesMutation.isPending || !importProfileId}
-            >
-              {importExpensesMutation.isPending ? "Importando..." : "Importar gastos"}
-            </Button>
-
-            {importExpensesMutation.isError ? (
-              <p className="text-sm text-red-600">
-                {(importExpensesMutation.error as Error)?.message || "Error al importar."}
-              </p>
-            ) : null}
-
-            {importResult ? (
-              <div className="grid gap-1">
-                <p className="text-sm text-green-700">Importados: {importResult.created ?? 0}</p>
-                {(importResult.skipped ?? []).length > 0 ? (
-                  <p className="text-informative">
-                    Omitidos: {(importResult.skipped ?? []).join(", ")}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </Card>
-      ) : null}
 
       <dialog
         ref={expenseLabelsDialogRef}
