@@ -22,6 +22,10 @@ import {
   sortExpenseRowsForAdvisor,
   sortInvoiceRowsForAdvisor,
 } from "@/features/data/lib/advisorShareFilters";
+import {
+  ExpensePreviewListTrigger,
+  InvoicePreviewListTrigger,
+} from "@/features/shared/components/RecordListPreviewTriggers";
 import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
 import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
 import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
@@ -474,6 +478,7 @@ export function AdvisorSummaryDialog({
                           <th className="whitespace-nowrap p-2 font-medium">Estado</th>
                           <th className="p-2 font-medium">Emisor</th>
                           <th className="whitespace-nowrap p-2 text-right font-medium">Total</th>
+                          <th className="w-10 whitespace-nowrap p-2 text-center font-medium">Ver</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -486,7 +491,7 @@ export function AdvisorSummaryDialog({
                               <td className="p-2 align-middle">
                                 <QuarterBadge issueDate={String(i.issueDate || "")} />
                               </td>
-                              <td className={workbookDataTdTight} title={i.number || undefined}>
+                              <td className={workbookDataTdVariable} title={i.number || undefined}>
                                 {i.number || "—"}
                               </td>
                               <td className={workbookDataTdVariable} title={client !== "—" ? client : undefined}>
@@ -511,6 +516,9 @@ export function AdvisorSummaryDialog({
                                 )}
                               </td>
                               <td className={`${workbookDataTdTight} text-right tabular-nums`}>{formatCurrency(Number(i.total || 0))}</td>
+                              <td className="p-2 text-center align-middle">
+                                <InvoicePreviewListTrigger recordId={i.recordId} label={i.number || i.recordId} />
+                              </td>
                             </tr>
                           );
                         })}
@@ -547,6 +555,7 @@ export function AdvisorSummaryDialog({
                           <th className="whitespace-nowrap p-2 font-medium">Fecha</th>
                           <th className="p-2 font-medium">Emisor</th>
                           <th className="whitespace-nowrap p-2 text-right font-medium">Total</th>
+                          <th className="w-10 whitespace-nowrap p-2 text-center font-medium">Ver</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -582,6 +591,9 @@ export function AdvisorSummaryDialog({
                                 )}
                               </td>
                               <td className={`${workbookDataTdTight} text-right tabular-nums`}>{formatCurrency(Number(e.total || 0))}</td>
+                              <td className="p-2 text-center align-middle">
+                                <ExpensePreviewListTrigger expense={e} />
+                              </td>
                             </tr>
                           );
                         })}

@@ -6,6 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { QuarterBadge } from "@/components/ui/QuarterBadge";
 import { DataHistoricalImportPanel } from "@/features/data/components/DataHistoricalImportPanel";
+import {
+  ExpensePreviewListTrigger,
+  InvoicePreviewListTrigger,
+} from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
 import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
@@ -210,6 +214,9 @@ export function DataPage() {
                     <th className="p-2 font-medium">Fecha</th>
                     <th className="p-2 font-medium">Emisor</th>
                     <th className="p-2 text-right font-medium">Total</th>
+                    <th className="w-10 whitespace-nowrap p-2 text-center font-medium" title="Vista previa">
+                      Ver
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -221,7 +228,7 @@ export function DataPage() {
                       <td className="p-2 align-middle">
                         <QuarterBadge issueDate={String(i.issueDate || "")} />
                       </td>
-                      <td className={cn(workbookDataTdTight, "text-left")} title={i.number || undefined}>
+                      <td className={cn(workbookDataTdVariable, "text-left")} title={i.number || undefined}>
                         {i.number || "—"}
                       </td>
                       <td className={workbookDataTdVariable} title={client !== "—" ? client : undefined}>
@@ -243,6 +250,9 @@ export function DataPage() {
                         )}
                       </td>
                       <td className={`${workbookDataTdTight} text-right tabular-nums`}>{formatCurrency(Number(i.total || 0))}</td>
+                      <td className="p-2 text-center align-middle">
+                        <InvoicePreviewListTrigger recordId={i.recordId} label={i.number || i.recordId} />
+                      </td>
                     </tr>
                     );
                   })}
@@ -273,6 +283,9 @@ export function DataPage() {
                     <th className="p-2 font-medium">Fecha</th>
                     <th className="p-2 font-medium">Emisor</th>
                     <th className="p-2 text-right font-medium">Total</th>
+                    <th className="w-10 whitespace-nowrap p-2 text-center font-medium" title="Vista del gasto">
+                      Ver
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -308,6 +321,9 @@ export function DataPage() {
                           )}
                         </td>
                         <td className={`${workbookDataTdTight} text-right tabular-nums`}>{formatCurrency(Number(e.total || 0))}</td>
+                        <td className="p-2 text-center align-middle">
+                          <ExpensePreviewListTrigger expense={e} />
+                        </td>
                       </tr>
                     );
                   })}

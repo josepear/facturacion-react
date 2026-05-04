@@ -1,6 +1,7 @@
 import { fetchWithAuth, request } from "@/infrastructure/api/httpClient";
 
 import type { ConfigResponse, InvoiceDocument, TemplateProfileConfig } from "@/domain/document/types";
+import { normalizeTemplateProfilesFromApi } from "@/infrastructure/mappers/runtimeTemplateProfiles";
 
 export type SaveDocumentResponse = {
   recordId: string;
@@ -18,7 +19,11 @@ export async function fetchRuntimeConfig(): Promise<ConfigResponse> {
   if (!Array.isArray(record.templateProfiles)) {
     throw new Error("/api/config no incluye templateProfiles[]; el backend devolvió otro formato.");
   }
-  return payload as ConfigResponse;
+  const base = payload as ConfigResponse;
+  return {
+    ...base,
+    templateProfiles: normalizeTemplateProfilesFromApi(record.templateProfiles),
+  };
 }
 
 type SaveTemplateProfilesInput = {

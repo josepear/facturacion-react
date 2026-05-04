@@ -8,6 +8,7 @@ import { QuarterBadge } from "@/components/ui/QuarterBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
+import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
 import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
@@ -860,6 +861,20 @@ export function HistoryPage() {
                             {item.status ? ` · ${formatAccountingStatusLabel(item.status)}` : ""}
                           </p>
                         </button>
+                        <div
+                          className={`flex shrink-0 items-center border-l border-border px-1 py-1 ${
+                            isActive ? "border-primary-foreground/25 bg-primary" : "bg-background"
+                          }`}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                          role="presentation"
+                        >
+                          <InvoicePreviewListTrigger
+                            recordId={item.recordId}
+                            label={item.number || item.recordId}
+                            className={isActive ? "text-primary-foreground hover:text-primary-foreground" : undefined}
+                          />
+                        </div>
                       </li>
                     );
                   })}

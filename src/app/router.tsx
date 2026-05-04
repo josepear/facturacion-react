@@ -1,20 +1,22 @@
+import { lazy } from "react";
 import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
 
 import { AppShell } from "@/app/AppShell";
-import { LoginPage } from "@/features/auth/LoginPage";
 import { RequireAuth } from "@/features/auth/RequireAuth";
 import { AsesorLayout } from "@/features/asesor/layout/AsesorLayout";
 import { AsesorCeliaPage } from "@/features/asesor/pages/AsesorCeliaPage";
 import { AsesorLibroPage } from "@/features/asesor/pages/AsesorLibroPage";
 import { AsesorResumenPage } from "@/features/asesor/pages/AsesorResumenPage";
-import { ClientsPage } from "@/features/clients/pages/ClientsPage";
 import { DataPage } from "@/features/data/pages/DataPage";
-import { ExpensesPage } from "@/features/expenses/pages/ExpensesPage";
-import { HistoryPage } from "@/features/history/pages/HistoryPage";
-import { FacturarPage } from "@/features/invoices/pages/FacturarPage";
-import { SettingsPage } from "@/features/settings/pages/SettingsPage";
-import { NotFoundPage } from "@/pages/NotFoundPage";
 import { SharedReportPublicPage } from "@/pages/SharedReportPublicPage";
+
+const LoginPage = lazy(() => import("@/features/auth/LoginPage").then((m) => ({ default: m.LoginPage })));
+const FacturarPage = lazy(() => import("@/features/invoices/pages/FacturarPage").then((m) => ({ default: m.FacturarPage })));
+const ClientsPage = lazy(() => import("@/features/clients/pages/ClientsPage").then((m) => ({ default: m.ClientsPage })));
+const HistoryPage = lazy(() => import("@/features/history/pages/HistoryPage").then((m) => ({ default: m.HistoryPage })));
+const ExpensesPage = lazy(() => import("@/features/expenses/pages/ExpensesPage").then((m) => ({ default: m.ExpensesPage })));
+const SettingsPage = lazy(() => import("@/features/settings/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
+const NotFoundPage = lazy(() => import("@/pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })));
 
 function IndexRedirectToFacturar() {
   const { search } = useLocation();

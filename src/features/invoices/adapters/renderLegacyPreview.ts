@@ -129,11 +129,12 @@ export function buildLegacyPreviewModel(document: InvoiceDocument): LegacyPrevie
     clientEmailLabel: String(document.client?.email || ""),
     clientContactLabel: String(document.client?.contactPerson || ""),
     items,
-    totalsBasisLabel: document.totalsBasis === "gross" ? "Base manual (bruto)" : "Suma de líneas",
-    subtotalBaseLabel:
-      document.totalsBasis === "gross"
-        ? formatCurrency(Number(document.manualGrossSubtotal || 0))
-        : formatCurrency(subtotalFromItems),
+    totalsBasisLabel: document.totalsBasis === "gross" ? "Modo bruto (desde líneas)" : "Suma de líneas",
+    subtotalBaseLabel: formatCurrency(
+      document.totalsBasis === "gross" && Number(document.manualGrossSubtotal || 0) > 0
+        ? Number(document.manualGrossSubtotal || 0)
+        : subtotalFromItems,
+    ),
     financeCells: [
       {
         label: "BRUTO",

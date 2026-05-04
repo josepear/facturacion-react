@@ -58,11 +58,8 @@ export function FacturarSaveSummary({ document, profileLabel, lineTotals }: Fact
           <Row label="Vencimiento">{String(document.dueDate || "").trim() || "—"}</Row>
           <Row label="Referencia">{String(document.reference || "").trim() || "—"}</Row>
           <Row label="Cálculo conceptos">
-            {document.totalsBasis === "gross" ? "Por bruto (base manual)" : "Por líneas"}
+            {document.totalsBasis === "gross" ? "Por bruto (desde líneas)" : "Por líneas"}
           </Row>
-          {document.totalsBasis === "gross" ? (
-            <Row label="Base bruta">{formatCurrency(Number(document.manualGrossSubtotal || 0))}</Row>
-          ) : null}
         </div>
 
         <div className="space-y-2 border-b border-border pb-3">

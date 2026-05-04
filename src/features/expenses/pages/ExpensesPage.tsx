@@ -21,8 +21,9 @@ import {
   mapReactExpenseProfileFilterToControl,
   workbookQuarterRowToneClass,
 } from "@/features/expenses/lib/controlWorkbookExpenseMonths";
-import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
+import { ExpensePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
 import { resolveCalendarQuarter } from "@/features/shared/lib/quarterVisual";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
 import {
@@ -1136,13 +1137,16 @@ export function ExpensesPage() {
                       <th className="p-2 font-medium">Proveedor</th>
                       <th className="p-2 font-medium">Factura</th>
                       <th className="p-2 text-right font-medium">Total</th>
+                      <th className="w-10 whitespace-nowrap p-2 text-center font-medium" title="Vista del gasto">
+                        Ver
+                      </th>
                       <th className="p-2 font-medium">Acciones</th>
                     </tr>
                   </thead>
                   {expenseMonthGroups.map((group) => (
                     <tbody key={group.monthKey} className="border-b border-border/80">
                       <tr>
-                        <th colSpan={6} scope="colgroup" className="bg-muted/30 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-foreground">
+                        <th colSpan={7} scope="colgroup" className="bg-muted/30 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-foreground">
                           <span>{group.title}</span>
                           <span className="ml-2 font-normal normal-case text-informative">
                             {group.items.length} gasto(s) · {formatCurrency(group.monthTotal)}
@@ -1217,6 +1221,9 @@ export function ExpensesPage() {
                               )}
                             </td>
                             <td className={`${workbookDataTdTight} text-right tabular-nums font-medium`}>{formatCurrency(Number(item.total || 0))}</td>
+                            <td className="p-2 text-center align-middle" onClick={(e) => e.stopPropagation()}>
+                              <ExpensePreviewListTrigger expense={item} />
+                            </td>
                             <td className={`${workbookDataTdTight} align-middle`} onClick={(e) => e.stopPropagation()}>
                               <div className="flex flex-nowrap gap-1">
                                 <Button

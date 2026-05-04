@@ -12,6 +12,7 @@ import { InvoiceItemsTable } from "@/features/invoices/components/InvoiceItemsTa
 import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotalsPanel";
 import { WorkflowModule } from "@/features/invoices/components/WorkflowModule";
 import { useFacturarForm } from "@/features/invoices/hooks/useFacturarForm";
+import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import {
   archiveDocument,
   checkDocumentNumberAvailability,
@@ -20,14 +21,18 @@ import {
 import { fetchGmailOAuthStartUrl, fetchGmailStatus, sendGmailInvoice } from "@/infrastructure/api/gmailApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { openGmailOAuthPopupAndWait } from "@/infrastructure/gmail/oauthPopup";
+import { workbookDataTableBase, workbookDataTdTight } from "@/features/shared/lib/workbookTableText";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { cn, formatCurrency } from "@/lib/utils";
 
 /** Badge de valor en módulo Emisor (misma estética que estado «Completo», solo lectura). */
 const facturarIssuerValueBadgeClass =
   "inline-flex h-5 max-h-[1.25rem] min-h-[1.25rem] items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0 text-xs font-medium leading-none text-emerald-700";
 
-const FACTURAR_WORKFLOW_MODULE_ORDER = ["emitter", "document", "history", "client", "concepts", "fiscal", "save"] as const;
-type FacturarWorkflowModuleId = (typeof FACTURAR_WORKFLOW_MODULE_ORDER)[number];
+/** Módulos del acordeón (un solo panel abierto en modo auto). «Guardar» va aparte, siempre visible. */
+const FACTURAR_ACCORDION_MODULE_ORDER = ["emitter", "document", "client", "concepts", "fiscal", "history"] as const;
+type FacturarAccordionModuleId = (typeof FACTURAR_ACCORDION_MODULE_ORDER)[number];
+type FacturarWorkflowScrollTargetId = FacturarAccordionModuleId | "save";
 
 type FacturarWorkflowChecklist = {
   emitter: { complete: boolean };
@@ -39,9 +44,9 @@ type FacturarWorkflowChecklist = {
   save: { complete: boolean };
 };
 
-/** Primer módulo incompleto en el orden del flujo; si todo está listo, se abre Guardar. */
-function autoOpenFacturarWorkflowModule(checklist: FacturarWorkflowChecklist): FacturarWorkflowModuleId {
-  for (const id of FACTURAR_WORKFLOW_MODULE_ORDER) {
+/** Primer módulo incompleto del acordeón; si todo está listo para guardar, el scroll apunta al bloque Guardar. */
+function autoOpenFacturarWorkflowTarget(checklist: FacturarWorkflowChecklist): FacturarWorkflowScrollTargetId {
+  for (const id of FACTURAR_ACCORDION_MODULE_ORDER) {
     if (!checklist[id].complete) {
       return id;
     }
@@ -49,7 +54,7 @@ function autoOpenFacturarWorkflowModule(checklist: FacturarWorkflowChecklist): F
   return "save";
 }
 
-type FacturarModuleUiMode = "auto" | "none" | FacturarWorkflowModuleId;
+type FacturarModuleUiMode = "auto" | "none" | FacturarAccordionModuleId | "save";
 
 export function FacturarPage() {
   const [searchParams] = useSearchParams();
@@ -83,12 +88,7 @@ export function FacturarPage() {
     numberAvailabilityTone,
     profileDocumentReloadOptions,
     historyOptions,
-    filteredHistoryOptions,
-    historySearchTerm,
-    setHistorySearchTerm,
-    selectedHistoryRecordId,
-    setSelectedHistoryRecordId,
-    loadBySelectedHistory,
+    clientHistoryOptions,
     loadingHistory,
     totalHistoryCount,
     serverRecordId,
@@ -107,7 +107,7 @@ export function FacturarPage() {
   } = useFacturarForm(initialRecordId, initialTemplateProfileId);
 
   const autoOpenModuleId = useMemo(
-    () => autoOpenFacturarWorkflowModule(workflowChecklist),
+    () => autoOpenFacturarWorkflowTarget(workflowChecklist),
     [
       workflowChecklist.emitter.complete,
       workflowChecklist.document.complete,
@@ -115,7 +115,6 @@ export function FacturarPage() {
       workflowChecklist.client.complete,
       workflowChecklist.concepts.complete,
       workflowChecklist.fiscal.complete,
-      workflowChecklist.save.complete,
     ],
   );
 
@@ -142,7 +141,7 @@ export function FacturarPage() {
     setModuleUiMode("auto");
     setPinConceptsInWorkflowAuto(false);
     setClientMoreDetailsOpen(false);
-    prevAutoOpenTargetRef.current = autoOpenFacturarWorkflowModule(workflowChecklist);
+    prevAutoOpenTargetRef.current = autoOpenFacturarWorkflowTarget(workflowChecklist);
     lastWorkflowScrollTargetRef.current = null;
     workflowScrollBootRef.current = true;
   }, [workflowLayoutResetVersion, workflowChecklist, setClientMoreDetailsOpen]);
@@ -188,7 +187,7 @@ export function FacturarPage() {
   }, [autoScrollTargetId, moduleUiMode]);
 
   const isModuleOpen = useCallback(
-    (id: FacturarWorkflowModuleId) => {
+    (id: FacturarAccordionModuleId) => {
       if (moduleUiMode === "none") {
         return false;
       }
@@ -203,7 +202,7 @@ export function FacturarPage() {
     [autoOpenModuleId, moduleUiMode, pinConceptsInWorkflowAuto],
   );
 
-  const handleWorkflowModuleOpenChange = useCallback((id: FacturarWorkflowModuleId, nextOpen: boolean) => {
+  const handleWorkflowModuleOpenChange = useCallback((id: FacturarAccordionModuleId, nextOpen: boolean) => {
     if (nextOpen) {
       setPinConceptsInWorkflowAuto(false);
       setModuleUiMode(id);
@@ -266,8 +265,6 @@ export function FacturarPage() {
       ? loadMutation.variables.trim()
       : String(serverRecordId || "").trim();
 
-  const [historyYearFilter, setHistoryYearFilter] = useState("");
-  const [historyTypeFilter, setHistoryTypeFilter] = useState("");
   const [gmailDialog, setGmailDialog] = useState(false);
   const [gmailTo, setGmailTo] = useState("");
   const [gmailBodyText, setGmailBodyText] = useState("");
@@ -352,27 +349,6 @@ export function FacturarPage() {
     mutationFn: (recordId: string) => archiveDocument(recordId),
   });
 
-  const historyYearOptions = useMemo(() => {
-    const years = new Set(
-      historyOptions
-        .map((o) => String(o.issueDate || "").trim().slice(0, 4))
-        .filter((y) => /^\d{4}$/.test(y))
-    );
-    return Array.from(years).sort((a, b) => b.localeCompare(a));
-  }, [historyOptions]);
-
-  const yearFilteredHistoryOptions = useMemo(() => {
-    return filteredHistoryOptions.filter((option) => {
-      if (historyYearFilter && !String(option.issueDate || "").startsWith(historyYearFilter)) {
-        return false;
-      }
-      if (historyTypeFilter && option.type !== historyTypeFilter) {
-        return false;
-      }
-      return true;
-    });
-  }, [filteredHistoryOptions, historyTypeFilter, historyYearFilter]);
-  const hasHistoryFilters = Boolean(historyYearFilter || historyTypeFilter || historySearchTerm.trim());
   const shouldBlockNavigation = isDirty && !saveMutation.isPending && !saveMutation.isSuccess;
   const blocker = useBlocker(shouldBlockNavigation);
 
@@ -411,8 +387,11 @@ export function FacturarPage() {
         </p>
       </header>
 
-      <form className="grid gap-4 sm:gap-6 lg:grid-cols-[2fr_1fr]" onSubmit={submit}>
-        <div className="grid gap-6">
+      <form
+        className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+        onSubmit={submit}
+      >
+        <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm divide-y divide-border">
           <WorkflowModule
             title="Emisor"
             stateLabel={workflowChecklist.emitter.complete ? "Completo" : "Pendiente"}
@@ -421,6 +400,7 @@ export function FacturarPage() {
             open={isModuleOpen("emitter")}
             onOpenChange={(next) => handleWorkflowModuleOpenChange("emitter", next)}
             workflowModuleId="emitter"
+            stacked
           >
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <label className="grid gap-2 text-sm">
@@ -497,6 +477,7 @@ export function FacturarPage() {
             open={isModuleOpen("document")}
             onOpenChange={(next) => handleWorkflowModuleOpenChange("document", next)}
             workflowModuleId="document"
+            stacked
           >
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="Tipo" error={errors.type?.message}>
@@ -663,101 +644,6 @@ export function FacturarPage() {
           </WorkflowModule>
 
           <WorkflowModule
-            title="Histórico"
-            stateLabel={workflowChecklist.history.complete ? "Disponible" : "Pendiente"}
-            stateTone={workflowChecklist.history.complete ? "ok" : "pending"}
-            help={workflowChecklist.history.tip}
-            open={isModuleOpen("history")}
-            onOpenChange={(next) => handleWorkflowModuleOpenChange("history", next)}
-            workflowModuleId="history"
-          >
-            <div className="grid gap-4">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <Field label="Ejercicio">
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={historyYearFilter}
-                    onChange={(event) => setHistoryYearFilter(event.target.value)}
-                  >
-                    <option value="">Todos los ejercicios</option>
-                    {historyYearOptions.map((year) => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Tipo">
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={historyTypeFilter}
-                    onChange={(event) => setHistoryTypeFilter(event.target.value)}
-                  >
-                    <option value="">Todos los tipos</option>
-                    <option value="factura">Factura</option>
-                    <option value="presupuesto">Presupuesto</option>
-                  </select>
-                </Field>
-                <Field label="Buscar documento">
-                  <Input
-                    placeholder="Número, cliente, tipo o recordId"
-                    value={historySearchTerm}
-                    onChange={(event) => setHistorySearchTerm(event.target.value)}
-                  />
-                </Field>
-              </div>
-              {hasHistoryFilters ? (
-                <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setHistoryYearFilter("");
-                      setHistoryTypeFilter("");
-                      setHistorySearchTerm("");
-                    }}
-                  >
-                    Limpiar filtros histórico
-                  </Button>
-                </div>
-              ) : null}
-              <Field label="Selección rápida (histórico)">
-                <div className="flex gap-2">
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    value={selectedHistoryRecordId}
-                    onChange={(event) => setSelectedHistoryRecordId(event.target.value)}
-                  >
-                    <option value="">Selecciona documento</option>
-                    {yearFilteredHistoryOptions.map((option) => (
-                      <option key={option.recordId} value={option.recordId}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={loadBySelectedHistory}
-                    disabled={!selectedHistoryRecordId || loadMutation.isPending}
-                  >
-                    {loadMutation.isPending ? "Cargando..." : "Cargar"}
-                  </Button>
-                </div>
-                <span className="text-informative">
-                  {loadingHistory
-                    ? "Cargando histórico..."
-                    : <>
-                        {yearFilteredHistoryOptions.length} de {historyOptions.length} recientes
-                        {totalHistoryCount > historyOptions.length
-                          ? <> · <Link to="/historial" className="underline underline-offset-2">ver los {totalHistoryCount} en Historial</Link></>
-                          : null}
-                      </>}
-                </span>
-              </Field>
-            </div>
-          </WorkflowModule>
-
-          <WorkflowModule
             title="Cliente"
             stateLabel={workflowChecklist.client.complete ? "Completo" : "Pendiente"}
             stateTone={workflowChecklist.client.complete ? "ok" : "pending"}
@@ -765,6 +651,7 @@ export function FacturarPage() {
             open={isModuleOpen("client")}
             onOpenChange={(next) => handleWorkflowModuleOpenChange("client", next)}
             workflowModuleId="client"
+            stacked
           >
             <div className="grid gap-4 sm:grid-cols-1">
               <Field label="Cliente guardado" hint="Si eliges uno, se rellenan los datos. «Quitar cliente» deja el bloque listo para otro.">
@@ -882,36 +769,34 @@ export function FacturarPage() {
             open={isModuleOpen("concepts")}
             onOpenChange={(next) => handleWorkflowModuleOpenChange("concepts", next)}
             workflowModuleId="concepts"
+            stacked
           >
             <div className="grid gap-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Modo cálculo conceptos" hint="'Por concepto' suma las líneas. 'Por bruto' introduce la base directamente sin líneas.">
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    {...register("totalsBasis")}
-                  >
-                    <option value="items">Por concepto (suma líneas)</option>
-                    <option value="gross">Por bruto (base imponible manual)</option>
-                  </select>
-                </Field>
-                {liveDocument.totalsBasis === "gross" ? (
-                  <Field label="Base imponible bruta">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      {...register("manualGrossSubtotal", {
-                        setValueAs: (value) => {
-                          if (value === "" || value === null || value === undefined) {
-                            return 0;
-                          }
-                          const parsed = Number(value);
-                          return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-                        },
-                      })}
-                    />
-                  </Field>
-                ) : null}
-              </div>
+              {String(serverRecordId || "").trim() ? (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/20 px-3 py-2 text-sm">
+                  <span className="text-informative">Vista rápida del documento guardado (HTML oficial).</span>
+                  <InvoicePreviewListTrigger
+                    recordId={String(serverRecordId || "").trim()}
+                    label={String(watch("number") || "").trim() || undefined}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Tras guardar el documento, podrás abrir aquí la misma vista HTML que «Ver HTML oficial» sin salir de Conceptos.
+                </p>
+              )}
+              <Field
+                label="Modo cálculo conceptos"
+                hint="'Por concepto' y 'Por bruto' calculan el total a partir de las líneas; en bruto las líneas siguen sirviendo para detalle y vista previa."
+              >
+                <select
+                  className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  {...register("totalsBasis")}
+                >
+                  <option value="items">Por concepto (suma líneas)</option>
+                  <option value="gross">Por bruto (totales desde líneas)</option>
+                </select>
+              </Field>
               <InvoiceItemsTable
                 register={register}
                 control={control}
@@ -943,6 +828,7 @@ export function FacturarPage() {
             open={isModuleOpen("fiscal")}
             onOpenChange={(next) => handleWorkflowModuleOpenChange("fiscal", next)}
             workflowModuleId="fiscal"
+            stacked
           >
             <InvoiceTotalsPanel
               register={register}
@@ -955,6 +841,243 @@ export function FacturarPage() {
               onIrpfFieldBlur={commitFiscalIrpfChoiceFromInput}
             />
           </WorkflowModule>
+
+          <WorkflowModule
+            title="Histórico"
+            stateLabel={workflowChecklist.client.complete ? "Disponible" : "Pendiente"}
+            stateTone={workflowChecklist.client.complete ? "ok" : "pending"}
+            help={workflowChecklist.history.tip}
+            open={isModuleOpen("history")}
+            onOpenChange={(next) => handleWorkflowModuleOpenChange("history", next)}
+            workflowModuleId="history"
+            stacked
+          >
+            <div className="grid min-w-0 gap-3 sm:gap-4">
+              <Field
+                label="Documentos de este cliente"
+                hint="Facturas y presupuestos guardados que coinciden con el nombre de cliente del borrador (sin filtros manuales)."
+              >
+                {!String(watch("client.name") || "").trim() ? (
+                  <p className="text-sm text-informative">Indica y confirma el cliente en el módulo anterior para listar su historial.</p>
+                ) : !workflowChecklist.client.complete ? (
+                  <p className="text-sm text-informative">Confirma el cliente (Seleccionar junto a País) para habilitar la tabla.</p>
+                ) : loadingHistory ? (
+                  <p className="text-sm text-informative">Cargando histórico…</p>
+                ) : clientHistoryOptions.length === 0 ? (
+                  <p className="text-sm text-informative">No hay facturas ni presupuestos guardados con este nombre de cliente.</p>
+                ) : (
+                  <div className="-mx-2 max-h-[min(50vh,22rem)] overflow-auto rounded-md border sm:mx-0 sm:max-h-[min(60vh,28rem)]">
+                    <table
+                      className={cn(workbookDataTableBase, "min-w-[32rem] text-sm")}
+                      aria-label="Facturas y presupuestos del cliente en el borrador"
+                    >
+                      <thead>
+                        <tr className="sticky top-0 z-[1] border-b bg-muted/90 text-left text-informative backdrop-blur-sm">
+                          <th className="p-2 pl-3 font-medium">Número</th>
+                          <th className="p-2 font-medium">Tipo</th>
+                          <th className="p-2 font-medium">Fecha</th>
+                          <th className="p-2 text-right font-medium">Total</th>
+                          <th className="w-12 p-2 text-center font-medium" title="Vista previa HTML">
+                            Ver
+                          </th>
+                          <th className="p-2 pr-3 font-medium">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clientHistoryOptions.map((row) => {
+                          const pendingId =
+                            loadMutation.isPending && typeof loadMutation.variables === "string"
+                              ? loadMutation.variables.trim()
+                              : "";
+                          const rowLoading = Boolean(pendingId && pendingId === row.recordId);
+                          const issueFmt =
+                            row.issueDate && /^\d{4}-\d{2}-\d{2}$/u.test(row.issueDate)
+                              ? new Date(`${row.issueDate}T12:00:00`).toLocaleDateString("es-ES")
+                              : row.issueDate || "—";
+                          return (
+                            <tr
+                              key={row.recordId}
+                              className="border-b border-border/70 last:border-b-0 hover:bg-muted/25"
+                            >
+                              <td className={cn(workbookDataTdTight, "pl-3 font-medium text-foreground")} title={row.number}>
+                                {row.number}
+                              </td>
+                              <td className={cn(workbookDataTdTight, "text-informative")}>{row.typeLabel}</td>
+                              <td className={workbookDataTdTight}>{issueFmt}</td>
+                              <td className={cn(workbookDataTdTight, "text-right tabular-nums")}>
+                                {row.totalAmount !== null ? formatCurrency(row.totalAmount) : "—"}
+                              </td>
+                              <td className="p-1 text-center align-middle">
+                                <InvoicePreviewListTrigger recordId={row.recordId} label={row.label} />
+                              </td>
+                              <td className={cn(workbookDataTdTight, "pr-3")}>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-9 min-h-[2.25rem] w-full max-w-[7.5rem] sm:h-8 sm:min-h-0"
+                                  disabled={loadMutation.isPending && !rowLoading}
+                                  onClick={() => loadMutation.mutate(row.recordId)}
+                                >
+                                  {rowLoading ? "Cargando…" : "Cargar"}
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <p className="mt-2 text-pretty text-sm text-informative">
+                  {!loadingHistory && workflowChecklist.client.complete && String(watch("client.name") || "").trim() ? (
+                    <>
+                      {clientHistoryOptions.length} documento(s) de este cliente
+                      {totalHistoryCount > historyOptions.length ? (
+                        <>
+                          {" "}
+                          ·{" "}
+                          <Link to="/historial" className="underline underline-offset-2">
+                            ver los {totalHistoryCount} en Historial
+                          </Link>
+                        </>
+                      ) : null}
+                    </>
+                  ) : null}
+                </p>
+              </Field>
+            </div>
+          </WorkflowModule>
+
+          <div className="pt-5">
+            <WorkflowModule
+              title="Guardar"
+              stateLabel={workflowChecklist.save.complete ? "Completo" : "Pendiente"}
+              stateTone={workflowChecklist.save.complete ? "ok" : "pending"}
+              help={workflowChecklist.save.tip}
+              open
+              onOpenChange={() => {}}
+              workflowModuleId="save"
+              stacked
+              alwaysExpanded
+              titleClassName="text-[2rem] leading-tight tracking-tight"
+            >
+              <div className="flex w-full flex-col items-stretch gap-3 sm:items-end">
+                <div className="flex w-full max-w-full flex-col gap-3 sm:max-w-xl">
+                  <Button type="submit" disabled={isSubmitting || saveMutation.isPending || loadingConfig}>
+                    {saveMutation.isPending ? "Guardando..." : "Guardar documento"}
+                  </Button>
+                  <p className="text-pretty text-sm text-informative sm:max-w-xl sm:text-right">
+                    Revise la factura en la vista previa HTML antes de guardar (panel de previsualización del documento).
+                  </p>
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => openOfficialOutput("html")}
+                      disabled={!canOpenOfficialOutput || officialOutputLoading !== null}
+                    >
+                      {officialOutputLoading === "html" ? "Abriendo HTML..." : "Ver HTML oficial"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => openOfficialOutput("pdf")}
+                      disabled={!canOpenOfficialOutput || officialOutputLoading !== null}
+                    >
+                      {officialOutputLoading === "pdf" ? "Abriendo PDF..." : "Abrir PDF oficial"}
+                    </Button>
+                    {hasLastSetup ? (
+                      <Button type="button" variant="outline" onClick={repeatLastSetup}>
+                        Repetir última factura
+                      </Button>
+                    ) : null}
+                    {canOpenOfficialOutput ? (
+                      <Button type="button" variant="outline" onClick={duplicateDocument}>
+                        Duplicar documento
+                      </Button>
+                    ) : null}
+                    {canOpenOfficialOutput ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={archiveMutation.isPending}
+                        onClick={() => {
+                          if (!serverRecordId) return;
+                          if (!window.confirm("¿Archivar este documento? Se moverá a la papelera interna.")) return;
+                          archiveMutation.mutate(serverRecordId);
+                        }}
+                      >
+                        {archiveMutation.isPending ? "Archivando..." : "Archivar documento"}
+                      </Button>
+                    ) : null}
+                    {nextcloudUrl ? (
+                      <a
+                        href={nextcloudUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-informative underline underline-offset-2 hover:text-foreground"
+                      >
+                        Ir a carpeta Nextcloud
+                      </a>
+                    ) : null}
+                    {canOpenOfficialOutput && gmailConfigured && !gmailConnected ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={async () => {
+                          setGmailSentMessage("");
+                          setGmailAuthError("");
+                          try {
+                            const { authUrl } = await fetchGmailOAuthStartUrl(templateProfileIdForGmail);
+                            await openGmailOAuthPopupAndWait(authUrl);
+                            await queryClient.invalidateQueries({ queryKey: ["gmail-status", templateProfileIdForGmail] });
+                          } catch (err) {
+                            setGmailAuthError(getErrorMessageFromUnknown(err));
+                          }
+                        }}
+                      >
+                        Conectar Gmail
+                      </Button>
+                    ) : null}
+                    {canOpenOfficialOutput && gmailConfigured && gmailConnected ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setGmailTo(form.getValues("client.email") || "");
+                          setGmailBodyText("");
+                          setGmailSentMessage("");
+                          setGmailAuthError("");
+                          setGmailDialog(true);
+                        }}
+                      >
+                        Enviar por Gmail
+                      </Button>
+                    ) : null}
+                  </div>
+                {gmailAuthError ? <p className="text-sm text-red-600 sm:text-right">{gmailAuthError}</p> : null}
+                {officialOutputError ? <p className="text-sm text-red-600 sm:text-right">{officialOutputError}</p> : null}
+                <div className="flex flex-col gap-1 text-informative sm:items-end sm:text-right">
+                  <span>{serverRecordId ? `recordId: ${serverRecordId}` : "Documento nuevo"}</span>
+                  <span>
+                    {canOpenOfficialOutput
+                      ? "Salida oficial habilitada para este recordId guardado."
+                      : "Guarda o carga un documento para habilitar HTML/PDF oficiales."}
+                  </span>
+                </div>
+                {(saveMutation.error || loadMutation.error || suggestNumberMutation.error || checkAvailabilityMutation.error) && (
+                  <p className="text-sm text-red-600 sm:text-right">
+                    {(saveMutation.error as Error | null)?.message ||
+                      (loadMutation.error as Error | null)?.message ||
+                      (suggestNumberMutation.error as Error | null)?.message ||
+                      (checkAvailabilityMutation.error as Error | null)?.message}
+                  </p>
+                )}
+                </div>
+              </div>
+            </WorkflowModule>
+          </div>
         </div>
 
         <div className="flex min-h-0 flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-1.5rem)] lg:overflow-y-auto lg:min-w-0">
@@ -969,125 +1092,6 @@ export function FacturarPage() {
             isDirty={isDirty}
             refreshVersion={officialHtmlPreviewVersion}
           />
-          <WorkflowModule
-            title="Guardar"
-            stateLabel={workflowChecklist.save.complete ? "Completo" : "Pendiente"}
-            stateTone={workflowChecklist.save.complete ? "ok" : "pending"}
-            help={workflowChecklist.save.tip}
-            open={isModuleOpen("save")}
-            onOpenChange={(next) => handleWorkflowModuleOpenChange("save", next)}
-            workflowModuleId="save"
-          >
-            <div className="grid gap-3">
-              <Button type="submit" disabled={isSubmitting || saveMutation.isPending || loadingConfig}>
-                {saveMutation.isPending ? "Guardando..." : "Guardar documento"}
-              </Button>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => openOfficialOutput("html")}
-                  disabled={!canOpenOfficialOutput || officialOutputLoading !== null}
-                >
-                  {officialOutputLoading === "html" ? "Abriendo HTML..." : "Ver HTML oficial"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => openOfficialOutput("pdf")}
-                  disabled={!canOpenOfficialOutput || officialOutputLoading !== null}
-                >
-                  {officialOutputLoading === "pdf" ? "Abriendo PDF..." : "Abrir PDF oficial"}
-                </Button>
-                {hasLastSetup ? (
-                  <Button type="button" variant="outline" onClick={repeatLastSetup}>
-                    Repetir última factura
-                  </Button>
-                ) : null}
-                {canOpenOfficialOutput ? (
-                  <Button type="button" variant="outline" onClick={duplicateDocument}>
-                    Duplicar documento
-                  </Button>
-                ) : null}
-                {canOpenOfficialOutput ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={archiveMutation.isPending}
-                    onClick={() => {
-                      if (!serverRecordId) return;
-                      if (!window.confirm("¿Archivar este documento? Se moverá a la papelera interna.")) return;
-                      archiveMutation.mutate(serverRecordId);
-                    }}
-                  >
-                    {archiveMutation.isPending ? "Archivando..." : "Archivar documento"}
-                  </Button>
-                ) : null}
-                {nextcloudUrl ? (
-                  <a
-                    href={nextcloudUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-informative underline underline-offset-2 hover:text-foreground"
-                  >
-                    Ir a carpeta Nextcloud
-                  </a>
-                ) : null}
-                {canOpenOfficialOutput && gmailConfigured && !gmailConnected ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={async () => {
-                      setGmailSentMessage("");
-                      setGmailAuthError("");
-                      try {
-                        const { authUrl } = await fetchGmailOAuthStartUrl(templateProfileIdForGmail);
-                        await openGmailOAuthPopupAndWait(authUrl);
-                        await queryClient.invalidateQueries({ queryKey: ["gmail-status", templateProfileIdForGmail] });
-                      } catch (err) {
-                        setGmailAuthError(getErrorMessageFromUnknown(err));
-                      }
-                    }}
-                  >
-                    Conectar Gmail
-                  </Button>
-                ) : null}
-                {canOpenOfficialOutput && gmailConfigured && gmailConnected ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setGmailTo(form.getValues("client.email") || "");
-                      setGmailBodyText("");
-                      setGmailSentMessage("");
-                      setGmailAuthError("");
-                      setGmailDialog(true);
-                    }}
-                  >
-                    Enviar por Gmail
-                  </Button>
-                ) : null}
-              </div>
-              {gmailAuthError ? <p className="text-sm text-red-600">{gmailAuthError}</p> : null}
-              {officialOutputError ? <p className="text-sm text-red-600">{officialOutputError}</p> : null}
-              <span className="text-informative">
-                {serverRecordId ? `recordId: ${serverRecordId}` : "Documento nuevo"}
-              </span>
-              <span className="text-informative">
-                {canOpenOfficialOutput
-                  ? "Salida oficial habilitada para este recordId guardado."
-                  : "Guarda o carga un documento para habilitar HTML/PDF oficiales."}
-              </span>
-              {(saveMutation.error || loadMutation.error || suggestNumberMutation.error || checkAvailabilityMutation.error) && (
-                <p className="text-sm text-red-600">
-                  {(saveMutation.error as Error | null)?.message ||
-                    (loadMutation.error as Error | null)?.message ||
-                    (suggestNumberMutation.error as Error | null)?.message ||
-                    (checkAvailabilityMutation.error as Error | null)?.message}
-                </p>
-              )}
-            </div>
-          </WorkflowModule>
         </div>
       </form>
 
