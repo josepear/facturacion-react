@@ -33,7 +33,7 @@ export const invoiceAccountingSchema = z.object({
 
 export const invoiceDocumentSchema = z.object({
   type: z.union([z.literal(""), z.literal("factura"), z.literal("presupuesto")]),
-  templateProfileId: z.string().trim().min(1, "Falta el perfil de plantilla."),
+  templateProfileId: z.string().trim().min(1, "Falta el emisor (plantilla)."),
   tenantId: z.string().trim(),
   number: z.string().trim(),
   numberEnd: z.string().trim(),

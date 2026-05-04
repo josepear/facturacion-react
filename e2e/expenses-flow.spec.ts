@@ -67,7 +67,7 @@ test("Gastos: smoke crear, guardar, editar y archivar", async ({ page }) => {
   const formCard = main.locator("div.rounded-lg.border").filter({ has: page.getByRole("heading", { name: /Alta de gasto/ }) }).first();
   await expect(formCard.getByRole("heading", { name: "Alta de gasto" })).toBeVisible({ timeout: 15000 });
 
-  const profileSelect = formCard.locator('label:has(span:text-is("Perfil")) select').first();
+  const profileSelect = formCard.locator('label:has(span:text-is("Emisor")) select').first();
   await expect(profileSelect).toBeVisible();
   await profileSelect.selectOption(profileId);
 

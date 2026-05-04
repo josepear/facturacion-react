@@ -154,9 +154,9 @@ describe("SettingsPage regression", () => {
 
     render(<SettingsPage />, { wrapper: createPageWrapper() });
 
-    await screen.findByText("Perfil activo (servidor)");
+    await screen.findByText("Emisor activo (servidor)");
 
-    await userEvent.selectOptions(screen.getByLabelText("Plantilla de emisor"), "perfil-2");
+    await userEvent.selectOptions(screen.getByLabelText("Emisor"), "perfil-2");
     expect(searchState.query).toContain("templateProfileId=perfil-2");
     expect(screen.getByText(/Cambios locales pendientes de guardar/)).toBeTruthy();
     const advancedDetails = screen.getByText("Avanzado del usuario").closest("details");
@@ -177,23 +177,35 @@ describe("SettingsPage regression", () => {
     expect(editedProfile?.defaults?.paymentMethod).toBe("Bizum");
   });
 
-  it("keeps readonly mode for non-admin users", async () => {
+  it("lets editors save emitter changes but not create new emitters", async () => {
     useSessionQueryMock.mockReturnValue(editorSessionQueryResult);
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
       templateProfiles: [{ id: "perfil-1", label: "Perfil 1", defaults: { paymentMethod: "Transferencia" } }],
     });
+    saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
 
     render(<SettingsPage />, { wrapper: createPageWrapper() });
-    await screen.findByText("Perfil activo (servidor)");
+    await screen.findByText("Emisor activo (servidor)");
 
-    const readOnlyBanner = screen
-      .getAllByRole("status")
-      .find((element) => element.textContent?.includes("Modo solo lectura"));
-    expect(readOnlyBanner).toBeTruthy();
-    expect(readOnlyBanner?.textContent).toContain("Modo solo lectura");
-    expect(readOnlyBanner?.textContent).toMatch(/editor/i);
-    expect(screen.getByRole("button", { name: "Guardar datos del emisor" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.queryByText("Modo solo lectura")).toBeNull();
+    expect(screen.getByText(/Rol editor/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Guardar datos del emisor" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByRole("button", { name: "Nuevo emisor" }).hasAttribute("disabled")).toBe(true);
+
+    const advancedDetails = screen.getByText("Avanzado del usuario").closest("details");
+    expect(advancedDetails).toBeTruthy();
+    await userEvent.click(screen.getByText("Avanzado del usuario"));
+    const paymentInput = within(advancedDetails as HTMLElement).getByPlaceholderText("Transferencia bancaria");
+    await userEvent.clear(paymentInput);
+    await userEvent.type(paymentInput, "Tarjeta");
+    await userEvent.click(screen.getByRole("button", { name: "Guardar datos del emisor" }));
+
+    await waitFor(() => {
+      expect(saveTemplateProfilesConfigMock).toHaveBeenCalledTimes(1);
+    });
+    const payload = saveTemplateProfilesConfigMock.mock.calls[0]?.[0];
+    expect(payload.templateProfiles[0]?.defaults?.paymentMethod).toBe("Tarjeta");
   });
 
   it("explains auth failure on /api/config separately from read-only role", async () => {
@@ -206,7 +218,7 @@ describe("SettingsPage regression", () => {
     expect(alert.textContent).toContain("GET /api/config");
     expect(alert.textContent).toContain("No autorizado");
     expect(alert.textContent).toContain("Modo solo lectura");
-    expect(screen.queryByText("Perfil activo (servidor)")).toBeNull();
+    expect(screen.queryByText("Emisor activo (servidor)")).toBeNull();
   });
 
   it("selects profile from templateProfileId in URL after config loads", async () => {
@@ -235,7 +247,7 @@ describe("SettingsPage regression", () => {
     render(<SettingsPage />, { wrapper: createPageWrapper() });
 
     await waitFor(() => {
-      expect((screen.getByLabelText("Plantilla de emisor") as HTMLSelectElement).value).toBe("perfil-2");
+      expect((screen.getByLabelText("Emisor") as HTMLSelectElement).value).toBe("perfil-2");
     });
     expect(screen.getByText(/Cambios locales pendientes de guardar/)).toBeTruthy();
   });
@@ -259,16 +271,16 @@ describe("SettingsPage regression", () => {
     saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
 
     render(<SettingsPage />, { wrapper: createPageWrapper() });
-    await screen.findByText("Perfil activo (servidor)");
+    await screen.findByText("Emisor activo (servidor)");
 
-    await userEvent.click(screen.getByRole("button", { name: "Nuevo usuario" }));
-    const inlineNameInput = await screen.findByLabelText("Nombre del nuevo perfil");
+    await userEvent.click(screen.getByRole("button", { name: "Nuevo emisor" }));
+    const inlineNameInput = await screen.findByLabelText("Nombre del nuevo emisor");
     await userEvent.clear(inlineNameInput);
     await userEvent.type(inlineNameInput, "Perfil Nuevo");
-    await userEvent.click(screen.getByRole("button", { name: "Crear perfil" }));
+    await userEvent.click(screen.getByRole("button", { name: "Crear emisor" }));
 
-    expect(screen.getByText(/Perfil nuevo en memoria/)).toBeTruthy();
-    expect((screen.getByLabelText("Plantilla de emisor") as HTMLSelectElement).value).toContain("perfil-nuevo");
+    expect(screen.getByText(/Emisor nuevo en memoria/)).toBeTruthy();
+    expect((screen.getByLabelText("Emisor") as HTMLSelectElement).value).toContain("perfil-nuevo");
     expect(searchState.query).toContain("templateProfileId=perfil-nuevo");
 
     await userEvent.click(screen.getByRole("button", { name: "Guardar datos del emisor" }));
@@ -303,7 +315,7 @@ describe("SettingsPage regression", () => {
     saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
 
     render(<SettingsPage />, { wrapper: createPageWrapper() });
-    await screen.findByText("Perfil activo (servidor)");
+    await screen.findByText("Emisor activo (servidor)");
 
     const advancedDetails = screen.getByText("Avanzado del usuario").closest("details");
     expect(advancedDetails).toBeTruthy();
@@ -312,11 +324,11 @@ describe("SettingsPage regression", () => {
     await userEvent.clear(paymentInput);
     await userEvent.type(paymentInput, "Bizum");
 
-    await userEvent.click(screen.getByRole("button", { name: "Nuevo usuario" }));
-    await screen.findByLabelText("Nombre del nuevo perfil");
-    await userEvent.click(screen.getByRole("button", { name: "Crear perfil" }));
+    await userEvent.click(screen.getByRole("button", { name: "Nuevo emisor" }));
+    await screen.findByLabelText("Nombre del nuevo emisor");
+    await userEvent.click(screen.getByRole("button", { name: "Crear emisor" }));
 
-    expect((screen.getByLabelText("Plantilla de emisor") as HTMLSelectElement).value).toBe("perfil-1-copia");
+    expect((screen.getByLabelText("Emisor") as HTMLSelectElement).value).toBe("perfil-1-copia");
     expect((within(advancedDetails as HTMLElement).getByPlaceholderText("Transferencia bancaria") as HTMLInputElement).value).toBe(
       "Bizum",
     );
@@ -332,4 +344,3 @@ describe("SettingsPage regression", () => {
     expect(copia?.invoiceNumberTag).toBe("PERFI");
   });
 });
-

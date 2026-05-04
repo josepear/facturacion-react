@@ -388,7 +388,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                   </select>
                 </label>
                 <label className="grid gap-1 text-xs sm:col-span-2">
-                  <span className="text-informative">Perfil destino</span>
+                  <span className="text-informative">Emisor destino</span>
                   <select
                     className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
                     value={serverProfileId}
@@ -481,7 +481,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                   </select>
                 </label>
                 <label className="grid gap-1 text-xs sm:col-span-2">
-                  <span className="text-informative">Perfil destino</span>
+                  <span className="text-informative">Emisor destino</span>
                   <select
                     className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
                     value={excelProfileId}
@@ -542,7 +542,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                 {pdfResult.summary.parseErrorCount}.
               </p>
               <label className="grid gap-1 text-xs sm:max-w-md">
-                <span className="text-informative">Perfil destino</span>
+                <span className="text-informative">Emisor destino</span>
                 <select
                   className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
                   value={pdfProfileId}

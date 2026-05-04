@@ -22,7 +22,7 @@ const navItems: ShellNavItem[] = [
   { to: "/gastos", label: "Gastos", icon: WalletCards },
   { to: "/datos", label: "Datos", icon: BarChart2 },
   { to: "/clientes", label: "Clientes", icon: Users },
-  { to: "/configuracion", label: "Miembros / Emisor", icon: Settings },
+  { to: "/configuracion", label: "Emisores", icon: Settings },
 ];
 
 const FACTURACION_STORAGE_SCOPE_EVENT = "facturacion-storage-scope-changed";
@@ -302,7 +302,7 @@ export function AppShell() {
             <>
               <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>¡Bienvenido a Facturación!</h2>
               <p style={{ margin: 0, fontSize: "0.875rem", color: "#666" }}>
-                Antes de crear tu primera factura, configura el emisor y la plantilla.
+                Antes de crear tu primera factura, configura el emisor y la plantilla PDF.
               </p>
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
                 <Button type="button" onClick={() => setWizardStep(1)}>

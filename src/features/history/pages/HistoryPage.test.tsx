@@ -140,7 +140,7 @@ describe("HistoryPage regression", () => {
 
     await screen.findByText("F-1");
     await userEvent.type(
-      screen.getByPlaceholderText("Filtrar por número, cliente, perfil, recordId o tipo"),
+      screen.getByPlaceholderText("Filtrar por número, cliente, emisor, recordId o tipo"),
       "Beta",
     );
     expect(screen.queryByText("F-1")).toBeNull();
@@ -160,7 +160,7 @@ describe("HistoryPage regression", () => {
     });
 
     await userEvent.selectOptions(screen.getByDisplayValue("Selecciona ejercicio"), "2026");
-    await userEvent.selectOptions(screen.getByDisplayValue("Selecciona perfil"), "perfil-main");
+    await userEvent.selectOptions(screen.getByDisplayValue("Selecciona emisor"), "perfil-main");
     await userEvent.click(screen.getByRole("button", { name: "Archivar ejercicio" }));
     await waitFor(() => {
       expect(archiveDocumentYearMock).toHaveBeenCalledWith({ year: "2026", templateProfileId: "perfil-main" });

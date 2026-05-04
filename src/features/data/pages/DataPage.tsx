@@ -103,7 +103,7 @@ export function DataPage() {
     mutationFn: () => {
       const pid = String(shareProfileId || "").trim();
       if (!pid) {
-        throw new Error("Elige un perfil de plantilla para el enlace.");
+        throw new Error("Elige un emisor para el enlace.");
       }
       return postShareReport({
         templateProfileId: pid,
@@ -237,7 +237,7 @@ export function DataPage() {
           </div>
           <div className="grid min-w-[12rem] flex-1 gap-1">
             <label className="text-informative font-medium" htmlFor="data-filter-profile">
-              Perfil
+              Emisor
             </label>
             <select
               id="data-filter-profile"
@@ -245,7 +245,7 @@ export function DataPage() {
               value={filterProfile}
               onChange={(e) => setFilterProfile(e.target.value)}
             >
-              <option value="">Todos los perfiles</option>
+              <option value="">Todos los emisores</option>
               {profileOptions.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label || p.id}
@@ -288,9 +288,9 @@ export function DataPage() {
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={shareProfileId}
                     onChange={(e) => setShareProfileId(e.target.value)}
-                    aria-label="Perfil para enlace compartido"
+                    aria-label="Emisor para enlace compartido"
                   >
-                    <option value="">Elige perfil…</option>
+                    <option value="">Elige emisor…</option>
                     {profileOptions.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.label || p.id}
@@ -355,7 +355,7 @@ export function DataPage() {
                     <th className="p-2 font-medium">Número</th>
                     <th className="p-2 font-medium">Cliente</th>
                     <th className="p-2 font-medium">Fecha</th>
-                    <th className="p-2 font-medium">Perfil</th>
+                    <th className="p-2 font-medium">Emisor</th>
                     <th className="p-2 text-right font-medium">Total</th>
                   </tr>
                 </thead>
@@ -402,7 +402,7 @@ export function DataPage() {
                     <th className="p-2 font-medium">Proveedor</th>
                     <th className="p-2 font-medium">Concepto</th>
                     <th className="p-2 font-medium">Fecha</th>
-                    <th className="p-2 font-medium">Perfil</th>
+                    <th className="p-2 font-medium">Emisor</th>
                     <th className="p-2 text-right font-medium">Total</th>
                   </tr>
                 </thead>

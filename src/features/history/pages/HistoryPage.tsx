@@ -476,7 +476,7 @@ export function HistoryPage() {
         throw new Error("Selecciona ejercicio.");
       }
       if (!safeProfileId) {
-        throw new Error("Selecciona perfil.");
+        throw new Error("Selecciona emisor.");
       }
       return archiveDocumentYear({ year: safeYear, templateProfileId: safeProfileId });
     },
@@ -504,7 +504,7 @@ export function HistoryPage() {
     mutationFn: () => {
       const pid = String(shareProfileId || "").trim();
       if (!pid) {
-        throw new Error("Elige un perfil de plantilla para el enlace.");
+        throw new Error("Elige un emisor para el enlace.");
       }
       return postShareReport({
         templateProfileId: pid,
@@ -617,7 +617,7 @@ export function HistoryPage() {
                 </select>
               </div>
               <div className="grid gap-1">
-                <span className="text-informative font-medium">Perfil de plantilla</span>
+                <span className="text-informative font-medium">Emisor</span>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterProfile}
@@ -626,7 +626,7 @@ export function HistoryPage() {
                     setFilterProfile(nextProfile);
                     syncFiltersToUrl(searchTerm, filterType, filterYear, filterStatus, nextProfile);
                   }}
-                  aria-label="Filtrar por perfil de plantilla"
+                  aria-label="Filtrar por emisor"
                 >
                   <option value="">Todos</option>
                   {profileOptions.map((p) => (
@@ -638,7 +638,7 @@ export function HistoryPage() {
               </div>
             </div>
             <Input
-              placeholder="Filtrar por número, cliente, perfil, recordId o tipo"
+              placeholder="Filtrar por número, cliente, emisor, recordId o tipo"
               value={searchTerm}
               onChange={(event) => {
                 const nextSearch = event.target.value;
@@ -673,9 +673,9 @@ export function HistoryPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={shareProfileId}
                   onChange={(event) => setShareProfileId(event.target.value)}
-                  aria-label="Perfil para enlace compartido"
+                  aria-label="Emisor para enlace compartido"
                 >
-                  <option value="">Elige perfil…</option>
+                  <option value="">Elige emisor…</option>
                   {profileOptions.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.label || p.id}
@@ -735,7 +735,7 @@ export function HistoryPage() {
                     <span className="text-xs text-amber-700 dark:text-amber-300">Máximo 20 facturas.</span>
                   ) : null}
                   {batchProfileConflict && selectedRows.length > 0 ? (
-                    <span className="text-xs text-red-600">Las facturas seleccionadas deben compartir el mismo perfil de plantilla.</span>
+                    <span className="text-xs text-red-600">Las facturas seleccionadas deben compartir el mismo emisor.</span>
                   ) : null}
                   {selectedRecordIds.size > 0 ? (
                     <Button type="button" variant="outline" size="sm" onClick={clearSelection}>
@@ -852,7 +852,7 @@ export function HistoryPage() {
               ) : (
                 <div className="grid gap-3 p-3">
                   <p className="text-informative">
-                    Ningún documento coincide con los filtros activos (tipo, ejercicio, estado, perfil o búsqueda).
+                    Ningún documento coincide con los filtros activos (tipo, ejercicio, estado, emisor o búsqueda).
                   </p>
                   <Button
                     type="button"
@@ -874,7 +874,7 @@ export function HistoryPage() {
               )}
             </div>
             <div className="grid gap-2 rounded-md border p-3">
-              <p className="text-informative font-medium">Archivar ejercicio (perfil + año)</p>
+              <p className="text-informative font-medium">Archivar ejercicio (emisor + año)</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -893,7 +893,7 @@ export function HistoryPage() {
                   value={archiveProfileId}
                   onChange={(event) => setArchiveProfileId(event.target.value)}
                 >
-                  <option value="">Selecciona perfil</option>
+                  <option value="">Selecciona emisor</option>
                   {profileOptions.map((profile) => (
                     <option key={profile.id} value={profile.id}>
                       {profile.label || profile.id}
@@ -951,7 +951,7 @@ export function HistoryPage() {
                 <div className="rounded-md border p-3 text-sm">
                   <p><strong>recordId:</strong> {selectedRecordId}</p>
                   {documentProfileSummary ? (
-                    <p><strong>Perfil plantilla:</strong> {documentProfileSummary}</p>
+                    <p><strong>Emisor:</strong> {documentProfileSummary}</p>
                   ) : null}
                   {String(openedDocument.templateLayout || "").trim() ? (
                     <p><strong>Plantilla / layout:</strong> {String(openedDocument.templateLayout).trim()}</p>

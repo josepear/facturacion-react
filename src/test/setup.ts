@@ -33,6 +33,8 @@ vi.mock("@tanstack/react-query", async () => {
     const [data, setData] = React.useState<TData | undefined>(undefined);
     const [isLoading, setIsLoading] = React.useState(Boolean(enabled));
     const [error, setError] = React.useState<Error | null>(null);
+    const queryFnRef = React.useRef(queryFn);
+    queryFnRef.current = queryFn;
 
     React.useEffect(() => {
       if (!enabled) {
@@ -41,7 +43,7 @@ vi.mock("@tanstack/react-query", async () => {
       }
       let active = true;
       setIsLoading(true);
-      Promise.resolve(queryFn())
+      Promise.resolve(queryFnRef.current())
         .then((value) => {
           if (!active) {
             return;
@@ -63,7 +65,7 @@ vi.mock("@tanstack/react-query", async () => {
       return () => {
         active = false;
       };
-    }, [enabled, queryFn]);
+    }, [enabled]);
 
     const isSuccess = Boolean(!isLoading && !error && data !== undefined);
 

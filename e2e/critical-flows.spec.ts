@@ -109,7 +109,7 @@ async function chooseTemplateProfileInUi(root: Locator, preferredProfileId: stri
 
   await expect.poll(async () => (await readProfileValues()).length, {
     timeout: 20000,
-    message: "La UI de Facturar no cargó opciones de perfil desde /api/config.",
+    message: "La UI de Facturar no cargó opciones de emisor desde /api/config.",
   }).toBeGreaterThan(0);
 
   const values = await readProfileValues();
@@ -250,7 +250,7 @@ test("Facturar: crear, guardar, recargar y editar", async ({ page }) => {
   await ensureSaveableFacturar(root, id, templateProfileId || preferredProfileId, contactPerson, paymentDate);
 
   if (!(await canSaveFacturar(root))) {
-    throw new Error("El documento cargado no queda guardable en este entorno (faltan perfil, cliente, número u otros módulos).");
+    throw new Error("El documento cargado no queda guardable en este entorno (faltan emisor, cliente, número u otros módulos).");
   }
 
   const nextConcept = `E2E Edit ${id}`;

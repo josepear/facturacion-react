@@ -169,7 +169,7 @@ describe("ExpensesPage regression", () => {
     });
 
     await userEvent.selectOptions(screen.getByDisplayValue("Selecciona ejercicio"), "2026");
-    await userEvent.selectOptions(screen.getByDisplayValue("Selecciona perfil"), "perfil-main");
+    await userEvent.selectOptions(screen.getByDisplayValue("Selecciona emisor"), "perfil-main");
     await userEvent.click(screen.getByRole("button", { name: "Archivar ejercicio" }));
     await waitFor(() => {
       expect(archiveExpenseYearMock).toHaveBeenCalledWith({ year: "2026", templateProfileId: "perfil-main" });

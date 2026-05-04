@@ -257,7 +257,7 @@ export function ExpensesPage() {
         throw new Error("Selecciona ejercicio.");
       }
       if (!safeProfileId) {
-        throw new Error("Selecciona perfil.");
+        throw new Error("Selecciona emisor.");
       }
       return archiveExpenseYear({ year: safeYear, templateProfileId: safeProfileId });
     },
@@ -452,7 +452,7 @@ export function ExpensesPage() {
   /**
    * Alta sin `recordId`: una vez que llega `/api/config`, si el borrador sigue sin `templateProfileId`,
    * rellena con el activo del servidor. No se re-ejecuta al cambiar solo el borrador (p. ej. usuario elige
-   * «Perfil por defecto» con valor vacío explícito).
+   * «Emisor por defecto» con valor vacío explícito).
    */
   useEffect(() => {
     if (yearFilter !== "all") {
@@ -510,7 +510,7 @@ export function ExpensesPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Gastos</h1>
         <p className="text-informative">
-          Módulo real conectado a `/api/expenses` con ciclo de vida y control por perfil.
+          Módulo real conectado a `/api/expenses` con ciclo de vida y control por emisor.
         </p>
       </header>
 
@@ -544,8 +544,8 @@ export function ExpensesPage() {
                 value={profileFilter}
                 onChange={(event) => setProfileFilter(event.target.value)}
               >
-                <option value="all">Todos los perfiles</option>
-                <option value="__default__">Perfil por defecto</option>
+                <option value="all">Todos los emisores</option>
+                <option value="__default__">Emisor por defecto</option>
                 {profileOptions.map((profile) => (
                   <option key={profile.id} value={profile.id}>
                     {profile.label || profile.id}
@@ -609,10 +609,10 @@ export function ExpensesPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={exportProfile}
                   onChange={(event) => setExportProfile(event.target.value)}
-                  aria-label="Perfil para exportación"
+                  aria-label="Emisor para exportación"
                 >
-                  <option value="">Todos los perfiles</option>
-                  <option value="__unassigned__">Sin perfil asignado</option>
+                  <option value="">Todos los emisores</option>
+                  <option value="__unassigned__">Sin emisor asignado</option>
                   {profileOptions.map((profile) => (
                     <option key={profile.id} value={profile.id}>
                       {profile.label || profile.id}
@@ -640,7 +640,7 @@ export function ExpensesPage() {
               </div>
             </div>
             <div className="grid gap-2 rounded-md border p-3">
-              <p className="text-informative font-medium">Archivar ejercicio (perfil + año)</p>
+              <p className="text-informative font-medium">Archivar ejercicio (emisor + año)</p>
               {isAdmin ? (
                 <>
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -661,7 +661,7 @@ export function ExpensesPage() {
                       value={archiveProfileId}
                       onChange={(event) => setArchiveProfileId(event.target.value)}
                     >
-                      <option value="">Selecciona perfil</option>
+                      <option value="">Selecciona emisor</option>
                       {profileOptions.map((profile) => (
                         <option key={profile.id} value={profile.id}>
                           {profile.label || profile.id}
@@ -724,7 +724,7 @@ export function ExpensesPage() {
                             {item.deductible ? "Deducible" : "No deducible"}
                           </p>
                           <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
-                            Perfil:{" "}
+                            Emisor:{" "}
                             <ProfileBadge
                               label={item.templateProfileLabel || item.templateProfileId || "por defecto"}
                               colorKey={profileOptions.find((p) => p.id === item.templateProfileId)?.colorKey}
@@ -767,7 +767,7 @@ export function ExpensesPage() {
                 {String(draft.year).trim()}
               </p>
             ) : null}
-            <Field label="Perfil">
+            <Field label="Emisor">
               <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={draft.templateProfileId || ""}
@@ -775,8 +775,8 @@ export function ExpensesPage() {
               >
                 <option value="">
                   {activeProfileId
-                    ? `Perfil por defecto (servidor: ${activeProfileLabel || activeProfileId})`
-                    : "Perfil por defecto"}
+                    ? `Emisor por defecto (servidor: ${activeProfileLabel || activeProfileId})`
+                    : "Emisor por defecto"}
                 </option>
                 {(configQuery.data?.templateProfiles ?? []).map((profile) => (
                   <option key={profile.id} value={profile.id}>
@@ -785,9 +785,9 @@ export function ExpensesPage() {
                 ))}
               </select>
               <p className="mt-1 text-informative">
-                El perfil activo de Configuración es <span className="font-medium text-foreground">{activeProfileId || "—"}</span>
+                El emisor activo de Configuración es <span className="font-medium text-foreground">{activeProfileId || "—"}</span>
                 {activeProfileLabel && activeProfileLabel !== activeProfileId ? ` (${activeProfileLabel})` : ""}. Vacío = el
-                servidor aplica ese activo; puedes forzar un perfil concreto de la lista.
+                servidor aplica ese activo; puedes forzar un emisor concreto de la lista.
               </p>
             </Field>
             <Field label="Fecha factura" hint="Obligatoria.">
@@ -1229,13 +1229,13 @@ export function ExpensesPage() {
             </p>
 
             <div className="grid gap-2">
-              <label className="text-sm font-medium">Perfil destino</label>
+              <label className="text-sm font-medium">Emisor destino</label>
               <select
                 value={importProfileId}
                 onChange={(e) => setImportProfileId(e.target.value)}
                 className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
               >
-                <option value="">— Selecciona perfil —</option>
+                <option value="">— Selecciona emisor —</option>
                 {profileOptions.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.label || p.id}

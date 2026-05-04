@@ -46,12 +46,12 @@ const LAYOUT_OPTIONS = [
 
 function buildClientProfileId(label: string, usedIds: Set<string>): string {
   const baseText =
-    String(label || "perfil")
+    String(label || "emisor")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "perfil";
+      .replace(/^-+|-+$/g, "") || "emisor";
   let nextId = baseText;
   let suffix = 2;
   while (usedIds.has(nextId)) {
@@ -229,7 +229,7 @@ function MembersSection({
       <CardHeader>
         <CardTitle>Miembros del sistema</CardTitle>
         <CardDescription>
-          Usuarios con acceso a la aplicación. Solo visible para administradores.
+          Usuarios con acceso a la aplicación. Solo los administradores ven y gestionan esta sección.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -313,7 +313,7 @@ function MembersSection({
                         </Field>
                       </div>
                       {profiles.length > 0 && (
-                        <Field label="Perfiles permitidos (vacío = todos)">
+                        <Field label="Emisores permitidos (vacío = todos)">
                           <div className="flex flex-wrap gap-2 pt-1">
                             {profiles.map((profile) => {
                               const checked = editingUser.allowedTemplateProfileIds.includes(profile.id);
@@ -399,7 +399,7 @@ function MembersSection({
               </Field>
             </div>
             {profiles.length > 0 && (
-              <Field label="Perfiles permitidos (vacío = todos)">
+              <Field label="Emisores permitidos (vacío = todos)">
                 <div className="flex flex-wrap gap-2 pt-1">
                   {profiles.map((profile) => {
                     const checked = editingUser.allowedTemplateProfileIds.includes(profile.id);
@@ -568,6 +568,8 @@ function ExpenseOptionsSection({ canEdit }: { canEdit: boolean }) {
   );
 }
 
+const EMPTY_TRASH_ITEMS: TrashItem[] = [];
+
 function TrashSection({ canEdit }: { canEdit: boolean }) {
   const queryClient = useQueryClient();
   const trashQuery = useQuery({
@@ -578,7 +580,7 @@ function TrashSection({ canEdit }: { canEdit: boolean }) {
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [status, setStatus] = useState<{ text: string; tone: "success" | "error" | "neutral" } | null>(null);
 
-  const items = trashQuery.data?.items ?? [];
+  const items = trashQuery.data?.items ?? EMPTY_TRASH_ITEMS;
   const summary = trashQuery.data?.summary ?? {
     total: 0,
     totalGroups: 0,
@@ -818,8 +820,8 @@ function SettingsConfigLoadError({ error }: { error: unknown }) {
         </p>
         <p className="text-informative">
           Esto no es el modo solo lectura por rol: si la configuración cargara y tu rol en{" "}
-          <code className="text-xs">GET /api/session</code> no fuera <code className="text-xs">admin</code>, verías el
-          formulario con campos deshabilitados y el aviso «Modo solo lectura».
+          <code className="text-xs">GET /api/session</code> fuera solo lectura (viewer), verías el formulario de emisores con
+          campos deshabilitados y el aviso «Modo solo lectura».
         </p>
       </div>
     );
@@ -920,8 +922,9 @@ export function SettingsPage() {
     ? String(sessionQuery.data.user.role || "").trim().toLowerCase()
     : "";
   const sessionReady = !sessionQuery.isLoading && !sessionQuery.error;
-  const canEdit = sessionReady && sessionRole === "admin";
-  const isAdmin = canEdit;
+  const isAdmin = sessionReady && sessionRole === "admin";
+  /** Editar y guardar datos de emisores ya existentes (admin o editor). */
+  const canEditEmitterData = sessionReady && (sessionRole === "admin" || sessionRole === "editor");
   const configuredRoleLabel = sessionQuery.data?.authenticated
     ? String(sessionQuery.data.user.role ?? "").trim()
     : "";
@@ -1017,7 +1020,7 @@ export function SettingsPage() {
   const brandImageSummary = useMemo(() => {
     const bi = String(editingDraft.brandImage || "").trim();
     if (bi.startsWith("data:")) {
-      return "Logo embebido en el perfil (base64)";
+      return "Logo embebido en el emisor (base64)";
     }
     if (bi.startsWith("/") || bi.startsWith("http")) {
       return bi;
@@ -1050,16 +1053,30 @@ export function SettingsPage() {
     mutationFn: async () => {
       const safeActiveProfileId = String(effectiveActiveProfileId || "").trim();
       if (!safeActiveProfileId) {
-        throw new Error("Selecciona un perfil activo.");
+        throw new Error("Selecciona un emisor activo.");
       }
       if (!profiles.length) {
-        throw new Error("No hay perfiles disponibles para guardar.");
+        throw new Error("No hay emisores disponibles para guardar.");
       }
       const nextProfiles = profiles.map((profile) =>
         profile.id === effectiveEditingProfileId
           ? mergeProfileWithDraft(profile, editingDraft)
           : profile,
       );
+      if (!isAdmin) {
+        const serverIds = new Set(serverProfiles.map((p) => p.id));
+        if (profileListOverride !== null) {
+          throw new Error("Solo un administrador puede crear o eliminar emisores en la lista.");
+        }
+        if (nextProfiles.length !== serverProfiles.length) {
+          throw new Error("Solo un administrador puede eliminar emisores.");
+        }
+        for (const p of nextProfiles) {
+          if (!serverIds.has(p.id)) {
+            throw new Error("Solo un administrador puede crear emisores nuevos.");
+          }
+        }
+      }
 
       return saveTemplateProfilesConfig({
         activeTemplateProfileId: safeActiveProfileId,
@@ -1174,7 +1191,7 @@ export function SettingsPage() {
   };
 
   const startNewTemplateProfile = () => {
-    if (!canEdit) {
+    if (!isAdmin) {
       return;
     }
     const source =
@@ -1182,11 +1199,11 @@ export function SettingsPage() {
     if (!source) {
       return;
     }
-    const suggestedLabel = `${String(source.label || source.id || "Perfil").trim()} copia`;
+    const suggestedLabel = `${String(source.label || source.id || "Emisor").trim()} copia`;
     setNewProfileSourceId(source.id);
     setNewProfileLabelDraft(suggestedLabel);
     setIsCreatingProfile(true);
-    setStatusMessage("Indica el nombre del nuevo perfil y confirma para crearlo en memoria.");
+    setStatusMessage("Indica el nombre del nuevo emisor y confirma para crearlo en memoria.");
     setStatusTone("neutral");
   };
 
@@ -1197,7 +1214,7 @@ export function SettingsPage() {
   };
 
   const confirmNewTemplateProfile = () => {
-    if (!canEdit) {
+    if (!isAdmin) {
       return;
     }
     const sourceBase =
@@ -1213,7 +1230,7 @@ export function SettingsPage() {
     const source = sourceDraft ? mergeProfileWithDraft(sourceBase, sourceDraft) : sourceBase;
     const nextLabel = String(newProfileLabelDraft || "").trim();
     if (!nextLabel) {
-      setStatusMessage("Indica un nombre para el nuevo perfil.");
+      setStatusMessage("Indica un nombre para el nuevo emisor.");
       setStatusTone("error");
       return;
     }
@@ -1234,23 +1251,23 @@ export function SettingsPage() {
     setIsCreatingProfile(false);
     setNewProfileLabelDraft("");
     setNewProfileSourceId("");
-    setStatusMessage("Perfil nuevo en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
+    setStatusMessage("Emisor nuevo en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
     setStatusTone("neutral");
   };
 
   const confirmNewProfileFromBase = () => {
-    if (!canEdit) {
+    if (!isAdmin) {
       return;
     }
     const nextLabel = String(newBaseLabel || "").trim();
     if (!nextLabel) {
-      setStatusMessage("Indica un nombre para el nuevo perfil.");
+      setStatusMessage("Indica un nombre para el nuevo emisor.");
       setStatusTone("error");
       return;
     }
     const first = profiles[0];
     if (!first) {
-      setStatusMessage("No hay perfiles de referencia en configuración.");
+      setStatusMessage("No hay emisores de referencia en configuración.");
       setStatusTone("error");
       return;
     }
@@ -1272,19 +1289,19 @@ export function SettingsPage() {
     setNewBaseLabel("");
     setNewBaseLayout("pear");
     newBaseDialogRef.current?.close();
-    setStatusMessage("Perfil nuevo desde plantilla en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
+    setStatusMessage("Emisor nuevo desde plantilla en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
     setStatusTone("neutral");
   };
 
   const handleDeleteTemplateProfile = () => {
-    if (!canEdit || profiles.length <= 1) {
+    if (!isAdmin || profiles.length <= 1) {
       return;
     }
     const idToRemove = String(effectiveActiveProfileId || "").trim();
     const victim = profiles.find((p) => p.id === idToRemove);
     if (
       !window.confirm(
-        `Se borrará el perfil «${victim?.label || idToRemove}». ¿Seguimos? (Igual que legacy: se elimina el perfil activo.)`,
+        `Se borrará el emisor «${victim?.label || idToRemove}». ¿Seguimos? (Igual que legacy: se elimina el emisor activo.)`,
       )
     ) {
       return;
@@ -1298,14 +1315,14 @@ export function SettingsPage() {
     setProfileListOverride(nextList);
     setDraftByProfileId({});
     syncLauncherSelection(fallback.id);
-    setStatusMessage("Perfil eliminado en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
+    setStatusMessage("Emisor eliminado en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
     setStatusTone("neutral");
   };
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Miembros / Emisor</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Emisores</h1>
         <p className="text-informative">
           Datos fiscales, logo y textos por defecto del <strong>emisor activo</strong>. Al pulsar «Guardar datos del emisor» se
           guardan en el servidor (legacy pestaña Emisor). Es independiente de «Guardar documento» en Facturar.
@@ -1332,7 +1349,7 @@ export function SettingsPage() {
                     label={serverActiveProfile.label || serverActiveProfile.id}
                     colorKey={serverActiveProfile.colorKey}
                   />
-                  <span className="text-informative font-medium">Perfil activo</span>
+                  <span className="text-informative font-medium">Emisor activo</span>
                 </div>
 
                 {serverActiveProfile.business?.brandImage ? (
@@ -1376,7 +1393,7 @@ export function SettingsPage() {
           <section className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Perfil activo (servidor)</CardTitle>
+                <CardTitle>Emisor activo (servidor)</CardTitle>
                 <CardDescription>
                   El que publica <code className="text-xs">/api/config</code> como <code className="text-xs">activeTemplateProfileId</code>{" "}
                   en el <strong>último guardado</strong>. La selección para el próximo guardado se hace en «Emisor activo»; el parámetro de URL{" "}
@@ -1404,7 +1421,7 @@ export function SettingsPage() {
                 {String(effectiveActiveProfileId || "").trim()
                 && String(effectiveActiveProfileId || "").trim() !== String(serverActiveProfileId || "").trim() ? (
                   <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-900 dark:text-amber-100">
-                    La selección de perfil activo en el formulario (
+                    La selección de emisor activo en el formulario (
                     <strong>{safeValue(activeProfileForNextSave?.label || effectiveActiveProfileId)}</strong>
                     ) aún no está guardada en el servidor; pulsa «Guardar datos del emisor» para fijarla.
                   </p>
@@ -1417,12 +1434,12 @@ export function SettingsPage() {
                     }
                     disabled={!effectiveActiveProfileId}
                   >
-                    Abrir Facturar con este perfil
+                    Abrir Facturar con este emisor
                   </Button>
                 </div>
-                {!canEdit ? (
+                {!canEditEmitterData ? (
                   <p className="text-informative">
-                    Solo lectura: el contrato exige usuario administrador para persistir perfiles.
+                    Solo lectura: necesitas rol editor o administrador para guardar cambios de emisor.
                   </p>
                 ) : null}
               </CardContent>
@@ -1440,7 +1457,7 @@ export function SettingsPage() {
                 <p><strong>IGIC:</strong> {safeValue(configQuery.data?.defaults?.taxRate)}</p>
                 <p><strong>IRPF:</strong> {safeValue(configQuery.data?.defaults?.withholdingRate)}</p>
                 <p className="pt-2 text-informative">
-                  La numeración en Facturar se calcula con el perfil activo/seleccionado vía `/api/next-number`.
+                  La numeración en Facturar se calcula con el emisor activo o seleccionado vía `/api/next-number`.
                 </p>
               </CardContent>
             </Card>
@@ -1452,7 +1469,7 @@ export function SettingsPage() {
               <CardTitle>Emisor activo</CardTitle>
               <CardDescription>
                 Orden habitual en legacy: primero guarda aquí el emisor; el constructor fino de módulos PDF sigue en la app legacy
-                (pestaña Plantilla). Puedes abrir directamente un perfil con{" "}
+                (pestaña Plantilla). Puedes abrir directamente un emisor con{" "}
                 <code className="text-xs">/configuracion?templateProfileId=…</code> (mismo nombre de parámetro que en Facturar).
               </CardDescription>
             </CardHeader>
@@ -1464,21 +1481,21 @@ export function SettingsPage() {
                 >
                   <p className="font-medium">Cambios locales pendientes de guardar</p>
                   <p className="mt-1 text-informative">
-                    Hay ediciones o un perfil activo distinto del último guardado en servidor; nada de esto se aplica en el backend
+                    Hay ediciones o un emisor activo distinto del último guardado en servidor; nada de esto se aplica en el backend
                     hasta pulsar «Guardar datos del emisor».
                   </p>
                 </div>
               ) : null}
-              {!canEdit ? (
+              {!canEditEmitterData ? (
                 <div
                   role="status"
                   className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm"
                 >
                   <p className="font-medium text-foreground">Modo solo lectura</p>
                   <p className="mt-1 text-informative">
-                    Editar datos del emisor, crear un usuario nuevo y guardar en el servidor solo están habilitados para la
-                    sesión cuyo rol en <code className="rounded bg-muted px-1 text-xs">GET /api/session</code> es{" "}
-                    <strong>admin</strong>.
+                    Con rol <strong>solo lectura</strong> (viewer) no puedes modificar emisores ni guardar aquí. Los roles{" "}
+                    <strong>editor</strong> y <strong>administrador</strong> pueden editar datos de emisores ya existentes y
+                    guardarlos; crear o borrar emisores y gestionar miembros del sistema queda reservado a administradores.
                     {configuredRoleLabel ? (
                       <>
                         {" "}
@@ -1490,12 +1507,24 @@ export function SettingsPage() {
                   </p>
                 </div>
               ) : null}
+              {canEditEmitterData && !isAdmin ? (
+                <div
+                  role="status"
+                  className="rounded-md border border-border bg-muted/40 px-3 py-2.5 text-sm"
+                >
+                  <p className="font-medium text-foreground">Rol editor</p>
+                  <p className="mt-1 text-informative">
+                    Puedes cambiar datos de los emisores existentes y guardar. Crear emisores nuevos, borrarlos o propagar
+                    diseño a facturas antiguas solo lo puede hacer un administrador.
+                  </p>
+                </div>
+              ) : null}
               {profiles.length ? (
                 <>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Plantilla de emisor">
+                    <Field label="Emisor">
                       <select
-                        aria-label="Plantilla de emisor"
+                        aria-label="Emisor"
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={effectiveEditingProfileId}
                         onChange={(event) => syncLauncherSelection(event.target.value)}
@@ -1515,7 +1544,7 @@ export function SettingsPage() {
                           LAYOUT_OPTIONS.some((o) => o.value === editingDraft.layout) ? editingDraft.layout : ""
                         }
                         onChange={(event) => updateDraft({ layout: event.target.value })}
-                        disabled={!canEdit}
+                        disabled={!canEditEmitterData}
                       >
                         <option value="">Plantilla...</option>
                         {LAYOUT_OPTIONS.map((opt) => (
@@ -1531,15 +1560,15 @@ export function SettingsPage() {
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={!canEdit || isCreatingProfile}
+                      disabled={!isAdmin || isCreatingProfile}
                       onClick={startNewTemplateProfile}
                     >
-                      Nuevo usuario
+                      Nuevo emisor
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
-                      disabled={!canEdit || isCreatingProfile || newBaseOpen}
+                      disabled={!isAdmin || isCreatingProfile || newBaseOpen}
                       onClick={() => {
                         setNewBaseLabel("");
                         setNewBaseLayout("pear");
@@ -1552,19 +1581,19 @@ export function SettingsPage() {
                       type="button"
                       variant="outline"
                       className="text-destructive hover:text-destructive"
-                      disabled={!canEdit || profiles.length <= 1}
+                      disabled={!isAdmin || profiles.length <= 1}
                       onClick={handleDeleteTemplateProfile}
                     >
-                      Borrar usuario
+                      Borrar emisor
                     </Button>
                     <Button
                       type="button"
-                      disabled={!canEdit || saveConfigMutation.isPending || !profiles.length}
+                      disabled={!canEditEmitterData || saveConfigMutation.isPending || !profiles.length}
                       onClick={() => saveConfigMutation.mutate()}
                     >
                       {saveConfigMutation.isPending ? "Guardando..." : "Guardar datos del emisor"}
                     </Button>
-                    {canEdit ? (
+                    {isAdmin ? (
                       <Button
                         type="button"
                         variant="outline"
@@ -1572,7 +1601,7 @@ export function SettingsPage() {
                         onClick={() => {
                           const profileId = String(effectiveActiveProfileId || "").trim();
                           if (!profileId) {
-                            setStatusMessage("Selecciona un perfil activo antes de propagar.");
+                            setStatusMessage("Selecciona un emisor activo antes de propagar.");
                             setStatusTone("error");
                             return;
                           }
@@ -1598,14 +1627,14 @@ export function SettingsPage() {
                   {isCreatingProfile ? (
                     <div className="grid gap-2 rounded-md border border-dashed p-3 sm:grid-cols-[1fr_auto_auto]">
                       <Input
-                        aria-label="Nombre del nuevo perfil"
-                        placeholder="Nombre del nuevo perfil"
+                        aria-label="Nombre del nuevo emisor"
+                        placeholder="Nombre del nuevo emisor"
                         value={newProfileLabelDraft}
                         onChange={(event) => setNewProfileLabelDraft(event.target.value)}
-                        disabled={!canEdit}
+                        disabled={!isAdmin}
                       />
-                      <Button type="button" onClick={confirmNewTemplateProfile} disabled={!canEdit}>
-                        Crear perfil
+                      <Button type="button" onClick={confirmNewTemplateProfile} disabled={!isAdmin}>
+                        Crear emisor
                       </Button>
                       <Button type="button" variant="outline" onClick={cancelNewTemplateProfile}>
                         Cancelar
@@ -1623,7 +1652,7 @@ export function SettingsPage() {
                           placeholder="Ejemplo: Pear&co."
                           value={editingDraft.label}
                           onChange={(event) => updateDraft({ label: event.target.value })}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         />
                       </Field>
                       <Field
@@ -1640,7 +1669,7 @@ export function SettingsPage() {
                           maxLength={5}
                           autoComplete="off"
                           spellCheck={false}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         />
                         {invoiceTagSuggestions.length > 0 ? (
                           <div className="mt-2 flex flex-wrap gap-1">
@@ -1667,7 +1696,7 @@ export function SettingsPage() {
                           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           value={editingDraft.colorKey}
                           onChange={(event) => updateDraft({ colorKey: event.target.value })}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         >
                           {PROFILE_COLOR_KEYS.map((key) => (
                             <option key={key} value={key}>
@@ -1681,7 +1710,7 @@ export function SettingsPage() {
                           value={String(editingDraft.fontFamily ?? "")}
                           onChange={(event) => updateDraft({ fontFamily: event.target.value })}
                           className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         >
                           <option value="">— Por defecto —</option>
                           {fontFamilies.map((f) => (
@@ -1696,7 +1725,7 @@ export function SettingsPage() {
                           placeholder="Nombre comercial"
                           value={editingDraft.brand}
                           onChange={(event) => updateDraft({ brand: event.target.value })}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         />
                       </Field>
                       <div className="lg:col-span-2">
@@ -1705,7 +1734,7 @@ export function SettingsPage() {
                             placeholder="Persona que emite la factura"
                             value={editingDraft.contactName}
                             onChange={(event) => updateDraft({ contactName: event.target.value })}
-                            disabled={!canEdit}
+                            disabled={!canEditEmitterData}
                           />
                         </Field>
                       </div>
@@ -1715,7 +1744,7 @@ export function SettingsPage() {
                             placeholder="Linea descriptiva de la empresa"
                             value={editingDraft.headline}
                             onChange={(event) => updateDraft({ headline: event.target.value })}
-                            disabled={!canEdit}
+                            disabled={!canEditEmitterData}
                           />
                         </Field>
                       </div>
@@ -1723,7 +1752,7 @@ export function SettingsPage() {
                         <Input
                           value={editingDraft.taxId}
                           onChange={(event) => updateDraft({ taxId: event.target.value })}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         />
                       </Field>
                       <Field label="Email">
@@ -1731,14 +1760,14 @@ export function SettingsPage() {
                           type="email"
                           value={editingDraft.email}
                           onChange={(event) => updateDraft({ email: event.target.value })}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         />
                       </Field>
                       <Field label="Telefono">
                         <Input
                           value={editingDraft.phone}
                           onChange={(event) => updateDraft({ phone: event.target.value })}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         />
                       </Field>
                       <Field label="Web">
@@ -1746,7 +1775,7 @@ export function SettingsPage() {
                           placeholder="dominio.com"
                           value={editingDraft.website}
                           onChange={(event) => updateDraft({ website: event.target.value })}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         />
                       </Field>
                       <div className="sm:col-span-2 lg:col-span-3">
@@ -1754,7 +1783,7 @@ export function SettingsPage() {
                           <Input
                             value={editingDraft.address}
                             onChange={(event) => updateDraft({ address: event.target.value })}
-                            disabled={!canEdit}
+                            disabled={!canEditEmitterData}
                           />
                         </Field>
                       </div>
@@ -1774,7 +1803,7 @@ export function SettingsPage() {
                                 ref={brandImageFileInputRef}
                                 type="file"
                                 accept=".svg,image/svg+xml,image/png,image/webp,image/jpeg"
-                                disabled={!canEdit}
+                                disabled={!canEditEmitterData}
                                 onChange={handleBrandImageFileChange}
                                 className="max-w-full text-sm file:mr-2 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:font-medium"
                               />
@@ -1782,7 +1811,7 @@ export function SettingsPage() {
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                disabled={!canEdit}
+                                disabled={!canEditEmitterData}
                                 onClick={() => {
                                   updateDraft({ brandImage: "" });
                                   setBrandImageFileError("");
@@ -1805,7 +1834,7 @@ export function SettingsPage() {
                                 setBrandImageFileError("");
                                 updateDraft({ brandImage: event.target.value });
                               }}
-                              disabled={!canEdit}
+                              disabled={!canEditEmitterData}
                             />
                           </div>
                         </Field>
@@ -1816,7 +1845,7 @@ export function SettingsPage() {
                             placeholder="/assets/firma.png o ruta absoluta"
                             value={editingDraft.signatureImage}
                             onChange={(event) => updateDraft({ signatureImage: event.target.value })}
-                            disabled={!canEdit}
+                            disabled={!canEditEmitterData}
                           />
                         </Field>
                       </div>
@@ -1825,7 +1854,7 @@ export function SettingsPage() {
                           placeholder="ING, CaixaBank..."
                           value={editingDraft.bankBrand}
                           onChange={(event) => updateDraft({ bankBrand: event.target.value })}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         />
                       </Field>
                       <div className="sm:col-span-2">
@@ -1833,7 +1862,7 @@ export function SettingsPage() {
                           <Input
                             value={editingDraft.bankAccount}
                             onChange={(event) => updateDraft({ bankAccount: event.target.value })}
-                            disabled={!canEdit}
+                            disabled={!canEditEmitterData}
                           />
                         </Field>
                       </div>
@@ -1843,7 +1872,7 @@ export function SettingsPage() {
                             placeholder="Transferencia bancaria"
                             value={editingDraft.paymentMethod}
                             onChange={(event) => updateDraft({ paymentMethod: event.target.value })}
-                            disabled={!canEdit}
+                            disabled={!canEditEmitterData}
                           />
                         </Field>
                       </div>
@@ -1852,7 +1881,7 @@ export function SettingsPage() {
                           placeholder="EUR"
                           value={editingDraft.currency}
                           onChange={(event) => updateDraft({ currency: event.target.value })}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         />
                       </Field>
                       <Field label="IGIC / IVA por defecto">
@@ -1863,7 +1892,7 @@ export function SettingsPage() {
                           inputMode="decimal"
                           value={String(editingDraft.taxRate)}
                           onChange={(event) => updateDraft({ taxRate: toNumber(event.target.value) })}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         />
                       </Field>
                       <Field label="IRPF por defecto">
@@ -1874,19 +1903,19 @@ export function SettingsPage() {
                           inputMode="decimal"
                           value={String(editingDraft.withholdingRate)}
                           onChange={(event) => updateDraft({ withholdingRate: toNumber(event.target.value) })}
-                          disabled={!canEdit}
+                          disabled={!canEditEmitterData}
                         />
                       </Field>
                     </div>
                   </details>
 
                   <div className="grid gap-1 rounded-md border p-3 text-informative sm:grid-cols-2">
-                    <span>id perfil: {safeValue(editingProfile?.id)}</span>
+                    <span>id emisor: {safeValue(editingProfile?.id)}</span>
                     <span>tenantId: {safeValue(editingProfile?.tenantId)}</span>
                   </div>
                 </>
               ) : (
-                <p className="text-informative">No hay perfiles de emisor disponibles.</p>
+                <p className="text-informative">No hay emisores configurados.</p>
               )}
 
               {statusMessage ? (
@@ -1905,7 +1934,7 @@ export function SettingsPage() {
             </CardContent>
           </Card>
 
-          <ExpenseOptionsSection canEdit={canEdit} />
+          <ExpenseOptionsSection canEdit={isAdmin} />
 
           {isAdmin ? (
             <Card>
@@ -1956,7 +1985,7 @@ export function SettingsPage() {
                     ))}
 
                     {gmailProfilesQuery.data?.items?.length === 0 ? (
-                      <p className="text-informative">No hay perfiles de plantilla con Gmail configurado.</p>
+                      <p className="text-informative">No hay emisores con Gmail configurado.</p>
                     ) : null}
                   </div>
                 ) : null}
@@ -1964,7 +1993,7 @@ export function SettingsPage() {
             </Card>
           ) : null}
 
-          <TrashSection canEdit={canEdit} />
+          <TrashSection canEdit={isAdmin} />
 
           <dialog
             ref={newBaseDialogRef}
@@ -1978,9 +2007,9 @@ export function SettingsPage() {
             <div className="grid gap-4">
               <h2 className="text-base font-semibold">Nueva base de diseño</h2>
               <p className="text-informative">
-                Crea un perfil vacío con la plantilla visual elegida. Completa datos del emisor y guarda en el servidor.
+                Crea un emisor vacío con la plantilla visual elegida. Completa datos fiscales y guarda en el servidor.
               </p>
-              <Field label="Nombre del perfil">
+              <Field label="Nombre del emisor">
                 <Input
                   value={newBaseLabel}
                   onChange={(e) => setNewBaseLabel(e.target.value)}
@@ -1990,7 +2019,7 @@ export function SettingsPage() {
               </Field>
               <Field label="Plantilla base">
                 <select
-                  aria-label="Plantilla base del nuevo perfil"
+                  aria-label="Plantilla base del nuevo emisor"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={newBaseLayout}
                   onChange={(e) => setNewBaseLayout(e.target.value as (typeof LAYOUT_OPTIONS)[number]["value"])}
@@ -2012,18 +2041,20 @@ export function SettingsPage() {
                 >
                   Cancelar
                 </Button>
-                <Button type="button" onClick={confirmNewProfileFromBase} disabled={!canEdit}>
+                <Button type="button" onClick={confirmNewProfileFromBase} disabled={!isAdmin}>
                   Crear en memoria
                 </Button>
               </div>
             </div>
           </dialog>
 
-          <MembersSection
-            canEdit={canEdit}
-            profiles={serverProfiles}
-            currentUserId={String(sessionQuery.data?.authenticated ? sessionQuery.data.user.id ?? "" : "")}
-          />
+          {isAdmin ? (
+            <MembersSection
+              canEdit
+              profiles={serverProfiles}
+              currentUserId={String(sessionQuery.data?.authenticated ? sessionQuery.data.user.id ?? "" : "")}
+            />
+          ) : null}
         </>
       )}
     </div>
