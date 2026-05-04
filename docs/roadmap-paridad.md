@@ -17,6 +17,8 @@ Este roadmap resume y fiscaliza lo que ya está inventariado con más detalle en
 - [gastos-field-parity-matrix.md](./gastos-field-parity-matrix.md)
 - [parity-anti-invent-candidates.md](./parity-anti-invent-candidates.md) — tabla de candidatos «solo React» vs `public/` legacy
 
+**Roadmap aparte (no es paridad legacy/HTML):** [roadmap-registro-por-invitacion.md](./roadmap-registro-por-invitacion.md) — alta de cuentas **solo por invitación**, flujo tipo aplicación moderna (email / OAuth Google·Apple·Microsoft cuando se priorice); ejecución diferida.
+
 ---
 
 ## P0 transversal
