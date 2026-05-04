@@ -21,6 +21,8 @@ import {
   mapReactExpenseProfileFilterToControl,
   workbookQuarterRowToneClass,
 } from "@/features/expenses/lib/controlWorkbookExpenseMonths";
+import { PageHeader } from "@/features/shared/components/PageHeader";
+import { CLOSE, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { ExpensePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
@@ -242,7 +244,7 @@ function ExpenseCatalogBulkSection({
                   disabled={!hasPendingChanges || saveMutation.isPending}
                   onClick={() => saveMutation.mutate()}
                 >
-                  {saveMutation.isPending ? "Guardando..." : "Guardar catálogo"}
+                  {saveMutation.isPending ? savePending() : `${SAVE} catálogo`}
                 </Button>
                 {hasPendingChanges ? (
                   <Button
@@ -615,7 +617,7 @@ export function ExpensesPage() {
           setRecordIdSearchParam("");
           const label = String(firstPreview?.file || "PDF").trim() || "PDF";
           setStatusMessage(
-            `«${label}» analizado: datos en el formulario como gasto nuevo. Revisa y pulsa «Guardar gasto».`,
+            `«${label}» analizado: datos en el formulario como gasto nuevo. Revisa y pulsa «${SAVE} gasto».`,
           );
           setStatusTone("success");
           return;
@@ -868,12 +870,10 @@ export function ExpensesPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Gastos</h1>
-        <p className="text-informative">
-          Módulo real conectado a `/api/expenses` con ciclo de vida y control por emisor.
-        </p>
-      </header>
+      <PageHeader
+        title="Gastos"
+        description="Módulo real conectado a `/api/expenses` con ciclo de vida y control por emisor."
+      />
 
       <div className={`grid gap-6 lg:items-start ${isAdmin ? "lg:grid-cols-2" : ""}`}>
         {isAdmin ? (
@@ -883,7 +883,7 @@ export function ExpensesPage() {
               <p className="text-informative">
                 <strong>Excel (.xlsx):</strong> importa filas y crea gastos en el servidor (como en la vista legacy).
                 <strong className="mt-1 block">PDF:</strong> un solo PDF rellena el formulario de la derecha como{" "}
-                <strong>gasto nuevo</strong> (sin guardar hasta que pulses «Guardar gasto»). Varios PDFs seguidos:
+                <strong>gasto nuevo</strong> (sin guardar hasta que pulses «{SAVE} gasto»). Varios PDFs seguidos:
                 súbelos uno a uno en vista previa, o usa Excel para carga masiva.
               </p>
 
@@ -1690,7 +1690,7 @@ export function ExpensesPage() {
 
             <div className="sm:col-span-2 flex flex-wrap gap-2">
               <Button type="button" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? "Guardando..." : "Guardar gasto"}
+                {saveMutation.isPending ? savePending() : `${SAVE} gasto`}
               </Button>
               {selectedRecordId && isAdmin ? (
                 <Button
@@ -1797,7 +1797,7 @@ export function ExpensesPage() {
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9 shrink-0"
-                aria-label="Cerrar"
+                aria-label={CLOSE}
                 onClick={() => expenseLabelsDialogRef.current?.close()}
               >
                 ×
@@ -2029,7 +2029,7 @@ export function ExpensesPage() {
                 disabled={saveCatalogListsMutation.isPending}
                 onClick={() => expenseLabelsDialogRef.current?.close()}
               >
-                Cerrar
+                {CLOSE}
               </Button>
             </div>
           </div>

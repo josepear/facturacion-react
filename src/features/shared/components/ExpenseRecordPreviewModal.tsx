@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import type { ExpenseRecord } from "@/domain/expenses/types";
 import { formatAdvisorCompactDate } from "@/features/data/lib/advisorShareFilters";
+import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { formatCurrency } from "@/lib/utils";
 
 function row(label: string, value: string) {
@@ -51,7 +52,7 @@ export function ExpenseRecordPreviewModal({ open, expense, onOpenChange }: Expen
       <button
         type="button"
         className="absolute inset-0 bg-black/55"
-        aria-label="Cerrar vista de gasto"
+        aria-label={`${CLOSE} vista de gasto`}
         onClick={() => onOpenChange(false)}
       />
       <div
@@ -65,7 +66,7 @@ export function ExpenseRecordPreviewModal({ open, expense, onOpenChange }: Expen
             Vista de gasto
           </h2>
           <Button type="button" variant="default" size="sm" onClick={() => onOpenChange(false)}>
-            Cerrar
+            {CLOSE}
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">

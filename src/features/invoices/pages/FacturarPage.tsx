@@ -12,7 +12,17 @@ import { InvoiceItemsTable } from "@/features/invoices/components/InvoiceItemsTa
 import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotalsPanel";
 import { WorkflowModule } from "@/features/invoices/components/WorkflowModule";
 import { useFacturarForm } from "@/features/invoices/hooks/useFacturarForm";
+import {
+  FACTURAR_CLIENT_HISTORY_EMPTY_LIST,
+  FACTURAR_CLIENT_HISTORY_NEED_CONFIRM,
+  FACTURAR_CLIENT_HISTORY_NEED_NAME,
+  facturarClientHistoryRowsSummary,
+} from "@/features/invoices/lib/facturarClientHistoryCopy";
+import { PageHeader } from "@/features/shared/components/PageHeader";
+import { CLOSE, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
+import { ACCOUNTING_STATUS_OPTIONS } from "@/features/shared/lib/accountingStatusOptions";
+import { TEMPLATE_LAYOUT_OPTIONS } from "@/features/shared/lib/templateLayoutOptions";
 import {
   archiveDocument,
   checkDocumentNumberAvailability,
@@ -380,12 +390,11 @@ export function FacturarPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold">Facturar</h1>
-        <p className="text-informative">
-          Crea o edita documentos; también puedes reabrirlos desde Historial.
-        </p>
-      </header>
+      <PageHeader
+        className="space-y-2"
+        title="Facturar"
+        description="Crea o edita documentos; también puedes reabrirlos desde Historial."
+      />
 
       <form
         className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
@@ -437,9 +446,11 @@ export function FacturarPage() {
                   {...register("templateLayout")}
                 >
                   <option value="">Plantilla...</option>
-                  <option value="pear">Pear&amp;co. clásica</option>
-                  <option value="editorial">Editorial / Nacho</option>
-                  <option value="voulita">Eventos / La Jaulita</option>
+                  {TEMPLATE_LAYOUT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <Field label="Forma de pago">
@@ -514,9 +525,11 @@ export function FacturarPage() {
                   {...register("accounting.status")}
                 >
                   <option value="">Elegir estado…</option>
-                  <option value="ENVIADA">Enviada</option>
-                  <option value="COBRADA">Cobrada</option>
-                  <option value="CANCELADA">Cancelada</option>
+                  {ACCOUNTING_STATUS_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </Field>
               <Field label="Fecha emisión" error={errors.issueDate?.message}>
@@ -858,13 +871,13 @@ export function FacturarPage() {
                 hint="Facturas y presupuestos guardados que coinciden con el nombre de cliente del borrador (sin filtros manuales)."
               >
                 {!String(watch("client.name") || "").trim() ? (
-                  <p className="text-sm text-informative">Indica y confirma el cliente en el módulo anterior para listar su historial.</p>
+                  <p className="text-sm text-informative">{FACTURAR_CLIENT_HISTORY_NEED_NAME}</p>
                 ) : !workflowChecklist.client.complete ? (
-                  <p className="text-sm text-informative">Confirma el cliente (Seleccionar junto a País) para habilitar la tabla.</p>
+                  <p className="text-sm text-informative">{FACTURAR_CLIENT_HISTORY_NEED_CONFIRM}</p>
                 ) : loadingHistory ? (
                   <p className="text-sm text-informative">Cargando histórico…</p>
                 ) : clientHistoryOptions.length === 0 ? (
-                  <p className="text-sm text-informative">No hay facturas ni presupuestos guardados con este nombre de cliente.</p>
+                  <p className="text-sm text-informative">{FACTURAR_CLIENT_HISTORY_EMPTY_LIST}</p>
                 ) : (
                   <div className="-mx-2 max-h-[min(50vh,22rem)] overflow-auto rounded-md border sm:mx-0 sm:max-h-[min(60vh,28rem)]">
                     <table
@@ -932,7 +945,7 @@ export function FacturarPage() {
                 <p className="mt-2 text-pretty text-sm text-informative">
                   {!loadingHistory && workflowChecklist.client.complete && String(watch("client.name") || "").trim() ? (
                     <>
-                      {clientHistoryOptions.length} documento(s) de este cliente
+                      {facturarClientHistoryRowsSummary(clientHistoryOptions.length)}
                       {totalHistoryCount > historyOptions.length ? (
                         <>
                           {" "}
@@ -951,7 +964,7 @@ export function FacturarPage() {
 
           <div className="pt-5">
             <WorkflowModule
-              title="Guardar"
+              title={SAVE}
               stateLabel={workflowChecklist.save.complete ? "Completo" : "Pendiente"}
               stateTone={workflowChecklist.save.complete ? "ok" : "pending"}
               help={workflowChecklist.save.tip}
@@ -965,7 +978,7 @@ export function FacturarPage() {
               <div className="flex w-full flex-col items-stretch gap-3 sm:items-end">
                 <div className="flex w-full max-w-full flex-col gap-3 sm:max-w-xl">
                   <Button type="submit" disabled={isSubmitting || saveMutation.isPending || loadingConfig}>
-                    {saveMutation.isPending ? "Guardando..." : "Guardar documento"}
+                    {saveMutation.isPending ? savePending() : `${SAVE} documento`}
                   </Button>
                   <p className="text-pretty text-sm text-informative sm:max-w-xl sm:text-right">
                     Revise la factura en la vista previa HTML antes de guardar (panel de previsualización del documento).
@@ -1135,7 +1148,7 @@ export function FacturarPage() {
           ) : null}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <Button type="button" variant="ghost" onClick={() => setGmailDialog(false)}>
-              Cancelar
+              {CLOSE}
             </Button>
             <Button
               type="button"

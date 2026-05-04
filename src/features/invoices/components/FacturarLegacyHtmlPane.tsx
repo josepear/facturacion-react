@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { InvoiceDocument } from "@/domain/document/types";
 import { ScaledHtmlPreview } from "@/features/shared/components/ScaledHtmlPreview";
+import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { fetchDocumentLegacyPreviewBlob } from "@/infrastructure/api/documentsApi";
 import { fetchWithAuth } from "@/infrastructure/api/httpClient";
 import { cn } from "@/lib/utils";
@@ -248,7 +249,7 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
               <ZoomOut className="h-4 w-4" />
             </Button>
             <Button type="button" variant="default" className="shrink-0" onClick={() => setModalOpen(false)}>
-              Cerrar
+              {CLOSE}
             </Button>
           </div>
         </div>

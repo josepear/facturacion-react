@@ -8,8 +8,11 @@ import { QuarterBadge } from "@/components/ui/QuarterBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
+import { PageHeader } from "@/features/shared/components/PageHeader";
+import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { ACCOUNTING_STATUS_OPTIONS, formatAccountingStatusLabel } from "@/features/shared/lib/accountingStatusOptions";
 import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
 import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
 import { archiveDocument, archiveDocumentYear, fetchDocumentDetail, fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
@@ -34,17 +37,6 @@ function formatDate(value: string): string {
     return "-";
   }
   return safe;
-}
-
-const ACCOUNTING_STATUS_LABELS: Record<string, string> = {
-  ENVIADA: "Enviada",
-  COBRADA: "Cobrada",
-  CANCELADA: "Cancelada",
-};
-
-function formatAccountingStatusLabel(status: string): string {
-  const key = String(status || "").trim().toUpperCase();
-  return ACCOUNTING_STATUS_LABELS[key] || (key ? key : "-");
 }
 
 export function HistoryPage() {
@@ -553,12 +545,10 @@ export function HistoryPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Historial</h1>
-        <p className="text-informative">
-          Localiza documentos y reábrelos en Facturar para revisarlos o editarlos.
-        </p>
-      </header>
+      <PageHeader
+        title="Historial"
+        description="Localiza documentos y reábrelos en Facturar para revisarlos o editarlos."
+      />
 
       <section className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
         <Card>
@@ -618,9 +608,11 @@ export function HistoryPage() {
                   aria-label="Filtrar por estado contable"
                 >
                   <option value="">Todos</option>
-                  <option value="ENVIADA">Enviada</option>
-                  <option value="COBRADA">Cobrada</option>
-                  <option value="CANCELADA">Cancelada</option>
+                  {ACCOUNTING_STATUS_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="grid gap-1">
@@ -1172,7 +1164,7 @@ export function HistoryPage() {
           ) : null}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <Button type="button" variant="ghost" onClick={() => setGmailBatchDialog(false)}>
-              Cancelar
+              {CLOSE}
             </Button>
             <Button
               type="button"
@@ -1225,7 +1217,7 @@ export function HistoryPage() {
           ) : null}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <Button type="button" variant="ghost" onClick={() => setGmailDialog(false)}>
-              Cancelar
+              {CLOSE}
             </Button>
             <Button
               type="button"

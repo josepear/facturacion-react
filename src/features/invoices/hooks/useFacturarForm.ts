@@ -4,6 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm, useFormState, useWatch } from "react-hook-form";
 
 import { calculateTotals } from "@/domain/document/calculateTotals";
+import {
+  FACTURAR_CLIENT_HISTORY_EMPTY_LIST,
+  FACTURAR_CLIENT_HISTORY_NEED_CONFIRM,
+  FACTURAR_CLIENT_HISTORY_NEED_NAME,
+  facturarClientHistoryCountTip,
+} from "@/features/invoices/lib/facturarClientHistoryCopy";
 import { createEmptyDocument } from "@/domain/document/defaults";
 import { getNextNumber, validateNumberAvailability } from "@/domain/numbering/usecases/getNextNumber";
 import { invoiceDocumentSchema } from "@/domain/document/schemas";
@@ -426,12 +432,12 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       history: {
         complete: true,
         tip: !hasClientName
-          ? "Indica el cliente para ver aquí sus facturas y presupuestos anteriores."
+          ? FACTURAR_CLIENT_HISTORY_NEED_NAME
           : !clientModuleConfirmed
-            ? "Confirma el cliente (Seleccionar junto a País) para usar el historial."
+            ? FACTURAR_CLIENT_HISTORY_NEED_CONFIRM
             : clientHistoryOptions.length > 0
-              ? `${clientHistoryOptions.length} documento(s) de este cliente; elige uno para cargarlo.`
-              : "No hay facturas ni presupuestos guardados con este nombre de cliente.",
+              ? facturarClientHistoryCountTip(clientHistoryOptions.length)
+              : FACTURAR_CLIENT_HISTORY_EMPTY_LIST,
       },
       save: {
         complete: saveComplete,

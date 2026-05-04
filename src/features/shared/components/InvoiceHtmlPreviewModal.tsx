@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { ScaledHtmlPreview } from "@/features/shared/components/ScaledHtmlPreview";
 import { loadInvoiceHtmlBlob } from "@/features/shared/lib/loadInvoiceHtmlBlob";
+import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 
 const MAX_ZOOM_STEPS = 12;
@@ -101,7 +102,7 @@ export function InvoiceHtmlPreviewModal({ open, recordId, subtitle, onOpenChange
       <button
         type="button"
         className="absolute inset-0 bg-black/55"
-        aria-label="Cerrar vista previa"
+        aria-label={`${CLOSE} vista previa`}
         onClick={() => onOpenChange(false)}
       />
       <div
@@ -141,7 +142,7 @@ export function InvoiceHtmlPreviewModal({ open, recordId, subtitle, onOpenChange
               <ZoomOut className="h-4 w-4" />
             </Button>
             <Button type="button" variant="default" className="shrink-0" onClick={() => onOpenChange(false)}>
-              Cerrar
+              {CLOSE}
             </Button>
           </div>
         </div>

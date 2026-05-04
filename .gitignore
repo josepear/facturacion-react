@@ -13,3 +13,7 @@ e2e/.auth/
 # Artefactos locales de sesión (no versionar)
 docs/cursor-session-handoff.md
 
+# Finder: archivo de icono de carpeta (nombre termina en CR)
+Icon?
+**/Icon?
+

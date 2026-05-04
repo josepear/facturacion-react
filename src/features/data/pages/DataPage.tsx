@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { QuarterBadge } from "@/components/ui/QuarterBadge";
 import { DataHistoricalImportPanel } from "@/features/data/components/DataHistoricalImportPanel";
+import { PageHeader } from "@/features/shared/components/PageHeader";
 import {
   ExpensePreviewListTrigger,
   InvoicePreviewListTrigger,
@@ -99,10 +100,10 @@ export function DataPage() {
 
   return (
     <main className="mx-auto grid w-full max-w-7xl gap-6 p-4">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Datos</h1>
-        <p className="text-informative">Resumen financiero y listados de facturas y gastos con los mismos filtros.</p>
-      </header>
+      <PageHeader
+        title="Datos"
+        description="Resumen financiero y listados de facturas y gastos con los mismos filtros."
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

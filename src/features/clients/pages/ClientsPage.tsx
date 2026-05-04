@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { ClientRecord } from "@/domain/document/types";
+import { PageHeader } from "@/features/shared/components/PageHeader";
+import { SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { archiveClient, fetchClients, saveClient } from "@/infrastructure/api/clientsApi";
 import { normalizeTaxIdKey, normalizeTextKey } from "@/lib/clientMatching";
 import { cn } from "@/lib/utils";
@@ -237,12 +239,10 @@ export function ClientsPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Clientes</h1>
-        <p className="text-informative">
-          Módulo real conectado al contrato legacy de clientes, coherente con Facturar.
-        </p>
-      </header>
+      <PageHeader
+        title="Clientes"
+        description="Módulo real conectado al contrato legacy de clientes, coherente con Facturar."
+      />
 
       <section className="grid gap-6 lg:grid-cols-[1fr_1.35fr]">
         <Card>
@@ -427,7 +427,7 @@ export function ClientsPage() {
 
             <div className="sm:col-span-2 flex flex-wrap gap-2">
               <Button type="button" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-                {saveMutation.isPending ? "Guardando..." : "Guardar cliente"}
+                {saveMutation.isPending ? savePending() : `${SAVE} cliente`}
               </Button>
               {selectedRecordId ? (
                 <Button
