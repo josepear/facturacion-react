@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
@@ -52,7 +52,69 @@ function createEmptyExpense(profileId?: string): ExpenseRecord {
   };
 }
 
-function ExpenseCatalogBulkSection({ canEdit }: { canEdit: boolean }) {
+/** Lista única y sin vacíos (alineado con legacy `normalizeOptionList` para UX). */
+function normalizeExpenseLabelList(items: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of items) {
+    const v = String(raw ?? "").trim();
+    if (!v || seen.has(v)) {
+      continue;
+    }
+    seen.add(v);
+    out.push(v);
+  }
+  return out;
+}
+
+function resolveLabelInsertBefore(rowEls: HTMLElement[], clientY: number): number {
+  const n = rowEls.length;
+  if (!n) {
+    return 0;
+  }
+  for (let i = 0; i < n; i += 1) {
+    const row = rowEls[i];
+    if (!row) {
+      continue;
+    }
+    const rect = row.getBoundingClientRect();
+    const mid = rect.top + rect.height / 2;
+    if (clientY < mid) {
+      return i;
+    }
+  }
+  return n;
+}
+
+/** Misma semántica que legacy `reorderExpenseOptionDraftByInsertBefore`. */
+function reorderExpenseLabelsByInsertBefore<T>(items: T[], fromIndex: number, insertBefore: number): T[] {
+  const n = items.length;
+  if (!n || fromIndex < 0 || fromIndex >= n || insertBefore < 0 || insertBefore > n) {
+    return items;
+  }
+  if (insertBefore === fromIndex || insertBefore === fromIndex + 1) {
+    return items;
+  }
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  if (moved === undefined) {
+    return items;
+  }
+  let dest = insertBefore;
+  if (insertBefore > fromIndex) {
+    dest = insertBefore - 1;
+  }
+  next.splice(dest, 0, moved);
+  return next;
+}
+
+function ExpenseCatalogBulkSection({
+  canEdit,
+  onOpenLabelsEditor,
+}: {
+  canEdit: boolean;
+  onOpenLabelsEditor?: () => void;
+}) {
   const queryClient = useQueryClient();
   const optionsQuery = useQuery({
     queryKey: ["expense-options"],
@@ -99,8 +161,8 @@ function ExpenseCatalogBulkSection({ canEdit }: { canEdit: boolean }) {
       <CardHeader>
         <CardTitle>Catálogo de gastos</CardTitle>
         <CardDescription>
-          Proveedores y categorías del formulario (listas sugeridas y «Gestionar» en cada campo).{" "}
-          {canEdit ? "Solo administradores pueden guardar aquí." : "Solo lectura."}
+          Edición masiva por líneas; para ordenar o borrar entradas con el mismo flujo que el legacy, usa el
+          editor de etiquetas. {canEdit ? "Solo administradores pueden guardar aquí." : "Solo lectura."}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -136,6 +198,11 @@ function ExpenseCatalogBulkSection({ canEdit }: { canEdit: boolean }) {
                 />
               </div>
             </div>
+            {canEdit && onOpenLabelsEditor ? (
+              <Button type="button" variant="outline" size="sm" className="w-fit" onClick={onOpenLabelsEditor}>
+                Editor de etiquetas (ordenar, borrar…)
+              </Button>
+            ) : null}
             {canEdit && (
               <div className="flex flex-wrap items-center gap-3">
                 <Button
@@ -239,11 +306,20 @@ export function ExpensesPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"neutral" | "success" | "error">("neutral");
   const didHydrateDefaultTemplateProfile = useRef(false);
-  const [catalogDialog, setCatalogDialog] = useState<"vendor" | "category" | null>(null);
-  const [catalogDraft, setCatalogDraft] = useState<string[]>([]);
-  const [newCatalogItem, setNewCatalogItem] = useState("");
-  const catalogDialogRef = useRef<HTMLDialogElement>(null);
-  const dragIndexRef = useRef<number | null>(null);
+  const [labelsModalOpen, setLabelsModalOpen] = useState(false);
+  const [labelsModalFocus, setLabelsModalFocus] = useState<"vendor" | "category">("vendor");
+  const [catalogVendorsDraft, setCatalogVendorsDraft] = useState<string[]>([]);
+  const [catalogCategoriesDraft, setCatalogCategoriesDraft] = useState<string[]>([]);
+  const [newVendorInModal, setNewVendorInModal] = useState("");
+  const [newCategoryInModal, setNewCategoryInModal] = useState("");
+  const [labelsModalMessage, setLabelsModalMessage] = useState<{
+    text: string;
+    tone: "neutral" | "success" | "error";
+  } | null>(null);
+  const expenseLabelsDialogRef = useRef<HTMLDialogElement>(null);
+  const newVendorInModalRef = useRef<HTMLInputElement>(null);
+  const newCategoryInModalRef = useRef<HTMLInputElement>(null);
+  const dragLabelRef = useRef<{ list: "vendors" | "categories"; fromIndex: number } | null>(null);
   const [importProfileId, setImportProfileId] = useState("");
   const [importResult, setImportResult] = useState<{ created?: number; skipped?: string[] } | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
@@ -507,54 +583,111 @@ export function ExpensesPage() {
     reader.readAsDataURL(file);
   }
 
-  const saveCatalogMutation = useMutation({
-    mutationFn: (arg?: { type: "vendors" | "categories"; items: string[] }) => {
-      const baseVendors = expenseOptionsQuery.data?.vendors ?? [];
-      const baseCategories = expenseOptionsQuery.data?.categories ?? [];
-      if (arg) {
-        return saveExpenseOptions({
-          vendors: arg.type === "vendors" ? arg.items : baseVendors,
-          categories: arg.type === "categories" ? arg.items : baseCategories,
-        });
-      }
-      return saveExpenseOptions({
-        vendors: catalogDialog === "vendor" ? catalogDraft : baseVendors,
-        categories: catalogDialog === "category" ? catalogDraft : baseCategories,
+  const saveCatalogListsMutation = useMutation({
+    mutationFn: (payload: { vendors: string[]; categories: string[] }) =>
+      saveExpenseOptions({
+        vendors: normalizeExpenseLabelList(payload.vendors),
+        categories: normalizeExpenseLabelList(payload.categories),
+      }),
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["expense-options"] });
+      const v = data.vendors ?? [];
+      const c = data.categories ?? [];
+      setCatalogVendorsDraft([...v]);
+      setCatalogCategoriesDraft([...c]);
+      setLabelsModalMessage({
+        text: `Guardado (${v.length} proveedores, ${c.length} conceptos).`,
+        tone: "success",
       });
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["expense-options"] });
-      setCatalogDialog(null);
-      setNewCatalogItem("");
-    },
     onError: (error) => {
-      setStatusMessage(getErrorMessageFromUnknown(error) || "No se pudo guardar el catálogo.");
+      const msg = getErrorMessageFromUnknown(error) || "No se pudo guardar el catálogo.";
+      setLabelsModalMessage({ text: msg, tone: "error" });
+      setStatusMessage(msg);
       setStatusTone("error");
     },
   });
 
-  const addCatalogItem = () => {
-    const next = newCatalogItem.trim();
-    if (!next) {
-      return;
-    }
-    setCatalogDraft((prev) => [...prev, next]);
-    setNewCatalogItem("");
-  };
+  const mutateCatalogLists = saveCatalogListsMutation.mutate;
+
+  const openExpenseLabelsModal = useCallback((focus: "vendor" | "category" = "vendor") => {
+    const v = expenseOptionsQuery.data?.vendors ?? [];
+    const c = expenseOptionsQuery.data?.categories ?? [];
+    setCatalogVendorsDraft([...v]);
+    setCatalogCategoriesDraft([...c]);
+    setNewVendorInModal("");
+    setNewCategoryInModal("");
+    setLabelsModalFocus(focus);
+    setLabelsModalMessage({
+      text: "Arrastra cada fila para reordenar; ✕ borra la etiqueta.",
+      tone: "neutral",
+    });
+    setLabelsModalOpen(true);
+  }, [expenseOptionsQuery.data?.categories, expenseOptionsQuery.data?.vendors]);
 
   useEffect(() => {
-    const el = catalogDialogRef.current;
+    const el = expenseLabelsDialogRef.current;
     if (!el) {
       return;
     }
-    if (catalogDialog !== null) {
+    if (labelsModalOpen) {
       if (!el.open) {
         el.showModal();
       }
     } else if (el.open) {
       el.close();
     }
-  }, [catalogDialog]);
+  }, [labelsModalOpen]);
+
+  useEffect(() => {
+    if (!labelsModalOpen) {
+      return;
+    }
+    const id = requestAnimationFrame(() => {
+      if (labelsModalFocus === "category") {
+        newCategoryInModalRef.current?.focus();
+      } else {
+        newVendorInModalRef.current?.focus();
+      }
+    });
+    return () => {
+      cancelAnimationFrame(id);
+    };
+  }, [labelsModalFocus, labelsModalOpen]);
+
+  const handleDropLabelRow = useCallback(
+    (listKey: "vendors" | "categories", e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const st = dragLabelRef.current;
+      const root = e.currentTarget;
+      if (!st || st.list !== listKey) {
+        dragLabelRef.current = null;
+        return;
+      }
+      const rowEls = [...root.querySelectorAll<HTMLElement>("[data-expense-label-row]")];
+      const insertBefore = resolveLabelInsertBefore(rowEls, e.clientY);
+      dragLabelRef.current = null;
+      const nextVendors =
+        listKey === "vendors"
+          ? reorderExpenseLabelsByInsertBefore(catalogVendorsDraft, st.fromIndex, insertBefore)
+          : catalogVendorsDraft;
+      const nextCategories =
+        listKey === "categories"
+          ? reorderExpenseLabelsByInsertBefore(catalogCategoriesDraft, st.fromIndex, insertBefore)
+          : catalogCategoriesDraft;
+      if (listKey === "vendors" && nextVendors === catalogVendorsDraft) {
+        return;
+      }
+      if (listKey === "categories" && nextCategories === catalogCategoriesDraft) {
+        return;
+      }
+      setCatalogVendorsDraft(nextVendors);
+      setCatalogCategoriesDraft(nextCategories);
+      mutateCatalogLists({ vendors: nextVendors, categories: nextCategories });
+    },
+    [catalogCategoriesDraft, catalogVendorsDraft, mutateCatalogLists],
+  );
 
   const computedDraft = useMemo(() => normalizeExpenseDraft(draft), [draft]);
 
@@ -642,7 +775,7 @@ export function ExpensesPage() {
         </p>
       </header>
 
-      <ExpenseCatalogBulkSection canEdit={isAdmin} />
+      <ExpenseCatalogBulkSection canEdit={isAdmin} onOpenLabelsEditor={() => openExpenseLabelsModal("vendor")} />
 
       <section className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
         <Card>
@@ -958,11 +1091,11 @@ export function ExpensesPage() {
                       type="button"
                       variant="ghost"
                       className="ml-1 shrink-0 text-informative underline-offset-2 hover:underline"
-                      disabled={saveCatalogMutation.isPending}
+                      disabled={saveCatalogListsMutation.isPending}
                       onClick={() =>
-                        saveCatalogMutation.mutate({
-                          type: "vendors",
-                          items: [...(expenseOptionsQuery.data?.vendors ?? []), String(draft.vendor || "").trim()],
+                        mutateCatalogLists({
+                          vendors: [...(expenseOptionsQuery.data?.vendors ?? []), String(draft.vendor || "").trim()],
+                          categories: expenseOptionsQuery.data?.categories ?? [],
                         })
                       }
                     >
@@ -981,10 +1114,7 @@ export function ExpensesPage() {
                     variant="ghost"
                     size="sm"
                     className="w-fit justify-self-start"
-                    onClick={() => {
-                      setCatalogDraft([...(expenseOptionsQuery.data?.vendors ?? [])]);
-                      setCatalogDialog("vendor");
-                    }}
+                    onClick={() => openExpenseLabelsModal("vendor")}
                   >
                     Gestionar
                   </Button>
@@ -1018,10 +1148,7 @@ export function ExpensesPage() {
                     variant="ghost"
                     size="sm"
                     className="w-fit justify-self-start"
-                    onClick={() => {
-                      setCatalogDraft([...(expenseOptionsQuery.data?.categories ?? [])]);
-                      setCatalogDialog("category");
-                    }}
+                    onClick={() => openExpenseLabelsModal("category")}
                   >
                     Gestionar
                   </Button>
@@ -1164,11 +1291,11 @@ export function ExpensesPage() {
                           type="button"
                           variant="ghost"
                           className="ml-1 shrink-0 text-informative underline-offset-2 hover:underline"
-                          disabled={saveCatalogMutation.isPending}
+                          disabled={saveCatalogListsMutation.isPending}
                           onClick={() =>
-                            saveCatalogMutation.mutate({
-                              type: "categories",
-                              items: [
+                            mutateCatalogLists({
+                              vendors: expenseOptionsQuery.data?.vendors ?? [],
+                              categories: [
                                 ...(expenseOptionsQuery.data?.categories ?? []),
                                 String(draft.expenseConcept || "").trim(),
                               ],
@@ -1409,90 +1536,261 @@ export function ExpensesPage() {
       ) : null}
 
       <dialog
-        ref={catalogDialogRef}
-        className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-0 shadow-lg backdrop:bg-black/50"
+        ref={expenseLabelsDialogRef}
+        className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-0 shadow-lg backdrop:bg-black/50"
+        aria-labelledby="expense-labels-modal-heading"
         onClose={() => {
-          setCatalogDialog(null);
-          setNewCatalogItem("");
+          setLabelsModalOpen(false);
+          dragLabelRef.current = null;
         }}
       >
-        {catalogDialog !== null ? (
-          <div className="grid max-h-[min(32rem,85vh)] gap-4 overflow-auto p-6">
-            <h2 className="text-lg font-semibold leading-none tracking-tight">
-              {catalogDialog === "vendor" ? "Proveedores" : "Categorías"}
-            </h2>
-            <div className="grid gap-1 border-b border-border pb-3">
-              {catalogDraft.map((item, i) => (
-                <div
-                  key={i}
-                  draggable
-                  onDragStart={() => {
-                    dragIndexRef.current = i;
-                  }}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                  }}
-                  onDrop={() => {
-                    const from = dragIndexRef.current;
-                    if (from === null || from === i) {
-                      return;
-                    }
-                    setCatalogDraft((prev) => {
-                      const next = [...prev];
-                      const [moved] = next.splice(from, 1);
-                      if (moved !== undefined) next.splice(i, 0, moved);
-                      return next;
-                    });
-                    dragIndexRef.current = null;
-                  }}
-                  onDragEnd={() => {
-                    dragIndexRef.current = null;
-                  }}
-                  className="flex cursor-grab items-center gap-2 py-1"
-                >
-                  <span aria-hidden="true" className="select-none text-informative">
-                    ⠿
-                  </span>
-                  <span className="flex-1 text-sm">{item}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setCatalogDraft((prev) => prev.filter((_, idx) => idx !== i))}
-                  >
-                    ✕
-                  </Button>
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <input
-                className="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={newCatalogItem}
-                onChange={(event) => setNewCatalogItem(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    addCatalogItem();
-                  }
-                }}
-                placeholder="Nuevo elemento..."
-              />
-              <Button type="button" onClick={addCatalogItem}>
-                Añadir
-              </Button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" disabled={saveCatalogMutation.isPending} onClick={() => saveCatalogMutation.mutate(undefined)}>
-                {saveCatalogMutation.isPending ? "Guardando..." : "Guardar"}
-              </Button>
+        {labelsModalOpen ? (
+          <div className="flex max-h-[min(90vh,44rem)] flex-col overflow-hidden">
+            <header className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-informative">Etiquetas</p>
+                <h2 id="expense-labels-modal-heading" className="text-lg font-semibold tracking-tight">
+                  Editar etiquetas de gastos
+                </h2>
+              </div>
               <Button
                 type="button"
                 variant="ghost"
-                disabled={saveCatalogMutation.isPending}
-                onClick={() => catalogDialogRef.current?.close()}
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                aria-label="Cerrar"
+                onClick={() => expenseLabelsDialogRef.current?.close()}
               >
-                Cancelar
+                ×
+              </Button>
+            </header>
+
+            <div className="grid flex-1 gap-4 overflow-auto p-6 md:grid-cols-2">
+              <section className="grid gap-3 rounded-md border border-border p-4">
+                <h3 className="text-base font-semibold">Proveedores</h3>
+                <div className="grid gap-1">
+                  <span className="text-sm text-informative">Nueva etiqueta de proveedor</span>
+                  <div className="flex flex-wrap items-stretch gap-2">
+                    <Input
+                      ref={newVendorInModalRef}
+                      className="min-w-0 flex-1"
+                      value={newVendorInModal}
+                      onChange={(e) => setNewVendorInModal(e.target.value)}
+                      placeholder="Añadir proveedor nuevo"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const t = newVendorInModal.trim();
+                          if (!t || catalogVendorsDraft.includes(t)) {
+                            return;
+                          }
+                          const next = [...catalogVendorsDraft, t];
+                          setCatalogVendorsDraft(next);
+                          setNewVendorInModal("");
+                          mutateCatalogLists({ vendors: next, categories: catalogCategoriesDraft });
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      disabled={saveCatalogListsMutation.isPending}
+                      onClick={() => {
+                        const t = newVendorInModal.trim();
+                        if (!t || catalogVendorsDraft.includes(t)) {
+                          return;
+                        }
+                        const next = [...catalogVendorsDraft, t];
+                        setCatalogVendorsDraft(next);
+                        setNewVendorInModal("");
+                        mutateCatalogLists({ vendors: next, categories: catalogCategoriesDraft });
+                      }}
+                    >
+                      Añadir
+                    </Button>
+                  </div>
+                </div>
+                <div
+                  className="max-h-64 overflow-auto rounded-md border border-input"
+                  onDragOver={(e) => {
+                    if (dragLabelRef.current?.list === "vendors") {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }
+                  }}
+                  onDrop={(e) => handleDropLabelRow("vendors", e)}
+                >
+                  {catalogVendorsDraft.length === 0 ? (
+                    <p className="p-3 text-sm text-informative">No hay etiquetas en esta lista.</p>
+                  ) : (
+                    catalogVendorsDraft.map((item, i) => (
+                      <div
+                        key={`v-${i}-${item}`}
+                        data-expense-label-row
+                        draggable
+                        title="Mantén pulsado y arrastra para reordenar"
+                        onDragStart={(e) => {
+                          if ((e.target as HTMLElement).closest("button")) {
+                            e.preventDefault();
+                            return;
+                          }
+                          dragLabelRef.current = { list: "vendors", fromIndex: i };
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", `vendor:${i}`);
+                        }}
+                        onDragEnd={() => {
+                          dragLabelRef.current = null;
+                        }}
+                        className="flex cursor-grab items-center gap-2 border-b border-border px-2 py-2 text-sm last:border-b-0"
+                      >
+                        <span aria-hidden className="select-none text-informative">
+                          ⠿
+                        </span>
+                        <span className="min-w-0 flex-1 font-medium">{item}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          draggable={false}
+                          className="shrink-0 text-destructive hover:text-destructive"
+                          aria-label="Borrar"
+                          disabled={saveCatalogListsMutation.isPending}
+                          onClick={() => {
+                            const next = catalogVendorsDraft.filter((_, j) => j !== i);
+                            setCatalogVendorsDraft(next);
+                            mutateCatalogLists({ vendors: next, categories: catalogCategoriesDraft });
+                          }}
+                        >
+                          ✕
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <section className="grid gap-3 rounded-md border border-border p-4">
+                <h3 className="text-base font-semibold">Conceptos del gasto</h3>
+                <div className="grid gap-1">
+                  <span className="text-sm text-informative">Nueva etiqueta de concepto</span>
+                  <div className="flex flex-wrap items-stretch gap-2">
+                    <Input
+                      ref={newCategoryInModalRef}
+                      className="min-w-0 flex-1"
+                      value={newCategoryInModal}
+                      onChange={(e) => setNewCategoryInModal(e.target.value)}
+                      placeholder="Añadir concepto nuevo"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const t = newCategoryInModal.trim();
+                          if (!t || catalogCategoriesDraft.includes(t)) {
+                            return;
+                          }
+                          const next = [...catalogCategoriesDraft, t];
+                          setCatalogCategoriesDraft(next);
+                          setNewCategoryInModal("");
+                          mutateCatalogLists({ vendors: catalogVendorsDraft, categories: next });
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      disabled={saveCatalogListsMutation.isPending}
+                      onClick={() => {
+                        const t = newCategoryInModal.trim();
+                        if (!t || catalogCategoriesDraft.includes(t)) {
+                          return;
+                        }
+                        const next = [...catalogCategoriesDraft, t];
+                        setCatalogCategoriesDraft(next);
+                        setNewCategoryInModal("");
+                        mutateCatalogLists({ vendors: catalogVendorsDraft, categories: next });
+                      }}
+                    >
+                      Añadir
+                    </Button>
+                  </div>
+                </div>
+                <div
+                  className="max-h-64 overflow-auto rounded-md border border-input"
+                  onDragOver={(e) => {
+                    if (dragLabelRef.current?.list === "categories") {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                    }
+                  }}
+                  onDrop={(e) => handleDropLabelRow("categories", e)}
+                >
+                  {catalogCategoriesDraft.length === 0 ? (
+                    <p className="p-3 text-sm text-informative">No hay etiquetas en esta lista.</p>
+                  ) : (
+                    catalogCategoriesDraft.map((item, i) => (
+                      <div
+                        key={`c-${i}-${item}`}
+                        data-expense-label-row
+                        draggable
+                        title="Mantén pulsado y arrastra para reordenar"
+                        onDragStart={(e) => {
+                          if ((e.target as HTMLElement).closest("button")) {
+                            e.preventDefault();
+                            return;
+                          }
+                          dragLabelRef.current = { list: "categories", fromIndex: i };
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", `category:${i}`);
+                        }}
+                        onDragEnd={() => {
+                          dragLabelRef.current = null;
+                        }}
+                        className="flex cursor-grab items-center gap-2 border-b border-border px-2 py-2 text-sm last:border-b-0"
+                      >
+                        <span aria-hidden className="select-none text-informative">
+                          ⠿
+                        </span>
+                        <span className="min-w-0 flex-1 font-medium">{item}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          draggable={false}
+                          className="shrink-0 text-destructive hover:text-destructive"
+                          aria-label="Borrar"
+                          disabled={saveCatalogListsMutation.isPending}
+                          onClick={() => {
+                            const next = catalogCategoriesDraft.filter((_, j) => j !== i);
+                            setCatalogCategoriesDraft(next);
+                            mutateCatalogLists({ vendors: catalogVendorsDraft, categories: next });
+                          }}
+                        >
+                          ✕
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+            </div>
+
+            <p
+              className={`border-t border-border px-6 py-3 text-sm ${
+                labelsModalMessage?.tone === "error"
+                  ? "text-red-600"
+                  : labelsModalMessage?.tone === "success"
+                    ? "text-emerald-600"
+                    : "text-informative"
+              }`}
+            >
+              {labelsModalMessage?.text ?? "Arrastra cada fila para reordenar; ✕ borra la etiqueta."}
+            </p>
+
+            <div className="border-t border-border px-6 py-3">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saveCatalogListsMutation.isPending}
+                onClick={() => expenseLabelsDialogRef.current?.close()}
+              >
+                Cerrar
               </Button>
             </div>
           </div>

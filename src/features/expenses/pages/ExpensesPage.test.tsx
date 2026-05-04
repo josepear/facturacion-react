@@ -24,6 +24,7 @@ const {
   fetchSessionMock,
   fetchExpensesMock,
   fetchExpenseOptionsMock,
+  saveExpenseOptionsMock,
   saveExpenseMock,
   archiveExpenseMock,
   archiveExpenseYearMock,
@@ -35,6 +36,7 @@ const {
   fetchSessionMock: vi.fn(),
   fetchExpensesMock: vi.fn(),
   fetchExpenseOptionsMock: vi.fn(),
+  saveExpenseOptionsMock: vi.fn(),
   saveExpenseMock: vi.fn(),
   archiveExpenseMock: vi.fn(),
   archiveExpenseYearMock: vi.fn(),
@@ -68,6 +70,7 @@ vi.mock("@/infrastructure/api/sessionApi", () => ({
 vi.mock("@/infrastructure/api/expensesApi", () => ({
   fetchExpenses: fetchExpensesMock,
   fetchExpenseOptions: fetchExpenseOptionsMock,
+  saveExpenseOptions: saveExpenseOptionsMock,
   saveExpense: saveExpenseMock,
   archiveExpense: archiveExpenseMock,
   archiveExpenseYear: archiveExpenseYearMock,
@@ -124,6 +127,10 @@ describe("ExpensesPage regression", () => {
       vendors: ["Proveedor Uno", "Proveedor Dos"],
       categories: ["Software", "Asesoría"],
     });
+    saveExpenseOptionsMock.mockImplementation(async (opts) => ({
+      vendors: opts.vendors ?? [],
+      categories: opts.categories ?? [],
+    }));
     saveExpenseMock.mockResolvedValue({
       mode: "updated",
       id: "id-1",
@@ -192,6 +199,10 @@ describe("ExpensesPage regression", () => {
     });
     fetchExpensesMock.mockResolvedValue({ items: [], years: [] });
     fetchExpenseOptionsMock.mockResolvedValue({ vendors: [], categories: [] });
+    saveExpenseOptionsMock.mockImplementation(async (opts) => ({
+      vendors: opts.vendors ?? [],
+      categories: opts.categories ?? [],
+    }));
     saveExpenseMock.mockImplementation(() =>
       Promise.reject(new ApiError("Bad Request", 400, { message: "Error fiscal del servidor" })),
     );

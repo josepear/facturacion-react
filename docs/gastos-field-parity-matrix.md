@@ -1,7 +1,7 @@
 # Matriz de paridad Gastos: Legacy vs React
 
 **Referencia legacy:** `facturacion.pearandco.es` (no SaaS fallida).  
-**Referencia React:** `ExpensesPage.tsx` (`src/features/expenses/pages/ExpensesPage.tsx`), `ExpenseRecord` / `ExpenseOptions` (`src/domain/expenses/types.ts`), `expensesApi.ts` (`src/infrastructure/api/expensesApi.ts`), configuración compartida `GET /api/config` vía `fetchRuntimeConfig`.
+**Referencia React:** `ExpensesPage.tsx` (`src/features/expenses/pages/ExpensesPage.tsx`), `ExpenseRecord` / `ExpenseOptions` (`src/domain/expenses/types.ts`), `expensesApi.ts` (`src/infrastructure/api/expensesApi.ts`), configuración compartida `GET /api/config` vía `fetchRuntimeConfig`. El modal **Editar etiquetas de gastos** (proveedores + conceptos, arrastre intra-columna, ✕ y «Añadir» con `POST /api/expense-options` inmediato) alinea con legacy `#expense-options-modal` en `public/index.html` / `public/app.js`.
 
 **Nota metodológica:** la columna «Legacy» describe el comportamiento esperable en producción; las filas con «validar en legacy» quedan en estado **parcial** hasta checklist manual.  
 **Código legacy en repo:** reglas de guardado en cliente en [`parity-partials-legacy-code-evidence.md`](./parity-partials-legacy-code-evidence.md).
