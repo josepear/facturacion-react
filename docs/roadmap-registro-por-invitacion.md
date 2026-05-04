@@ -1,8 +1,53 @@
-# Roadmap: registro por invitación (estilo SaaS)
+# Proyecto: registro por invitación (estilo SaaS)
 
-**Estado:** planificado para ejecución **posterior**; no forma parte del cierre de paridad Legacy → React documentado en [`roadmap-paridad.md`](./roadmap-paridad.md).
+**Nombre corto:** `auth-invitaciones` (rama sugerida: `feat/invitaciones-registro`).
+
+**Estado:** planificado para ejecución **posterior**; no forma parte del cierre de paridad Legacy → React documentado en [`roadmap-paridad.md`](./roadmap-paridad.md) (solo hay un enlace transversal allí).
 
 **Decisión de producto:** el alta de cuentas nuevas será **solo por invitación** (no registro público abierto). Inspiración de UX: flujos tipo Cursor u otras apps donde el usuario recibe un enlace o código, crea acceso y queda bajo gestión del espacio de trabajo.
+
+---
+
+## Tablero en GitHub (cuando lo ejecutéis)
+
+1. En el repo **facturacion-react** (o el monorepo, según donde viváis el backend de invitaciones): **Projects → New project** (tablero estilo “Board” o “Table”).
+2. Nombre sugerido del proyecto: **Registro por invitación**.
+3. Columnas sugeridas: *Backlog* → *En diseño* → *En curso* → *En revisión* → *Hecho*.
+4. Crear **issues** copiando los títulos de la sección «Issues sugeridos — backlog» más abajo; asignar cada issue a un **Milestone** de la tabla de hitos.
+5. Opcional: etiqueta `area:auth` + `priority:P1` para filtrar fuera del roadmap de paridad.
+
+Este markdown sigue siendo la **fuente narrativa**; el tablero de GitHub es el **kanban operativo** día a día.
+
+---
+
+## Hitos (milestones)
+
+| Hito | Contenido resumido | Dependencia principal |
+|------|--------------------|-------------------------|
+| **M0 — Producto** | Cerrar Fase 0 (caducidad, reenvío, rol en invitación, estrategia A/B/C, dominios). | Decisiones internas |
+| **M1 — Persistencia** | Almacenamiento de invitaciones + hash de token; limpieza de caducadas. | `server.mjs` / config o BD |
+| **M2 — API** | CRUD invitaciones + validate + accept + revoke; tests servidor. | M1 |
+| **M3 — React MVP** | Ruta `/react/invitacion` + UI admin invitar / listar / revocar. | M2 + `usersApi` |
+| **M4 — OAuth** | Google (y luego Microsoft / Apple) en flujo accept. | M3 + consolas OAuth |
+| **M5 — Hardening** | Rate limit, E2E, notificaciones admin. | M3 |
+
+---
+
+## Issues sugeridos — backlog
+
+Copiar/pegar como títulos de issues en GitHub (cuerpo puede enlazar a secciones de este doc):
+
+1. `auth-invite: decisiones Fase 0 (caducidad, reenvío, rol preasignado, dominios)`
+2. `auth-invite: modelo de datos + persistencia invitaciones (token hash)`
+3. `auth-invite: POST /api/invitations (admin) + email o enlace copiable MVP`
+4. `auth-invite: GET /api/invitations/validate?token=`
+5. `auth-invite: POST /api/invitations/accept (password o código OAuth)`
+6. `auth-invite: POST /api/invitations/revoke (admin)`
+7. `auth-invite: React ruta /react/invitacion (flujo aceptar)`
+8. `auth-invite: Settings — UI invitar, pendientes, reenviar, revocar`
+9. `auth-invite: E2E invitar → aceptar → login`
+10. `auth-invite: OAuth Google en accept (post-MVP)`
+11. `auth-invite: rate limit + auditoría aceptaciones`
 
 ---
 
@@ -100,9 +145,15 @@ Cada proveedor: client id/secret en runtime, redirect URI al mini o entorno de p
 
 Cuando se arranque el trabajo:
 
-1. Crear rama dedicada (p. ej. `feat/invitaciones-registro`).
-2. Actualizar este documento tachando fases y enlazando PRs o commits.
-3. Mantener [`roadmap-paridad.md`](./roadmap-paridad.md) solo para paridad legacy/React; este archivo es el tablero del **producto auth / invitaciones**.
+1. Crear **GitHub Project** y issues desde la sección de backlog (arriba).
+2. Crear rama dedicada (p. ej. `feat/invitaciones-registro`).
+3. Ir tachando checkboxes de las **Fases 0–5** en este mismo archivo y añadir bajo cada fase una línea `**PR:** #123` cuando exista.
+4. Mantener [`roadmap-paridad.md`](./roadmap-paridad.md) solo para paridad legacy/React; **este archivo** es el tablero narrativo del **producto auth / invitaciones**.
+
+### Primer paso cuando retoméis (5 minutos)
+
+- [ ] Marcar en el Project la issue «decisiones Fase 0» como *En curso*.
+- [ ] Rellenar en un comentario: días de caducidad del token, si hay reenvío, y opción **A / B / C** de identidad (ver Fase 0).
 
 ---
 
