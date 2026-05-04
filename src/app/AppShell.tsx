@@ -41,7 +41,7 @@ function SidebarContent({ collapsed, isDark, toggle, sandbox, toggleSandbox, onN
   return (
     <div className="flex h-full flex-col gap-4 p-3">
       <div className={cn("rounded-lg border bg-card px-3 py-3", collapsed ? "text-center" : "")}>
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">Facturación</p>
+        <p className="text-informative uppercase tracking-wide">Facturación</p>
         {!collapsed ? <p className="mt-1 text-sm font-semibold">App React</p> : null}
       </div>
 
@@ -200,7 +200,7 @@ export function AppShell() {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="sticky top-0 z-30 flex shrink-0 items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
         <div className="grid">
-          <span className="text-xs uppercase tracking-wide text-muted-foreground">Facturación React</span>
+          <span className="text-informative uppercase tracking-wide">Facturación React</span>
           <span className="text-sm font-semibold">{shellTitle}</span>
         </div>
         <div className="flex items-center gap-2">

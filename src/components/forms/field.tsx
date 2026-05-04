@@ -9,10 +9,11 @@ type FieldProps = {
 
 export function Field({ label, error, children, hint }: FieldProps) {
   return (
-    <label className="grid gap-2 text-sm">
+    <label className="grid w-full gap-2 self-start text-sm content-start">
       <span className="font-medium">{label}</span>
-      {children}
-      {hint ? <span className="text-xs text-muted-foreground">{hint}</span> : null}
+      {/* Un solo hijo en la rejilla del label: evita que Fragmentos (p. ej. input + aviso) abran filas extra y desalineen respecto a otros campos */}
+      <div className="grid min-w-0 w-full gap-1">{children}</div>
+      {hint ? <span className="text-informative">{hint}</span> : null}
       {error ? <span className="text-xs text-red-600">{error}</span> : null}
     </label>
   );

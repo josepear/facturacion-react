@@ -548,7 +548,7 @@ export function HistoryPage() {
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Historial</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-informative">
           Localiza documentos y reábrelos en Facturar para revisarlos o editarlos.
         </p>
       </header>
@@ -562,7 +562,7 @@ export function HistoryPage() {
           <CardContent className="grid gap-3">
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="grid gap-1">
-                <span className="text-xs font-medium text-muted-foreground">Tipo de documento</span>
+                <span className="text-informative font-medium">Tipo de documento</span>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterType}
@@ -579,7 +579,7 @@ export function HistoryPage() {
                 </select>
               </div>
               <div className="grid gap-1">
-                <span className="text-xs font-medium text-muted-foreground">Ejercicio (fecha emisión)</span>
+                <span className="text-informative font-medium">Ejercicio (fecha emisión)</span>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterYear}
@@ -599,7 +599,7 @@ export function HistoryPage() {
                 </select>
               </div>
               <div className="grid gap-1">
-                <span className="text-xs font-medium text-muted-foreground">Estado contable</span>
+                <span className="text-informative font-medium">Estado contable</span>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterStatus}
@@ -617,7 +617,7 @@ export function HistoryPage() {
                 </select>
               </div>
               <div className="grid gap-1">
-                <span className="text-xs font-medium text-muted-foreground">Perfil de plantilla</span>
+                <span className="text-informative font-medium">Perfil de plantilla</span>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterProfile}
@@ -667,7 +667,7 @@ export function HistoryPage() {
               </div>
             ) : null}
             <div className="grid gap-2 rounded-md border p-3">
-              <p className="text-xs font-medium text-muted-foreground">Vista compartida (solo lectura)</p>
+              <p className="text-informative font-medium">Vista compartida (solo lectura)</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -701,20 +701,20 @@ export function HistoryPage() {
               ) : null}
               {shareMessage ? (
                 <p
-                  className={`text-xs ${
+                  className={
                     shareMessage.tone === "error"
-                      ? "text-red-600"
+                      ? "text-xs text-red-600"
                       : shareMessage.tone === "success"
-                        ? "text-emerald-600"
-                        : "text-muted-foreground"
-                  }`}
+                        ? "text-xs text-emerald-600"
+                        : "text-informative"
+                  }
                 >
                   {shareMessage.text}
                 </p>
               ) : null}
             </div>
             {historyQuery.isSuccess ? (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-informative">
                 Mostrando {filteredItems.length} de {rawHistoryCount} documento{rawHistoryCount === 1 ? "" : "s"}
                 {rawHistoryCount === 0 ? " (lista vacía desde el servidor)" : ""}.
               </p>
@@ -730,7 +730,7 @@ export function HistoryPage() {
                     />
                     <span>Seleccionar todas (facturas visibles)</span>
                   </label>
-                  <span className="text-muted-foreground">{selectedRecordIds.size} seleccionada(s)</span>
+                  <span className="text-informative">{selectedRecordIds.size} seleccionada(s)</span>
                   {selectedRecordIds.size >= 20 ? (
                     <span className="text-xs text-amber-700 dark:text-amber-300">Máximo 20 facturas.</span>
                   ) : null}
@@ -789,7 +789,7 @@ export function HistoryPage() {
                 </div>
               ) : null}
               {historyQuery.isLoading ? (
-                <p className="p-3 text-sm text-muted-foreground">Cargando historial...</p>
+                <p className="p-3 text-informative">Cargando historial...</p>
               ) : historyQuery.isError ? (
                 <p className="p-3 text-sm text-red-600">
                   {(historyQuery.error as Error).message || "No se pudo cargar el historial. Revisa la conexión y vuelve a entrar en la página."}
@@ -826,10 +826,10 @@ export function HistoryPage() {
                           onClick={() => selectRecord(item.recordId)}
                         >
                           <p className="font-medium">{item.number || "Sin número"}</p>
-                          <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                          <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
                             {item.clientName || "Sin cliente"} · {item.typeLabel || item.type} · {formatDate(item.issueDate)}
                           </p>
-                          <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                          <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
                             {formatCurrency(Number(item.total || 0))}
                             {item.templateProfileLabel ? (
                               <>
@@ -848,10 +848,10 @@ export function HistoryPage() {
                   })}
                 </ul>
               ) : rawHistoryCount === 0 ? (
-                <p className="p-3 text-sm text-muted-foreground">No hay documentos en el historial.</p>
+                <p className="p-3 text-informative">No hay documentos en el historial.</p>
               ) : (
                 <div className="grid gap-3 p-3">
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-informative">
                     Ningún documento coincide con los filtros activos (tipo, ejercicio, estado, perfil o búsqueda).
                   </p>
                   <Button
@@ -874,7 +874,7 @@ export function HistoryPage() {
               )}
             </div>
             <div className="grid gap-2 rounded-md border p-3">
-              <p className="text-xs font-medium text-muted-foreground">Archivar ejercicio (perfil + año)</p>
+              <p className="text-informative font-medium">Archivar ejercicio (perfil + año)</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -915,7 +915,7 @@ export function HistoryPage() {
             {selectedRecordId ? (
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="min-w-0 text-xs text-muted-foreground">
+                  <p className="min-w-0 text-informative">
                     Seleccionado: <span className="font-mono break-all">{selectedRecordId}</span>
                   </p>
                   <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => void copySelectedRecordId()}>
@@ -934,16 +934,16 @@ export function HistoryPage() {
           </CardHeader>
           <CardContent className="grid gap-3">
             {!selectedRecordId ? (
-              <p className="text-sm text-muted-foreground">Selecciona un documento del listado para abrirlo.</p>
+              <p className="text-informative">Selecciona un documento del listado para abrirlo.</p>
             ) : (
               <>
                 {selectionHiddenByFilters ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-informative">
                     Este documento no aparece en la lista filtrada; el detalle sigue disponible. Ajusta tipo, ejercicio o búsqueda para verlo en el listado.
                   </p>
                 ) : null}
                 {detailQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">Abriendo documento...</p>
+                  <p className="text-informative">Abriendo documento...</p>
                 ) : detailQuery.error ? (
                   <p className="text-sm text-red-600">{(detailQuery.error as Error).message || "No se pudo abrir el documento."}</p>
                 ) : openedDocument ? (
@@ -1040,7 +1040,7 @@ export function HistoryPage() {
                 ) : null}
               </>
                 ) : (
-                  <p className="text-sm text-muted-foreground">Sin datos de documento.</p>
+                  <p className="text-informative">Sin datos de documento.</p>
                 )}
               </>
             )}
@@ -1057,11 +1057,11 @@ export function HistoryPage() {
         </CardHeader>
         <CardContent className="grid gap-3">
           {!isAdmin ? (
-            <p className="text-sm text-muted-foreground">Sin permisos: solo los administradores pueden borrar en papelera.</p>
+            <p className="text-informative">Sin permisos: solo los administradores pueden borrar en papelera.</p>
           ) : null}
           <div className="max-h-[280px] overflow-auto rounded-md border">
             {trashQuery.isLoading ? (
-              <p className="p-3 text-sm text-muted-foreground">Cargando papelera...</p>
+              <p className="p-3 text-informative">Cargando papelera...</p>
             ) : trashDocumentItems.length ? (
               <ul className="divide-y">
                 {trashDocumentItems.slice(0, 60).map((item) => (
@@ -1080,11 +1080,19 @@ export function HistoryPage() {
                 ))}
               </ul>
             ) : (
-              <p className="p-3 text-sm text-muted-foreground">No hay documentos en papelera.</p>
+              <p className="p-3 text-informative">No hay documentos en papelera.</p>
             )}
           </div>
           {statusMessage ? (
-            <p className={`text-sm ${statusTone === "error" ? "text-red-600" : statusTone === "success" ? "text-emerald-600" : "text-muted-foreground"}`}>
+            <p
+              className={
+                statusTone === "error"
+                  ? "text-sm text-red-600"
+                  : statusTone === "success"
+                    ? "text-sm text-emerald-600"
+                    : "text-informative"
+              }
+            >
               {statusMessage}
             </p>
           ) : null}

@@ -1,5 +1,5 @@
 import { Calendar } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useBlocker, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { DocumentLivePreview } from "@/features/invoices/components/DocumentLivePreview";
+import { FacturarOfficialHtmlPreview } from "@/features/invoices/components/FacturarOfficialHtmlPreview";
+import { FacturarSaveSummary } from "@/features/invoices/components/FacturarSaveSummary";
 import { InvoiceItemsTable } from "@/features/invoices/components/InvoiceItemsTable";
 import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotalsPanel";
 import { WorkflowModule } from "@/features/invoices/components/WorkflowModule";
@@ -25,6 +27,31 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 const facturarIssuerValueBadgeClass =
   "inline-flex h-5 max-h-[1.25rem] min-h-[1.25rem] items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0 text-xs font-medium leading-none text-emerald-700";
 
+const FACTURAR_WORKFLOW_MODULE_ORDER = ["emitter", "document", "history", "client", "concepts", "fiscal", "save"] as const;
+type FacturarWorkflowModuleId = (typeof FACTURAR_WORKFLOW_MODULE_ORDER)[number];
+
+type FacturarWorkflowChecklist = {
+  emitter: { complete: boolean };
+  document: { complete: boolean };
+  history: { complete: boolean };
+  client: { complete: boolean };
+  concepts: { complete: boolean };
+  fiscal: { complete: boolean };
+  save: { complete: boolean };
+};
+
+/** Primer módulo incompleto en el orden del flujo; si todo está listo, se abre Guardar. */
+function autoOpenFacturarWorkflowModule(checklist: FacturarWorkflowChecklist): FacturarWorkflowModuleId {
+  for (const id of FACTURAR_WORKFLOW_MODULE_ORDER) {
+    if (!checklist[id].complete) {
+      return id;
+    }
+  }
+  return "save";
+}
+
+type FacturarModuleUiMode = "auto" | "none" | FacturarWorkflowModuleId;
+
 export function FacturarPage() {
   const [searchParams] = useSearchParams();
   const initialRecordId = String(searchParams.get("recordId") || "").trim();
@@ -38,6 +65,7 @@ export function FacturarPage() {
     applyTemplateProfile,
     taxValidation,
     applyWithholdingMode,
+    commitFiscalIrpfChoiceFromInput,
     workflowChecklist,
     clientOptions,
     clients,
@@ -45,17 +73,16 @@ export function FacturarPage() {
     applyClientByOptionId,
     clearClientData,
     selectedClientOptionId,
-    suggestNumber,
-    checkNumberAvailability,
+    clientMoreDetailsOpen,
+    setClientMoreDetailsOpen,
+    confirmClientModule,
     saveMutation,
     loadMutation,
     suggestNumberMutation,
     checkAvailabilityMutation,
     numberAvailabilityText,
     numberAvailabilityTone,
-    recordIdInput,
-    setRecordIdInput,
-    loadByRecordId,
+    profileDocumentReloadOptions,
     historyOptions,
     filteredHistoryOptions,
     historySearchTerm,
@@ -70,6 +97,7 @@ export function FacturarPage() {
     officialOutputError,
     officialOutputLoading,
     canOpenOfficialOutput,
+    officialHtmlPreviewVersion,
     loadingConfig,
     liveDocument,
     duplicateDocument,
@@ -77,11 +105,87 @@ export function FacturarPage() {
     repeatLastSetup,
     isDirty,
   } = useFacturarForm(initialRecordId, initialTemplateProfileId);
+
+  const autoOpenModuleId = useMemo(
+    () => autoOpenFacturarWorkflowModule(workflowChecklist),
+    [
+      workflowChecklist.emitter.complete,
+      workflowChecklist.document.complete,
+      workflowChecklist.history.complete,
+      workflowChecklist.client.complete,
+      workflowChecklist.concepts.complete,
+      workflowChecklist.fiscal.complete,
+      workflowChecklist.save.complete,
+    ],
+  );
+
+  const [moduleUiMode, setModuleUiMode] = useState<FacturarModuleUiMode>("auto");
+  const prevAutoOpenRef = useRef(autoOpenModuleId);
+  useEffect(() => {
+    if (prevAutoOpenRef.current === autoOpenModuleId) {
+      return;
+    }
+    prevAutoOpenRef.current = autoOpenModuleId;
+    setModuleUiMode("auto");
+  }, [autoOpenModuleId]);
+
+  const lastWorkflowScrollTargetRef = useRef<string | null>(null);
+  const workflowScrollBootRef = useRef(true);
+  useEffect(() => {
+    if (moduleUiMode !== "auto") {
+      return;
+    }
+    const key = autoOpenModuleId;
+    if (lastWorkflowScrollTargetRef.current === key) {
+      return;
+    }
+    if (workflowScrollBootRef.current) {
+      workflowScrollBootRef.current = false;
+      lastWorkflowScrollTargetRef.current = key;
+      return;
+    }
+    lastWorkflowScrollTargetRef.current = key;
+    const el = document.querySelector<HTMLElement>(`[data-workflow-module="${key}"]`);
+    if (!el) {
+      return;
+    }
+    const reduceMotion =
+      typeof globalThis.matchMedia === "function" &&
+      globalThis.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const frame = globalThis.requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest", inline: "nearest" });
+    });
+    return () => globalThis.cancelAnimationFrame(frame);
+  }, [autoOpenModuleId, moduleUiMode]);
+
+  const isModuleOpen = useCallback(
+    (id: FacturarWorkflowModuleId) => {
+      if (moduleUiMode === "none") {
+        return false;
+      }
+      if (moduleUiMode === "auto") {
+        return id === autoOpenModuleId;
+      }
+      return moduleUiMode === id;
+    },
+    [autoOpenModuleId, moduleUiMode],
+  );
+
+  const handleWorkflowModuleOpenChange = useCallback((id: FacturarWorkflowModuleId, nextOpen: boolean) => {
+    if (nextOpen) {
+      setModuleUiMode(id);
+    } else {
+      setModuleUiMode("none");
+    }
+  }, []);
+
   const queryClient = useQueryClient();
   const {
     register,
     watch,
     setValue,
+    control,
+    getValues,
     formState: { errors, isSubmitting },
   } = form;
   const taxRateWatched = watch("taxRate");
@@ -110,6 +214,22 @@ export function FacturarPage() {
     }
     return profileOptions.find((p) => p.id === id) ?? null;
   }, [templateProfileIdWatched, profileOptions]);
+
+  const documentReloadSelectOptions = useMemo(() => {
+    const id = String(serverRecordId || "").trim();
+    const list = profileDocumentReloadOptions;
+    if (!id || list.some((o) => o.recordId === id)) {
+      return list;
+    }
+    const tail = id.includes("/") ? id.split("/").pop() ?? id : id;
+    return [{ recordId: id, label: `Documento en edición · ${tail}` }, ...list];
+  }, [profileDocumentReloadOptions, serverRecordId]);
+
+  const reloadSelectValue =
+    loadMutation.isPending && typeof loadMutation.variables === "string" && loadMutation.variables.trim()
+      ? loadMutation.variables.trim()
+      : String(serverRecordId || "").trim();
+
   const [historyYearFilter, setHistoryYearFilter] = useState("");
   const [historyTypeFilter, setHistoryTypeFilter] = useState("");
   const [gmailDialog, setGmailDialog] = useState(false);
@@ -247,24 +367,36 @@ export function FacturarPage() {
   }, [shouldBlockNavigation]);
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">Facturar</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-informative">
           Crea o edita documentos; también puedes reabrirlos desde Historial.
         </p>
       </header>
 
-      <form className="grid gap-6 lg:grid-cols-[2fr_1fr]" onSubmit={submit}>
+      <form className="grid gap-4 sm:gap-6 lg:grid-cols-[2fr_1fr]" onSubmit={submit}>
         <div className="grid gap-6">
           <WorkflowModule
             title="Emisor"
             stateLabel={workflowChecklist.emitter.complete ? "Completo" : "Pendiente"}
             stateTone={workflowChecklist.emitter.complete ? "ok" : "pending"}
             help={workflowChecklist.emitter.tip}
+            open={isModuleOpen("emitter")}
+            onOpenChange={(next) => handleWorkflowModuleOpenChange("emitter", next)}
+            workflowModuleId="emitter"
           >
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Perfil plantilla">
+              <label className="grid gap-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Perfil plantilla</span>
+                  {selectedTemplateProfile ? (
+                    <ProfileBadge
+                      label={selectedTemplateProfile.label}
+                      colorKey={selectedTemplateProfile.colorKey}
+                    />
+                  ) : null}
+                </div>
                 <div className="grid gap-1">
                   <select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -281,16 +413,8 @@ export function FacturarPage() {
                       </option>
                     ))}
                   </select>
-                  {selectedTemplateProfile ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <ProfileBadge
-                        label={selectedTemplateProfile.label}
-                        colorKey={selectedTemplateProfile.colorKey}
-                      />
-                    </div>
-                  ) : null}
                 </div>
-              </Field>
+              </label>
               <Field label="Plantilla/layout">
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -323,7 +447,7 @@ export function FacturarPage() {
                 <input type="hidden" {...register("bankAccount")} />
               </Field>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-informative">
               <span className="font-medium text-foreground">Tenant documento:</span>{" "}
               {String(watch("tenantId") || "").trim() || "-"}
             </p>
@@ -334,6 +458,9 @@ export function FacturarPage() {
             stateLabel={workflowChecklist.document.complete ? "Completo" : "Pendiente"}
             stateTone={workflowChecklist.document.complete ? "ok" : "pending"}
             help={workflowChecklist.document.tip}
+            open={isModuleOpen("document")}
+            onOpenChange={(next) => handleWorkflowModuleOpenChange("document", next)}
+            workflowModuleId="document"
           >
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="Tipo" error={errors.type?.message}>
@@ -341,6 +468,7 @@ export function FacturarPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register("type")}
                 >
+                  <option value="">Elegir tipo…</option>
                   <option value="factura">Factura</option>
                   <option value="presupuesto">Presupuesto</option>
                 </select>
@@ -361,13 +489,14 @@ export function FacturarPage() {
               </Field>
               <Field
                 label="Estado contable"
-                hint="Por defecto «Enviada». Elige otro valor solo si el documento ya está cobrado o cancelado."
+                hint="Indica si el documento está enviado, cobrado o cancelado."
                 error={errors.accounting?.status?.message}
               >
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register("accounting.status")}
                 >
+                  <option value="">Elegir estado…</option>
                   <option value="ENVIADA">Enviada</option>
                   <option value="COBRADA">Cobrada</option>
                   <option value="CANCELADA">Cancelada</option>
@@ -391,96 +520,108 @@ export function FacturarPage() {
               </Field>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <Field label="Serie" hint="Opcional. Separa secuencias de numeración (ej: A, RECT, 2025).">
-                <Input placeholder="Opcional" {...register("series")} />
-              </Field>
-              <Field label="Vencimiento" hint="Dejar vacío si no aplica." error={errors.dueDate?.message}>
-                <Input type="date" {...register("dueDate")} />
-              </Field>
-              <Field label="Referencia interna" error={errors.reference?.message}>
-                <Input placeholder="Tu referencia / código interno" {...register("reference")} />
-              </Field>
-            </div>
-
             <details className="group mt-2">
-              <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
+              <summary className="cursor-pointer select-none text-informative hover:text-foreground list-none flex items-center gap-1">
                 <span className="transition-transform group-open:rotate-90">▶</span>
-                <span>Otros campos del documento (contabilidad, rango…)</span>
+                <span>Otros campos del documento (serie, vencimiento, referencia interna, contabilidad…)</span>
               </summary>
-              <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <Field label="Número final" error={errors.numberEnd?.message}>
-                  <Input placeholder="Opcional (rango o número final)" {...register("numberEnd")} />
-                </Field>
-                <Field label="Fecha cobro" hint="Cuando el estado es Cobrada." error={errors.accounting?.paymentDate?.message}>
-                  <Input type="date" {...register("accounting.paymentDate")} />
-                </Field>
-                <Field label="Trimestre contable">
-                  <select
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    {...register("accounting.quarter")}
+              <div className="mt-3 space-y-4">
+                {numberAvailabilityText ? (
+                  <p
+                    className={`text-sm ${
+                      numberAvailabilityTone === "success"
+                        ? "text-emerald-600"
+                        : numberAvailabilityTone === "error"
+                          ? "text-red-600"
+                          : "text-muted-foreground"
+                    }`}
                   >
-                    <option value="">—</option>
-                    <option value="1T">1T</option>
-                    <option value="2T">2T</option>
-                    <option value="3T">3T</option>
-                    <option value="4T">4T</option>
-                  </select>
-                </Field>
-                <Field label="Referencia contable / ID">
-                  <Input placeholder="ID contable / Drive label" {...register("accounting.invoiceId")} />
-                </Field>
-                <Field label="Importe cobrado (neto)" error={errors.accounting?.netCollected?.message}>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    {...register("accounting.netCollected", {
-                      setValueAs: (value) => {
-                        if (value === "" || value === null || value === undefined) return 0;
-                        const parsed = Number(value);
-                        return Number.isFinite(parsed) ? parsed : 0;
-                      },
-                    })}
-                  />
-                </Field>
-                <Field label="Nota fiscal">
-                  <Input placeholder="Texto libre" {...register("accounting.taxes")} />
-                </Field>
+                    {numberAvailabilityText}
+                  </p>
+                ) : null}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <Field label="Serie" hint="Opcional. Separa secuencias de numeración (ej: A, RECT, 2025).">
+                    <Input placeholder="Opcional" {...register("series")} />
+                  </Field>
+                  <Field label="Vencimiento" hint="Dejar vacío si no aplica." error={errors.dueDate?.message}>
+                    <Input type="date" {...register("dueDate")} />
+                  </Field>
+                  <Field label="Referencia interna" error={errors.reference?.message}>
+                    <Input placeholder="Tu referencia / código interno" {...register("reference")} />
+                  </Field>
+                  <Field label="Número final" error={errors.numberEnd?.message}>
+                    <Input placeholder="Opcional (rango o número final)" {...register("numberEnd")} />
+                  </Field>
+                  <Field label="Fecha cobro" hint="Cuando el estado es Cobrada." error={errors.accounting?.paymentDate?.message}>
+                    <Input type="date" {...register("accounting.paymentDate")} />
+                  </Field>
+                  <Field label="Trimestre contable">
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      {...register("accounting.quarter")}
+                    >
+                      <option value="">—</option>
+                      <option value="1T">1T</option>
+                      <option value="2T">2T</option>
+                      <option value="3T">3T</option>
+                      <option value="4T">4T</option>
+                    </select>
+                  </Field>
+                  <Field label="Referencia contable / ID">
+                    <Input placeholder="ID contable / Drive label" {...register("accounting.invoiceId")} />
+                  </Field>
+                  <Field label="Importe cobrado (neto)" error={errors.accounting?.netCollected?.message}>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      {...register("accounting.netCollected", {
+                        setValueAs: (value) => {
+                          if (value === "" || value === null || value === undefined) return 0;
+                          const parsed = Number(value);
+                          return Number.isFinite(parsed) ? parsed : 0;
+                        },
+                      })}
+                    />
+                  </Field>
+                  <Field label="Nota fiscal">
+                    <Input placeholder="Texto libre" {...register("accounting.taxes")} />
+                  </Field>
+                </div>
               </div>
             </details>
 
-            <div className="flex flex-wrap gap-3">
-              <Button type="button" variant="outline" onClick={suggestNumber} disabled={suggestNumberMutation.isPending}>
-                {suggestNumberMutation.isPending ? "Pidiendo número..." : "Pedir siguiente número"}
-              </Button>
-              <Button type="button" variant="outline" onClick={checkNumberAvailability} disabled={checkAvailabilityMutation.isPending}>
-                {checkAvailabilityMutation.isPending ? "Comprobando..." : "Validar disponibilidad"}
-              </Button>
-              <span
-                className={`self-center text-sm ${
-                  numberAvailabilityTone === "success"
-                    ? "text-emerald-600"
-                    : numberAvailabilityTone === "error"
-                      ? "text-red-600"
-                      : "text-muted-foreground"
-                }`}
-              >
-                {numberAvailabilityText}
-              </span>
-            </div>
-
             <div className="grid gap-4 pt-2 sm:grid-cols-1">
-              <Field label="Recargar por recordId">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="facturas/2026/..."
-                    value={recordIdInput}
-                    onChange={(event) => setRecordIdInput(event.target.value)}
-                  />
-                  <Button type="button" variant="outline" onClick={loadByRecordId} disabled={loadMutation.isPending}>
-                    {loadMutation.isPending ? "Cargando..." : "Recargar"}
-                  </Button>
-                </div>
+              <Field
+                label="Cargar documento guardado"
+                hint={
+                  !String(templateProfileIdWatched || "").trim()
+                    ? "Elige un perfil en Emisor para listar los documentos de ese perfil."
+                    : loadingHistory
+                      ? "Cargando listado del histórico…"
+                      : documentReloadSelectOptions.length === 0
+                        ? "No hay documentos en histórico para este perfil (o aún no se ha sincronizado)."
+                        : undefined
+                }
+              >
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={reloadSelectValue}
+                  disabled={loadMutation.isPending || !String(templateProfileIdWatched || "").trim()}
+                  onChange={(event) => {
+                    const next = String(event.target.value || "").trim();
+                    if (!next || next === String(serverRecordId || "").trim()) {
+                      return;
+                    }
+                    loadMutation.mutate(next);
+                  }}
+                >
+                  <option value="">Elegir documento…</option>
+                  {documentReloadSelectOptions.map((opt) => (
+                    <option key={opt.recordId} value={opt.recordId}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </Field>
             </div>
           </WorkflowModule>
@@ -490,6 +631,9 @@ export function FacturarPage() {
             stateLabel={workflowChecklist.history.complete ? "Disponible" : "Pendiente"}
             stateTone={workflowChecklist.history.complete ? "ok" : "pending"}
             help={workflowChecklist.history.tip}
+            open={isModuleOpen("history")}
+            onOpenChange={(next) => handleWorkflowModuleOpenChange("history", next)}
+            workflowModuleId="history"
           >
             <div className="grid gap-4">
               <div className="grid gap-4 sm:grid-cols-3">
@@ -563,7 +707,7 @@ export function FacturarPage() {
                     {loadMutation.isPending ? "Cargando..." : "Cargar"}
                   </Button>
                 </div>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-informative">
                   {loadingHistory
                     ? "Cargando histórico..."
                     : <>
@@ -582,8 +726,11 @@ export function FacturarPage() {
             stateLabel={workflowChecklist.client.complete ? "Completo" : "Pendiente"}
             stateTone={workflowChecklist.client.complete ? "ok" : "pending"}
             help={workflowChecklist.client.tip}
+            open={isModuleOpen("client")}
+            onOpenChange={(next) => handleWorkflowModuleOpenChange("client", next)}
+            workflowModuleId="client"
           >
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-1">
               <Field label="Cliente guardado" hint="Si eliges uno, se rellenan los datos. «Quitar cliente» deja el bloque listo para otro.">
                 <div className="flex gap-2">
                   <select
@@ -610,27 +757,33 @@ export function FacturarPage() {
                   </Button>
                 </div>
               </Field>
-              <Field label="Nombre cliente" error={errors.client?.name?.message}>
-                <Input
-                  list="client-options"
-                  placeholder="Nombre o razón social"
-                  {...register("client.name")}
-                  onBlur={(event) => applyClientByName(event.target.value)}
-                />
-                <datalist id="client-options">
-                  {clients.map((client) => (
-                    <option key={client.recordId || client.name} value={client.name} />
-                  ))}
-                </datalist>
-              </Field>
             </div>
 
-            <details className="group mt-2">
-              <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground list-none flex items-center gap-1">
+            <details
+              className="group mt-2"
+              open={clientMoreDetailsOpen}
+              onToggle={(event) => {
+                setClientMoreDetailsOpen((event.currentTarget as HTMLDetailsElement).open);
+              }}
+            >
+              <summary className="cursor-pointer select-none text-informative hover:text-foreground list-none flex items-center gap-1">
                 <span className="transition-transform group-open:rotate-90">▶</span>
-                <span>Más datos del cliente (NIF, dirección, contacto…)</span>
+                <span>Más datos del cliente (nombre, NIF, dirección, contacto…)</span>
               </summary>
               <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <Field label="Nombre cliente" error={errors.client?.name?.message}>
+                  <Input
+                    list="client-options"
+                    placeholder="Nombre o razón social"
+                    {...register("client.name")}
+                    onBlur={(event) => applyClientByName(event.target.value)}
+                  />
+                  <datalist id="client-options">
+                    {clients.map((client) => (
+                      <option key={client.recordId || client.name} value={client.name} />
+                    ))}
+                  </datalist>
+                </Field>
                 <Field label="NIF/CIF" error={errors.client?.taxId?.message}>
                   <Input placeholder="NIF/CIF" {...register("client.taxId")} />
                 </Field>
@@ -659,8 +812,21 @@ export function FacturarPage() {
                 <Field label="Provincia">
                   <Input placeholder="Provincia" {...register("client.province")} />
                 </Field>
-                <Field label="País (código)">
-                  <Input list="facturar-country-codes" placeholder="ES" {...register("client.taxCountryCode")} />
+                <Field
+                  label="País (código)"
+                  hint="Cuando los datos del cliente estén bien, pulsa Seleccionar para marcar el módulo como completo."
+                >
+                  <div className="flex flex-wrap items-stretch gap-2">
+                    <Input
+                      className="min-w-0 flex-1"
+                      list="facturar-country-codes"
+                      placeholder="ES"
+                      {...register("client.taxCountryCode")}
+                    />
+                    <Button type="button" variant="outline" className="shrink-0" onClick={confirmClientModule}>
+                      Seleccionar
+                    </Button>
+                  </div>
                   <datalist id="facturar-country-codes">
                     <option value="ES" /><option value="PT" /><option value="FR" />
                     <option value="DE" /><option value="IT" /><option value="GB" />
@@ -677,6 +843,9 @@ export function FacturarPage() {
             stateLabel={workflowChecklist.concepts.complete ? "Completo" : "Pendiente"}
             stateTone={workflowChecklist.concepts.complete ? "ok" : "pending"}
             help={workflowChecklist.concepts.tip}
+            open={isModuleOpen("concepts")}
+            onOpenChange={(next) => handleWorkflowModuleOpenChange("concepts", next)}
+            workflowModuleId="concepts"
           >
             <div className="grid gap-4">
               <div className="grid gap-3 sm:grid-cols-2">
@@ -709,6 +878,9 @@ export function FacturarPage() {
               </div>
               <InvoiceItemsTable
                 register={register}
+                control={control}
+                setValue={setValue}
+                getValues={getValues}
                 errors={errors}
                 itemCount={itemsArray.fields.length}
                 totalsBasis={liveDocument.totalsBasis}
@@ -718,6 +890,8 @@ export function FacturarPage() {
                     description: "",
                     quantity: 1,
                     unitPrice: 0,
+                    unitLabel: "",
+                    hidePerPersonSubtotalInBudget: false,
                   })
                 }
                 onRemoveItem={(index) => itemsArray.remove(index)}
@@ -730,6 +904,9 @@ export function FacturarPage() {
             stateLabel={workflowChecklist.fiscal.complete ? "Completo" : "Pendiente"}
             stateTone={workflowChecklist.fiscal.complete ? "ok" : "pending"}
             help={workflowChecklist.fiscal.tip}
+            open={isModuleOpen("fiscal")}
+            onOpenChange={(next) => handleWorkflowModuleOpenChange("fiscal", next)}
+            workflowModuleId="fiscal"
           >
             <InvoiceTotalsPanel
               register={register}
@@ -739,6 +916,7 @@ export function FacturarPage() {
               taxValidation={taxValidation}
               onTaxRatePreset={(rate) => setValue("taxRate", rate, { shouldDirty: true, shouldValidate: true })}
               onWithholdingModeChange={applyWithholdingMode}
+              onIrpfFieldBlur={commitFiscalIrpfChoiceFromInput}
             />
           </WorkflowModule>
 
@@ -751,9 +929,35 @@ export function FacturarPage() {
             stateLabel={workflowChecklist.save.complete ? "Completo" : "Pendiente"}
             stateTone={workflowChecklist.save.complete ? "ok" : "pending"}
             help={workflowChecklist.save.tip}
-            defaultOpen
+            open={isModuleOpen("save")}
+            onOpenChange={(next) => handleWorkflowModuleOpenChange("save", next)}
+            workflowModuleId="save"
           >
-            <div className="grid gap-3">
+            <div className="grid gap-4">
+              <FacturarSaveSummary
+                document={liveDocument}
+                profileLabel={selectedTemplateProfile?.label || String(watch("templateProfileId") || "").trim()}
+                lineTotals={totals.items}
+              />
+              <div className="grid gap-2">
+                <h3 className="text-sm font-semibold text-foreground">Previsualización HTML</h3>
+                {serverRecordId.trim() && isDirty ? (
+                  <p className="text-xs text-amber-800 dark:text-amber-200">
+                    Tienes cambios sin guardar: el HTML incrustado corresponde al último guardado en el servidor.
+                  </p>
+                ) : null}
+                {!serverRecordId.trim() ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Tras el primer guardado, aquí se mostrará el HTML oficial generado en el servidor (misma salida
+                      que «Ver HTML oficial»).
+                    </p>
+                    <DocumentLivePreview document={liveDocument} profileColorKey={selectedTemplateProfile?.colorKey} />
+                  </>
+                ) : (
+                  <FacturarOfficialHtmlPreview recordId={serverRecordId.trim()} refreshVersion={officialHtmlPreviewVersion} />
+                )}
+              </div>
               <Button type="submit" disabled={isSubmitting || saveMutation.isPending || loadingConfig}>
                 {saveMutation.isPending ? "Guardando..." : "Guardar documento"}
               </Button>
@@ -803,7 +1007,7 @@ export function FacturarPage() {
                     href={nextcloudUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                    className="inline-flex items-center gap-1 text-informative underline underline-offset-2 hover:text-foreground"
                   >
                     Ir a carpeta Nextcloud
                   </a>
@@ -845,10 +1049,10 @@ export function FacturarPage() {
               </div>
               {gmailAuthError ? <p className="text-sm text-red-600">{gmailAuthError}</p> : null}
               {officialOutputError ? <p className="text-sm text-red-600">{officialOutputError}</p> : null}
-              <span className="text-sm text-muted-foreground">
+              <span className="text-informative">
                 {serverRecordId ? `recordId: ${serverRecordId}` : "Documento nuevo"}
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-informative">
                 {canOpenOfficialOutput
                   ? "Salida oficial habilitada para este recordId guardado."
                   : "Guarda o carga un documento para habilitar HTML/PDF oficiales."}

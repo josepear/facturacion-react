@@ -1,3 +1,4 @@
+import { isPerPersonUnitLabel } from "@/domain/document/perPersonPricing";
 import type { DocumentAccountingStatus, InvoiceDocument, InvoiceItem } from "@/domain/document/types";
 import { createEmptyDocument } from "@/domain/document/defaults";
 import { toNumber } from "@/lib/utils";
@@ -28,6 +29,8 @@ function asString(value: unknown): string {
 
 function mapItem(rawItem: unknown): InvoiceItem {
   const item = asRecord(rawItem);
+  const unitLabel = asString(item.unitLabel);
+  const hidePerPersonSubtotalInBudget = Boolean(item.hidePerPersonSubtotalInBudget);
 
   return {
     concept: asString(item.concept),
@@ -37,6 +40,8 @@ function mapItem(rawItem: unknown): InvoiceItem {
     lineTotal: item.lineTotal === undefined || item.lineTotal === null || item.lineTotal === ""
       ? undefined
       : toNumber(item.lineTotal),
+    unitLabel,
+    hidePerPersonSubtotalInBudget,
   };
 }
 
@@ -61,9 +66,20 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
 
   const mappedItems = rawItems.length ? rawItems.map(mapItem) : base.items;
 
+  const typeRaw = record.type;
+  const rawType = asString(typeRaw).toLowerCase();
+  const mappedType: InvoiceDocument["type"] =
+    rawType === "presupuesto"
+      ? "presupuesto"
+      : rawType === "factura"
+        ? "factura"
+        : typeRaw === ""
+          ? ""
+          : "factura";
+
   return {
     ...base,
-    type: asString(record.type) === "presupuesto" ? "presupuesto" : "factura",
+    type: mappedType,
     templateProfileId: asString(record.templateProfileId) || base.templateProfileId,
     tenantId: asString(record.tenantId) || base.tenantId,
     number: asString(record.number),
@@ -77,15 +93,21 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
     bankAccount: asString(record.bankAccount),
     accounting: {
       status: ((): InvoiceDocument["accounting"]["status"] => {
-        const status = asString(accounting.status).toUpperCase();
-        if (status === "COBRADA" || status === "CANCELADA") {
-          return status;
+        const statusRaw = accounting.status;
+        const status = asString(statusRaw).toUpperCase();
+        if (status === "COBRADA" || status === "CANCELADA" || status === "ENVIADA") {
+          return status as InvoiceDocument["accounting"]["status"];
+        }
+        if (statusRaw === "") {
+          return "";
         }
         return "ENVIADA";
       })(),
       paymentDate: asString(accounting.paymentDate),
       quarter: asString(accounting.quarter) || getQuarterLabel(asString(accounting.paymentDate)),
-      invoiceId: asString(accounting.invoiceId || accounting.driveLabel) || (asString(record.type) === "presupuesto" ? "Presupuesto" : "Factura"),
+      invoiceId:
+        asString(accounting.invoiceId || accounting.driveLabel)
+        || (mappedType === "presupuesto" ? "Presupuesto" : mappedType === "factura" ? "Factura" : ""),
       netCollected: toNumber(accounting.netCollected),
       taxes: asString(accounting.taxes || accounting.taxNote),
     },
@@ -114,23 +136,38 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
 }
 
 export function mapFormToLegacyDocument(document: InvoiceDocument): InvoiceDocument {
+  const docType: "factura" | "presupuesto" =
+    document.type === "presupuesto"
+      ? "presupuesto"
+      : document.type === "factura"
+        ? "factura"
+        : (() => {
+            throw new Error("Tipo de documento obligatorio.");
+          })();
+
   const accountingStatus = ((): DocumentAccountingStatus => {
-    const status = asString(document.accounting.status || "ENVIADA").toUpperCase();
-    if (status === "COBRADA" || status === "CANCELADA") {
-      return status;
+    const status = asString(document.accounting.status).toUpperCase();
+    if (status === "COBRADA" || status === "CANCELADA" || status === "ENVIADA") {
+      return status as DocumentAccountingStatus;
     }
-    return "ENVIADA";
+    throw new Error("Estado contable obligatorio.");
   })();
 
   return {
     ...document,
-    items: document.items.map((item) => ({
-      concept: asString(item.concept),
-      description: asString(item.description),
-      quantity: toNumber(item.quantity),
-      unitPrice: toNumber(item.unitPrice),
-      ...(item.lineTotal === undefined ? {} : { lineTotal: toNumber(item.lineTotal) }),
-    })),
+    type: docType,
+    items: document.items.map((item) => {
+      const perPerson = isPerPersonUnitLabel(item.unitLabel);
+      return {
+        concept: asString(item.concept),
+        description: asString(item.description),
+        quantity: toNumber(item.quantity),
+        unitPrice: toNumber(item.unitPrice),
+        ...(item.lineTotal === undefined ? {} : { lineTotal: toNumber(item.lineTotal) }),
+        unitLabel: asString(item.unitLabel),
+        hidePerPersonSubtotalInBudget: perPerson && Boolean(item.hidePerPersonSubtotalInBudget),
+      };
+    }),
     client: {
       ...document.client,
       name: asString(document.client.name),
@@ -148,7 +185,7 @@ export function mapFormToLegacyDocument(document: InvoiceDocument): InvoiceDocum
       status: accountingStatus,
       paymentDate: asString(document.accounting.paymentDate),
       quarter: asString(document.accounting.quarter) || getQuarterLabel(asString(document.accounting.paymentDate)),
-      invoiceId: asString(document.accounting.invoiceId) || (document.type === "presupuesto" ? "Presupuesto" : "Factura"),
+      invoiceId: asString(document.accounting.invoiceId) || (docType === "presupuesto" ? "Presupuesto" : "Factura"),
       netCollected: toNumber(document.accounting.netCollected),
       taxes: asString(document.accounting.taxes),
     },

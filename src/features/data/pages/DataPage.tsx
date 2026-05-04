@@ -179,13 +179,13 @@ export function DataPage() {
     <main className="mx-auto grid w-full max-w-5xl gap-6 p-4">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Datos</h1>
-        <p className="text-sm text-muted-foreground">Resumen financiero y listados de facturas y gastos con los mismos filtros.</p>
+        <p className="text-informative">Resumen financiero y listados de facturas y gastos con los mismos filtros.</p>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Facturado</CardTitle>
+            <CardTitle className="text-informative font-medium">Facturado</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold tabular-nums">{formatCurrency(totalInvoiced)}</p>
@@ -193,7 +193,7 @@ export function DataPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Gastos</CardTitle>
+            <CardTitle className="text-informative font-medium">Gastos</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold tabular-nums">{formatCurrency(totalExpenses)}</p>
@@ -201,7 +201,7 @@ export function DataPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Resultado</CardTitle>
+            <CardTitle className="text-informative font-medium">Resultado</CardTitle>
           </CardHeader>
           <CardContent>
             <p
@@ -218,7 +218,7 @@ export function DataPage() {
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
           <div className="grid min-w-[10rem] gap-1">
-            <label className="text-xs font-medium text-muted-foreground" htmlFor="data-filter-year">
+            <label className="text-informative font-medium" htmlFor="data-filter-year">
               Año
             </label>
             <select
@@ -236,7 +236,7 @@ export function DataPage() {
             </select>
           </div>
           <div className="grid min-w-[12rem] flex-1 gap-1">
-            <label className="text-xs font-medium text-muted-foreground" htmlFor="data-filter-profile">
+            <label className="text-informative font-medium" htmlFor="data-filter-profile">
               Perfil
             </label>
             <select
@@ -282,7 +282,7 @@ export function DataPage() {
                 <p className="text-sm text-red-600">{getErrorMessageFromUnknown(accountingExportMutation.error)}</p>
               ) : null}
               <div className="grid gap-2 rounded-md border p-3">
-                <p className="text-xs font-medium text-muted-foreground">Vista compartida (solo lectura)</p>
+                <p className="text-informative font-medium">Vista compartida (solo lectura)</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   <select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -316,13 +316,13 @@ export function DataPage() {
                 ) : null}
                 {shareMessage ? (
                   <p
-                    className={`text-xs ${
+                    className={
                       shareMessage.tone === "error"
-                        ? "text-red-600"
+                        ? "text-xs text-red-600"
                         : shareMessage.tone === "success"
-                          ? "text-emerald-600"
-                          : "text-muted-foreground"
-                    }`}
+                          ? "text-xs text-emerald-600"
+                          : "text-informative"
+                    }
                   >
                     {shareMessage.text}
                   </p>
@@ -343,15 +343,15 @@ export function DataPage() {
           </CardHeader>
           <CardContent className="overflow-x-auto p-0 sm:p-6">
             {historyQuery.isLoading ? (
-              <p className="p-4 text-sm text-muted-foreground">Cargando…</p>
+              <p className="p-4 text-informative">Cargando…</p>
             ) : historyQuery.isError ? (
               <p className="p-4 text-sm text-red-600">{(historyQuery.error as Error)?.message || "Error al cargar facturas."}</p>
             ) : filteredInvoices.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">Sin datos</p>
+              <p className="p-4 text-informative">Sin datos</p>
             ) : (
               <table className="w-full min-w-[20rem] text-sm">
                 <thead>
-                  <tr className="border-b text-left text-muted-foreground">
+                  <tr className="border-b text-left text-informative">
                     <th className="p-2 font-medium">Número</th>
                     <th className="p-2 font-medium">Cliente</th>
                     <th className="p-2 font-medium">Fecha</th>
@@ -390,15 +390,15 @@ export function DataPage() {
           </CardHeader>
           <CardContent className="overflow-x-auto p-0 sm:p-6">
             {expensesQuery.isLoading ? (
-              <p className="p-4 text-sm text-muted-foreground">Cargando…</p>
+              <p className="p-4 text-informative">Cargando…</p>
             ) : expensesQuery.isError ? (
               <p className="p-4 text-sm text-red-600">{(expensesQuery.error as Error)?.message || "Error al cargar gastos."}</p>
             ) : filteredExpenses.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">Sin datos</p>
+              <p className="p-4 text-informative">Sin datos</p>
             ) : (
               <table className="w-full min-w-[20rem] text-sm">
                 <thead>
-                  <tr className="border-b text-left text-muted-foreground">
+                  <tr className="border-b text-left text-informative">
                     <th className="p-2 font-medium">Proveedor</th>
                     <th className="p-2 font-medium">Concepto</th>
                     <th className="p-2 font-medium">Fecha</th>

@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { useFieldArray, useForm, useFormState, useWatch } from "react-hook-form";
 
 import { calculateTotals } from "@/domain/document/calculateTotals";
 import { createEmptyDocument } from "@/domain/document/defaults";
@@ -69,14 +69,27 @@ function totalsAreConsistent(document: InvoiceDocument, totals: CalculatedTotals
 export function useFacturarForm(initialRecordId?: string, initialTemplateProfileId?: string) {
   const [recordIdInput, setRecordIdInput] = useState("");
   const [serverRecordId, setServerRecordId] = useState("");
-  const [numberAvailabilityText, setNumberAvailabilityText] = useState("Pendiente de validar número.");
+  const [numberAvailabilityText, setNumberAvailabilityText] = useState("");
   const [numberAvailabilityTone, setNumberAvailabilityTone] = useState<"neutral" | "success" | "error">("neutral");
   const [selectedClientOptionId, setSelectedClientOptionId] = useState("");
   const [selectedHistoryRecordId, setSelectedHistoryRecordId] = useState("");
   const [historySearchTerm, setHistorySearchTerm] = useState("");
   const [withoutWithholding, setWithoutWithholding] = useState(true);
+  /** Hasta que el usuario elija IRPF o SIN IRPF, Fiscalidad sigue «Pendiente» (IGIC 7% por defecto). */
+  const [fiscalIrpfChoiceAcknowledged, setFiscalIrpfChoiceAcknowledged] = useState(false);
+  const fiscalIrpfChoiceAcknowledgedRef = useRef(false);
+  fiscalIrpfChoiceAcknowledgedRef.current = fiscalIrpfChoiceAcknowledged;
+
+  /** Tras rellenar cliente, «Completo» solo al pulsar Seleccionar (País). */
+  const [clientModuleConfirmed, setClientModuleConfirmed] = useState(false);
+  const clientModuleConfirmedRef = useRef(false);
+  clientModuleConfirmedRef.current = clientModuleConfirmed;
+
+  const [clientMoreDetailsOpen, setClientMoreDetailsOpen] = useState(false);
   const [officialOutputError, setOfficialOutputError] = useState<string | null>(null);
   const [officialOutputLoading, setOfficialOutputLoading] = useState<OfficialDocumentOutputKind | null>(null);
+  /** Se incrementa al guardar o cargar un documento para refrescar la vista HTML incrustada en Facturar. */
+  const [officialHtmlPreviewVersion, setOfficialHtmlPreviewVersion] = useState(0);
   const [hasLastSetup, setHasLastSetup] = useState(false);
   const bootstrappedRecordIdRef = useRef("");
   const bootstrappedTemplateProfileRef = useRef("");
@@ -110,7 +123,81 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     queryFn: fetchHistoryInvoices,
   });
 
+  useEffect(() => {
+    if (String(selectedClientOptionId || "").trim()) {
+      setClientMoreDetailsOpen(true);
+    }
+  }, [selectedClientOptionId]);
+
   const watched = useWatch({ control: form.control });
+  const { dirtyFields } = useFormState({ control: form.control });
+
+  useEffect(() => {
+    if (String(serverRecordId || "").trim()) {
+      return;
+    }
+    if (dirtyFields.number) {
+      return;
+    }
+    const profileId = String(watched.templateProfileId || "").trim();
+    const layout = String(watched.templateLayout || "").trim();
+    if (!profileId || !layout) {
+      return;
+    }
+    if (!configQuery.data) {
+      return;
+    }
+    const issueDate = String(watched.issueDate || "").trim();
+    if (!issueDate) {
+      return;
+    }
+    if (watched.type !== "factura" && watched.type !== "presupuesto") {
+      return;
+    }
+    const invoiceNumberTag = String(
+      configQuery.data.templateProfiles?.find((p) => p.id === profileId)?.invoiceNumberTag || "",
+    ).trim();
+    if (!invoiceNumberTag) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          if (form.getFieldState("number").isDirty) {
+            return;
+          }
+          const docType = watched.type === "presupuesto" ? "presupuesto" : "factura";
+          const number = await getNextNumber({
+            type: docType,
+            issueDate,
+            series: String(watched.series || "").trim(),
+            templateProfileId: profileId,
+            recordId: undefined,
+            storageScope: readStorageScopeForNumbering(),
+            invoiceNumberTag,
+          });
+          if (!form.getFieldState("number").isDirty) {
+            form.setValue("number", number, { shouldDirty: false, shouldValidate: true });
+          }
+        } catch {
+          // Sin sesión o API: no bloquear el formulario.
+        }
+      })();
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [
+    serverRecordId,
+    dirtyFields.number,
+    watched.templateProfileId,
+    watched.templateLayout,
+    watched.issueDate,
+    watched.type,
+    watched.series,
+    configQuery.data,
+    form,
+  ]);
+
   const liveDocument = useMemo(
     () => applyTotals(mapLegacyDocumentToForm(watched)),
     [watched],
@@ -119,11 +206,13 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     () =>
       calculateTotals({
         items: (watched.items ?? []).map((item) => ({
-          concept: item.concept ?? "",
-          description: item.description ?? "",
+          concept: String(item.concept ?? ""),
+          description: String(item.description ?? ""),
           quantity: item.quantity ?? 0,
           unitPrice: item.unitPrice ?? 0,
           lineTotal: item.lineTotal,
+          unitLabel: item.unitLabel,
+          hidePerPersonSubtotalInBudget: item.hidePerPersonSubtotalInBudget,
         })),
         totalsBasis: watched.totalsBasis ?? "items",
         manualGrossSubtotal: watched.manualGrossSubtotal ?? 0,
@@ -138,37 +227,50 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
     const withholdingValue = watched.withholdingRate;
     const withholdingNumeric = typeof withholdingValue === "number" ? withholdingValue : null;
-    const withholdingValid = withholdingValue === "" || withholdingNumeric === 15 || withholdingNumeric === 19 || withholdingNumeric === 21;
+    const withholdingSyntaxValid =
+      withholdingValue === "" || withholdingNumeric === 15 || withholdingNumeric === 19 || withholdingNumeric === 21;
     const withholdingMode = withholdingValue === "" ? "sin_irpf" : `irpf_${withholdingValue}`;
+
+    const isReady = taxValid && fiscalIrpfChoiceAcknowledged && withholdingSyntaxValid;
 
     return {
       igicValid: taxValid,
-      irpfValid: withholdingValid,
+      irpfValid: withholdingSyntaxValid,
       withholdingMode,
-      isReady: taxValid && withholdingValid,
+      fiscalIrpfChoiceAcknowledged,
+      irpfChoicePending: !fiscalIrpfChoiceAcknowledged,
+      isReady,
       tip: !taxValid
         ? "Indica un IGIC válido."
-        : !withholdingValid
-          ? "Elige IRPF 15%, 19%, 21% o SIN IRPF."
-          : "Fiscalidad lista.",
+        : !fiscalIrpfChoiceAcknowledged
+          ? "Elige retención IRPF (15%, 19%, 21%) o marca SIN IRPF."
+          : !withholdingSyntaxValid
+            ? "Indica un IRPF válido (15%, 19%, 21%) o SIN IRPF."
+            : "Fiscalidad lista.",
     };
-  }, [watched.taxRate, watched.withholdingRate]);
+  }, [watched.taxRate, watched.withholdingRate, fiscalIrpfChoiceAcknowledged]);
 
   const workflowChecklist = useMemo(() => {
     const hasTemplateProfile = Boolean(String(watched.templateProfileId || "").trim());
+    const hasTemplateLayout = Boolean(String(watched.templateLayout || "").trim());
     const hasPaymentMethod = Boolean(String(watched.paymentMethod || "").trim());
     const hasBankAccount = Boolean(String(watched.bankAccount || "").trim());
-    const emitterComplete = hasTemplateProfile && hasPaymentMethod && hasBankAccount;
+    const emitterComplete = hasTemplateProfile && hasTemplateLayout && hasPaymentMethod && hasBankAccount;
 
-    const accountingStatus = String(watched.accounting?.status || "").trim();
+    const documentTypeReady = watched.type === "factura" || watched.type === "presupuesto";
+    const accountingStatusReady =
+      watched.accounting?.status === "ENVIADA" ||
+      watched.accounting?.status === "COBRADA" ||
+      watched.accounting?.status === "CANCELADA";
 
     const documentComplete =
-      Boolean(String(watched.type || "").trim()) &&
+      documentTypeReady &&
+      accountingStatusReady &&
       Boolean(String(watched.number || "").trim()) &&
-      Boolean(String(watched.issueDate || "").trim()) &&
-      Boolean(accountingStatus);
+      Boolean(String(watched.issueDate || "").trim());
 
-    const clientComplete = Boolean(String(watched.client?.name || "").trim());
+    const hasClientName = Boolean(String(watched.client?.name || "").trim());
+    const clientComplete = hasClientName && clientModuleConfirmed;
 
     const hasConceptItems = (watched.items ?? []).some((item) => String(item.concept || "").trim() || String(item.description || "").trim());
     const conceptsComplete = watched.totalsBasis === "gross"
@@ -181,15 +283,27 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     return {
       emitter: {
         complete: emitterComplete,
-        tip: emitterComplete ? "Perfil y defaults de emisor listos." : "Elige perfil y revisa forma de pago/cuenta.",
+        tip: emitterComplete
+          ? "Perfil, plantilla, pago y cuenta listos."
+          : "Elige perfil de plantilla, plantilla/layout (obligatorio), y revisa forma de pago y cuenta.",
       },
       document: {
         complete: documentComplete,
-        tip: documentComplete ? "Datos base de documento completos." : "Faltan tipo, número, fecha o estado.",
+        tip: documentComplete
+          ? "Datos base de documento completos."
+          : !documentTypeReady
+            ? "Elige tipo de documento (factura o presupuesto)."
+            : !accountingStatusReady
+              ? "Elige estado contable."
+              : "Faltan número o fecha de emisión.",
       },
       client: {
         complete: clientComplete,
-        tip: clientComplete ? "Cliente listo para facturar." : "Añade al menos nombre o razón social.",
+        tip: !hasClientName
+          ? "Añade al menos nombre o razón social."
+          : !clientModuleConfirmed
+            ? "Revisa los datos del cliente y pulsa Seleccionar junto a País (código)."
+            : "Cliente listo para facturar.",
       },
       concepts: {
         complete: conceptsComplete,
@@ -215,7 +329,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     taxValidation.isReady,
     taxValidation.tip,
     watched.accounting?.status,
+    watched.type,
     watched.client?.name,
+    clientModuleConfirmed,
     watched.issueDate,
     watched.items,
     watched.manualGrossSubtotal,
@@ -223,8 +339,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     watched.paymentMethod,
     watched.bankAccount,
     watched.templateProfileId,
+    watched.templateLayout,
     watched.totalsBasis,
-    watched.type,
   ]);
 
   const profileOptions = useMemo(
@@ -298,12 +414,41 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     });
   }, [historyOptions, historySearchTerm]);
 
+  const profileIdForReload = String(watched.templateProfileId || "").trim();
+  const profileDocumentReloadOptions = useMemo(() => {
+    if (!profileIdForReload) {
+      return [];
+    }
+    return (historyQuery.data ?? [])
+      .filter(
+        (item) =>
+          String(item.templateProfileId || "").trim() === profileIdForReload &&
+          (item.type === "factura" || item.type === "presupuesto"),
+      )
+      .slice()
+      .sort((left, right) => String(right.savedAt || right.issueDate).localeCompare(String(left.savedAt || left.issueDate)))
+      .map((item) => {
+        const issueDate = String(item.issueDate || "").trim();
+        const dateLabel = issueDate || "sin fecha";
+        const numberLabel = String(item.number || "").trim() || "sin número";
+        const clientLabel = String(item.clientName || "").trim() || "sin cliente";
+        const typeLabel = String(item.typeLabel || item.type || "").trim();
+        const totalLabel = Number.isFinite(Number(item.total))
+          ? Number(item.total).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : "";
+        return {
+          recordId: item.recordId,
+          label: `${numberLabel} · ${clientLabel} · ${dateLabel}${typeLabel ? ` · ${typeLabel}` : ""}${totalLabel ? ` · ${totalLabel} €` : ""}`,
+        };
+      });
+  }, [historyQuery.data, profileIdForReload]);
+
   const ensureDefaults = () => {
     const current = form.getValues();
     const next = applyTotals(
       mapLegacyDocumentToForm({
         ...current,
-        templateProfileId: current.templateProfileId || configQuery.data?.activeTemplateProfileId || "",
+        templateProfileId: String(current.templateProfileId || "").trim(),
         tenantId:
           current.tenantId
           || (sessionQuery.data?.authenticated ? sessionQuery.data.user.tenantId : undefined)
@@ -313,42 +458,23 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     form.reset(next);
   };
 
-  useEffect(() => {
-    if (!configQuery.data) {
-      return;
-    }
-
-    const current = form.getValues();
-    if (String(current.templateProfileId || "").trim()) {
-      return;
-    }
-
-    const fallbackProfileId = String(configQuery.data.activeTemplateProfileId || "").trim();
-    if (!fallbackProfileId) {
-      return;
-    }
-
-    const profile = (configQuery.data.templateProfiles ?? []).find((item) => item.id === fallbackProfileId);
-    form.setValue("templateProfileId", fallbackProfileId, { shouldDirty: false, shouldValidate: true });
-    if (!String(current.paymentMethod || "").trim() && String(profile?.defaults?.paymentMethod || "").trim()) {
-      form.setValue("paymentMethod", String(profile?.defaults?.paymentMethod || "").trim(), { shouldDirty: false });
-    }
-    if (!String(current.bankAccount || "").trim() && String(profile?.business?.bankAccount || "").trim()) {
-      form.setValue("bankAccount", String(profile?.business?.bankAccount || "").trim(), { shouldDirty: false });
-    }
-    if (!String(current.templateLayout || "").trim() && String(profile?.design?.layout || "").trim()) {
-      form.setValue("templateLayout", String(profile?.design?.layout || "").trim(), { shouldDirty: false });
-    }
-  }, [configQuery.data, form]);
-
   const applyTemplateProfile = (profileIdRaw: string) => {
     const profileId = String(profileIdRaw || "").trim();
     form.setValue("templateProfileId", profileId, { shouldDirty: true, shouldValidate: true });
 
     const profile = (configQuery.data?.templateProfiles ?? []).find((item) => item.id === profileId);
     if (!profile) {
+      if (!profileId) {
+        form.setValue("templateLayout", "", { shouldDirty: true, shouldValidate: true });
+      }
+      form.setValue("withholdingRate", "", { shouldDirty: true, shouldValidate: true });
+      setWithoutWithholding(true);
+      setFiscalIrpfChoiceAcknowledged(false);
       return;
     }
+
+    // Plantilla/layout solo la elige el usuario en el desplegable (no se rellena desde el perfil).
+    form.setValue("templateLayout", "", { shouldDirty: true, shouldValidate: true });
 
     const profilePayment = String(profile.defaults?.paymentMethod || "").trim();
     if (profilePayment) {
@@ -360,43 +486,40 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       form.setValue("bankAccount", profileBank, { shouldDirty: true, shouldValidate: true });
     }
 
-    const profileLayout = String(profile.design?.layout || "").trim();
-    if (profileLayout) {
-      form.setValue("templateLayout", profileLayout, { shouldDirty: true, shouldValidate: true });
-    }
-
-    const profileTaxRate = Number(profile.defaults?.taxRate);
-    if (Number.isFinite(profileTaxRate)) {
-      form.setValue("taxRate", profileTaxRate, { shouldDirty: true, shouldValidate: true });
-    }
-
-    const profileWithholding = Number(profile.defaults?.withholdingRate);
-    const validWithholding = profileWithholding === 15 || profileWithholding === 19 || profileWithholding === 21;
-    if (validWithholding) {
-      form.setValue("withholdingRate", profileWithholding, { shouldDirty: true, shouldValidate: true });
-      setWithoutWithholding(false);
-    } else {
-      form.setValue("withholdingRate", "", { shouldDirty: true, shouldValidate: true });
-      setWithoutWithholding(true);
-    }
+    // IGIC/IRPF no se heredan del perfil: IGIC por defecto 7% en documento vacío; IRPF hasta que el usuario elija.
+    form.setValue("withholdingRate", "", { shouldDirty: true, shouldValidate: true });
+    setWithoutWithholding(true);
+    setFiscalIrpfChoiceAcknowledged(false);
   };
 
   const applyWithholdingMode = (mode: "sin_irpf" | "irpf_15" | "irpf_19" | "irpf_21") => {
     if (mode === "sin_irpf") {
       setWithoutWithholding(true);
       form.setValue("withholdingRate", "", { shouldDirty: true, shouldValidate: true });
+      setFiscalIrpfChoiceAcknowledged(true);
       return;
     }
 
     const value = mode === "irpf_15" ? 15 : mode === "irpf_19" ? 19 : 21;
     setWithoutWithholding(false);
     form.setValue("withholdingRate", value, { shouldDirty: true, shouldValidate: true });
+    setFiscalIrpfChoiceAcknowledged(true);
   };
+
+  const commitFiscalIrpfChoiceFromInput = useCallback(() => {
+    const v = form.getValues("withholdingRate");
+    if (v === "" || v === 15 || v === 19 || v === 21) {
+      setFiscalIrpfChoiceAcknowledged(true);
+    }
+  }, [form]);
 
   const suggestNumberMutation = useMutation({
     mutationFn: async () => {
       ensureDefaults();
       const draft = form.getValues();
+      if (draft.type !== "factura" && draft.type !== "presupuesto") {
+        throw new Error("Selecciona factura o presupuesto antes de pedir el número.");
+      }
       if (!draft.templateProfileId) {
         throw new Error("Selecciona perfil antes de pedir el número.");
       }
@@ -415,7 +538,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       return number;
     },
     onSuccess: () => {
-      setNumberAvailabilityText("Número sugerido. Valida disponibilidad.");
+      setNumberAvailabilityText("Número sugerido desde el servidor.");
       setNumberAvailabilityTone("neutral");
     },
   });
@@ -423,6 +546,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const checkAvailabilityMutation = useMutation({
     mutationFn: async () => {
       const draft = form.getValues();
+      if (draft.type !== "factura" && draft.type !== "presupuesto") {
+        throw new Error("Selecciona factura o presupuesto para validar el número.");
+      }
       if (!draft.templateProfileId) {
         throw new Error("Selecciona perfil para validar número.");
       }
@@ -463,9 +589,15 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
   const saveMutation = useMutation({
     mutationFn: async (values: InvoiceDocument) => {
+      if (!fiscalIrpfChoiceAcknowledgedRef.current) {
+        throw new Error("En Fiscalidad elige retención IRPF o marca SIN IRPF.");
+      }
       const normalized = applyTotals(mapFormToLegacyDocument(values));
       if (!normalized.client.name.trim()) {
         throw new Error("Cliente obligatorio.");
+      }
+      if (!clientModuleConfirmedRef.current) {
+        throw new Error("En Cliente pulsa Seleccionar junto a País (código).");
       }
       if (!normalized.items.some((item) => item.concept.trim() || item.description.trim())) {
         throw new Error("Añade al menos una línea con concepto o descripción.");
@@ -478,6 +610,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     onSuccess: ({ recordId, document }) => {
       const mapped = applyTotals(mapLegacyDocumentToForm(document));
       setServerRecordId(recordId);
+      setOfficialHtmlPreviewVersion((v) => v + 1);
       setOfficialOutputError(null);
       form.reset(mapped);
       lastSavedSnapshotRef.current = mapped;
@@ -489,6 +622,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       syncSelectedClientOptionByName(mapped.client?.name || "");
       setNumberAvailabilityText("Guardado correcto.");
       setNumberAvailabilityTone("success");
+      setFiscalIrpfChoiceAcknowledged(true);
+      setClientModuleConfirmed(true);
     },
   });
 
@@ -503,6 +638,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     onSuccess: ({ recordId, document }) => {
       const mapped = applyTotals(mapLegacyDocumentToForm(document));
       setServerRecordId(recordId);
+      setOfficialHtmlPreviewVersion((v) => v + 1);
       setOfficialOutputError(null);
       setRecordIdInput(recordId);
       setSelectedHistoryRecordId(recordId);
@@ -510,6 +646,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       syncSelectedClientOptionByName(mapped.client?.name || "");
       setNumberAvailabilityText("Documento recargado.");
       setNumberAvailabilityTone("neutral");
+      setFiscalIrpfChoiceAcknowledged(true);
+      setClientModuleConfirmed(true);
     },
   });
 
@@ -556,17 +694,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     if (profileBank) {
       form.setValue("bankAccount", profileBank, { shouldDirty: false, shouldValidate: true });
     }
-    const profileLayout = String(profile.design?.layout || "").trim();
-    if (profileLayout) {
-      form.setValue("templateLayout", profileLayout, { shouldDirty: false, shouldValidate: true });
-    }
-    const profileTaxRate = Number(profile.defaults?.taxRate);
-    if (Number.isFinite(profileTaxRate)) {
-      form.setValue("taxRate", profileTaxRate, { shouldDirty: false, shouldValidate: true });
-    }
-    const profileWithholding = Number(profile.defaults?.withholdingRate);
-    const validWithholding = profileWithholding === 15 || profileWithholding === 19 || profileWithholding === 21;
-    form.setValue("withholdingRate", validWithholding ? profileWithholding : "", { shouldDirty: false, shouldValidate: true });
+    form.setValue("withholdingRate", "", { shouldDirty: false, shouldValidate: true });
+    setWithoutWithholding(true);
+    setFiscalIrpfChoiceAcknowledged(false);
   }, [initialTemplateProfileId, configQuery.data, serverRecordId, form]);
 
   const replaceClientData = (selected: (typeof clientOptions)[number]["client"]) => {
@@ -583,6 +713,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
   const clearClientData = () => {
     setSelectedClientOptionId("");
+    setClientModuleConfirmed(false);
+    setClientMoreDetailsOpen(false);
     form.setValue("client.name", "", { shouldDirty: true, shouldValidate: true });
     form.setValue("client.taxId", "", { shouldDirty: true, shouldValidate: true });
     form.setValue("client.address", "", { shouldDirty: true, shouldValidate: true });
@@ -605,10 +737,12 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
     const selected = clientOptions.find((option) => option.optionId === safeOptionId)?.client;
     if (!selected) {
+      setClientModuleConfirmed(false);
       return;
     }
 
     replaceClientData(selected);
+    setClientModuleConfirmed(false);
   };
 
   const applyClientByName = (name: string) => {
@@ -622,7 +756,13 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     }
     setSelectedClientOptionId(selectedOption.optionId);
     replaceClientData(selectedOption.client);
+    setClientModuleConfirmed(false);
   };
+
+  const confirmClientModule = useCallback(() => {
+    setClientModuleConfirmed(true);
+    setClientMoreDetailsOpen(false);
+  }, []);
 
   const submit = form.handleSubmit(async (values) => {
     await saveMutation.mutateAsync(values as InvoiceDocument);
@@ -657,6 +797,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   );
 
   const duplicateDocument = () => {
+    const wasAck = fiscalIrpfChoiceAcknowledgedRef.current;
+    const wasClientConfirm = clientModuleConfirmedRef.current;
     const current = form.getValues();
     const copy = { ...current, number: "" };
     setServerRecordId("");
@@ -664,6 +806,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     setSelectedHistoryRecordId("");
     setOfficialOutputError(null);
     form.reset(copy);
+    setFiscalIrpfChoiceAcknowledged(wasAck);
+    setClientModuleConfirmed(wasClientConfirm);
     setNumberAvailabilityText("Copia lista. Edita el número y guarda para crear nuevo documento.");
     setNumberAvailabilityTone("neutral");
   };
@@ -688,6 +832,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     setSelectedHistoryRecordId("");
     setOfficialOutputError(null);
     form.reset(copy);
+    setFiscalIrpfChoiceAcknowledged(true);
+    setClientModuleConfirmed(true);
     setNumberAvailabilityText("Factura repetitiva lista. Revisa y guarda.");
     setNumberAvailabilityTone("neutral");
   };
@@ -708,6 +854,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     withoutWithholding,
     setWithoutWithholding,
     applyWithholdingMode,
+    commitFiscalIrpfChoiceFromInput,
     workflowChecklist,
     clientOptions,
     clients: clientsQuery.data ?? [],
@@ -716,6 +863,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     applyClientByOptionId,
     clearClientData,
     selectedClientOptionId,
+    clientMoreDetailsOpen,
+    setClientMoreDetailsOpen,
+    confirmClientModule,
     suggestNumber: () => suggestNumberMutation.mutate(),
     checkNumberAvailability: () => checkAvailabilityMutation.mutate(),
     saveMutation,
@@ -727,6 +877,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     recordIdInput,
     setRecordIdInput,
     loadByRecordId: () => loadMutation.mutate(recordIdInput),
+    profileDocumentReloadOptions,
     historyOptions,
     filteredHistoryOptions,
     historySearchTerm,
@@ -741,6 +892,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     officialOutputError,
     officialOutputLoading,
     canOpenOfficialOutput: Boolean(serverRecordId),
+    officialHtmlPreviewVersion,
     loadingConfig: configQuery.isLoading,
     liveDocument,
     isDirty: form.formState.isDirty,

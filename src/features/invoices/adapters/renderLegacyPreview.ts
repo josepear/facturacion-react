@@ -1,4 +1,5 @@
-import type { InvoiceDocument } from "@/domain/document/types";
+import { isPerPersonUnitLabel } from "@/domain/document/perPersonPricing";
+import type { InvoiceDocument, InvoiceItem } from "@/domain/document/types";
 import { formatCurrency } from "@/lib/utils";
 
 type FinanceCell = {
@@ -38,7 +39,13 @@ export type LegacyPreviewModel = {
 };
 
 function getDocumentTitle(type: InvoiceDocument["type"]) {
-  return type === "presupuesto" ? "PRESUPUESTO" : "FACTURA";
+  if (type === "presupuesto") {
+    return "PRESUPUESTO";
+  }
+  if (type === "factura") {
+    return "FACTURA";
+  }
+  return "DOCUMENTO";
 }
 
 function formatDateLabel(value: string) {
@@ -53,7 +60,21 @@ function formatDateLabel(value: string) {
   return new Intl.DateTimeFormat("es-ES").format(date);
 }
 
-function formatLineAmountLabel(quantity: number, unitPrice: number, total: number) {
+function formatLineAmountLabel(
+  quantity: number,
+  unitPrice: number,
+  total: number,
+  item: Pick<InvoiceItem, "unitLabel" | "hidePerPersonSubtotalInBudget">,
+) {
+  const perPerson = isPerPersonUnitLabel(item.unitLabel);
+  const hideSubtotal = Boolean(item.hidePerPersonSubtotalInBudget);
+  if (perPerson && quantity > 0 && unitPrice > 0) {
+    const qtyLabel = quantity.toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    if (hideSubtotal) {
+      return `${qtyLabel} comensales · ${formatCurrency(unitPrice)} / persona`;
+    }
+    return `${qtyLabel} comensales × ${formatCurrency(unitPrice)} = ${formatCurrency(total)}`;
+  }
   if (unitPrice > 0 && quantity > 0) {
     return `${quantity} × ${formatCurrency(unitPrice)} = ${formatCurrency(total)}`;
   }
@@ -70,7 +91,7 @@ export function buildLegacyPreviewModel(document: InvoiceDocument): LegacyPrevie
       total,
       concept: String(item.concept || ""),
       description: String(item.description || ""),
-      amountLabel: formatLineAmountLabel(quantity, unitPrice, total),
+      amountLabel: formatLineAmountLabel(quantity, unitPrice, total, item),
     };
   });
   const subtotalFromItems = sourceItems.reduce((sum, item) => sum + item.total, 0);

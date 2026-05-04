@@ -17,9 +17,12 @@ type InvoiceTotalsPanelProps = {
     withholdingMode: string;
     isReady: boolean;
     tip: string;
+    /** Si true, IRPF/SIN IRPF aún no confirmados (chips y casilla en blanco). */
+    irpfChoicePending?: boolean;
   };
   onTaxRatePreset: (rate: number) => void;
   onWithholdingModeChange: (mode: "sin_irpf" | "irpf_15" | "irpf_19" | "irpf_21") => void;
+  onIrpfFieldBlur?: () => void;
 };
 
 function chipClass(active: boolean) {
@@ -39,8 +42,11 @@ export function InvoiceTotalsPanel({
   taxValidation,
   onTaxRatePreset,
   onWithholdingModeChange,
+  onIrpfFieldBlur,
 }: InvoiceTotalsPanelProps) {
+  const irpfChoicePending = Boolean(taxValidation.irpfChoicePending);
   const sinIrpf = withholdingRate === "";
+  const sinIrpfChecked = !irpfChoicePending && sinIrpf;
 
   return (
     <Card>
@@ -73,10 +79,8 @@ export function InvoiceTotalsPanel({
             </div>
           </Field>
           <Field label="IRPF (%)">
-            <Input
-              type="number"
-              step="0.01"
-              {...register("withholdingRate", {
+            {(() => {
+              const wr = register("withholdingRate", {
                 setValueAs: (value) => {
                   if (value === "" || value === null || value === undefined) {
                     return "";
@@ -84,38 +88,49 @@ export function InvoiceTotalsPanel({
                   const parsed = Number(value);
                   return Number.isFinite(parsed) ? parsed : "";
                 },
-              })}
-            />
+              });
+              return (
+                <Input
+                  type="number"
+                  step="0.01"
+                  {...wr}
+                  onBlur={(event) => {
+                    wr.onBlur(event);
+                    onIrpfFieldBlur?.();
+                  }}
+                />
+              );
+            })()}
           </Field>
           <div className="grid gap-2">
-            <span className="text-xs font-medium text-muted-foreground">Atajos IRPF</span>
+            <span className="text-informative font-medium">Atajos IRPF</span>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                className={chipClass(withholdingRate === 15)}
+                className={chipClass(!irpfChoicePending && withholdingRate === 15)}
                 onClick={() => onWithholdingModeChange("irpf_15")}
               >
                 15%
               </button>
               <button
                 type="button"
-                className={chipClass(withholdingRate === 19)}
+                className={chipClass(!irpfChoicePending && withholdingRate === 19)}
                 onClick={() => onWithholdingModeChange("irpf_19")}
               >
                 19%
               </button>
               <button
                 type="button"
-                className={chipClass(withholdingRate === 21)}
+                className={chipClass(!irpfChoicePending && withholdingRate === 21)}
                 onClick={() => onWithholdingModeChange("irpf_21")}
               >
                 21%
               </button>
-              <label className="ml-1 flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <label className="ml-1 flex cursor-pointer items-center gap-2 text-informative">
                 <input
                   type="checkbox"
                   className="h-4 w-4 rounded border-input"
-                  checked={sinIrpf}
+                  checked={sinIrpfChecked}
                   onChange={(event) => {
                     if (event.target.checked) {
                       onWithholdingModeChange("sin_irpf");

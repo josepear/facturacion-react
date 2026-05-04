@@ -312,7 +312,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
 
         <section className="grid gap-3">
           <h3 className="text-sm font-semibold">A) Carpeta histórica en el servidor</h3>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-informative">
             Lee <code className="rounded bg-muted px-1">historico/&lt;tenant&gt;</code> del almacén. Tras escanear puedes importar con la ruta devuelta.
           </p>
           <Button type="button" variant="outline" disabled={busy} onClick={() => scanMutation.mutate()}>
@@ -320,19 +320,19 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
           </Button>
           {scanResult ? (
             <div className="grid gap-3 rounded-md border p-3 text-sm">
-              <p className="text-muted-foreground">
+              <p className="text-informative">
                 <span className="font-medium text-foreground">Resumen:</span>{" "}
                 {scanResult.summary.workbookCount} libros, {scanResult.summary.invoiceSheetCount} hojas factura,{" "}
                 {scanResult.summary.expenseSheetCount} hojas gasto, {scanResult.summary.invoiceRowCount} filas factura,{" "}
                 {scanResult.summary.expenseRowCount} filas gasto.
               </p>
-              <p className="break-all text-xs text-muted-foreground" title={scanResult.sourceDir}>
+              <p className="break-all text-informative" title={scanResult.sourceDir}>
                 <span className="font-medium text-foreground">Ruta:</span> {scanResult.sourceDir}
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[28rem] text-xs">
                   <thead>
-                    <tr className="border-b text-left text-muted-foreground">
+                    <tr className="border-b text-left text-informative">
                       <th className="p-2 font-medium">Persona (carpeta)</th>
                       <th className="p-2 font-medium">Años / conteos</th>
                     </tr>
@@ -355,7 +355,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
               </div>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <label className="grid gap-1 text-xs">
-                  <span className="text-muted-foreground">Persona</span>
+                  <span className="text-informative">Persona</span>
                   <select
                     className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
                     value={serverPersonCode}
@@ -374,7 +374,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                   </select>
                 </label>
                 <label className="grid gap-1 text-xs">
-                  <span className="text-muted-foreground">Año</span>
+                  <span className="text-informative">Año</span>
                   <select
                     className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
                     value={serverYear}
@@ -388,7 +388,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                   </select>
                 </label>
                 <label className="grid gap-1 text-xs sm:col-span-2">
-                  <span className="text-muted-foreground">Perfil destino</span>
+                  <span className="text-informative">Perfil destino</span>
                   <select
                     className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
                     value={serverProfileId}
@@ -435,20 +435,20 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
           {excelResult ? (
             <div className="grid gap-3 rounded-md border p-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted-foreground">uploadId:</span>
+                <span className="text-informative">uploadId:</span>
                 <code className="rounded bg-muted px-1 text-xs">{excelResult.uploadId}</code>
                 <Button type="button" size="sm" variant="ghost" onClick={() => void copyText(excelResult.uploadId, "uploadId copiado.")}>
                   Copiar
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">{excelResult.uploadLabel}</p>
-              <p className="text-muted-foreground">
+              <p className="text-informative">{excelResult.uploadLabel}</p>
+              <p className="text-informative">
                 Resumen: {excelResult.summary.workbookCount} libros, {excelResult.summary.invoiceRowCount} filas factura,{" "}
                 {excelResult.summary.expenseRowCount} filas gasto, {excelResult.summary.detectedYearCount} años detectados.
               </p>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <label className="grid gap-1 text-xs">
-                  <span className="text-muted-foreground">Persona (código)</span>
+                  <span className="text-informative">Persona (código)</span>
                   <select
                     className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
                     value={excelPersonCode}
@@ -467,7 +467,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                   </select>
                 </label>
                 <label className="grid gap-1 text-xs">
-                  <span className="text-muted-foreground">Año</span>
+                  <span className="text-informative">Año</span>
                   <select
                     className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
                     value={excelYear}
@@ -481,7 +481,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                   </select>
                 </label>
                 <label className="grid gap-1 text-xs sm:col-span-2">
-                  <span className="text-muted-foreground">Perfil destino</span>
+                  <span className="text-informative">Perfil destino</span>
                   <select
                     className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
                     value={excelProfileId}
@@ -502,7 +502,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
               >
                 {runExcelMutation.isPending ? "Importando…" : "Importar Excel subido"}
               </Button>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-informative">
                 La subida queda ligada a tu sesión: si otro usuario usa tu <code className="rounded bg-muted px-0.5">uploadId</code>, el
                 servidor responderá con error de propiedad.
               </p>
@@ -512,7 +512,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
 
         <section className="grid gap-3">
           <h3 className="text-sm font-semibold">C) PDF históricos</h3>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-informative">
             Vista previa y avisos según el servidor. Puedes corregir celdas y enviar{" "}
             <code className="rounded bg-muted px-0.5">reviewRows</code> en la importación, o importar solo lo que el analizador marque como
             válido.
@@ -530,19 +530,19 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
           {pdfResult ? (
             <div className="grid gap-3 rounded-md border p-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted-foreground">uploadId:</span>
+                <span className="text-informative">uploadId:</span>
                 <code className="rounded bg-muted px-1 text-xs">{pdfResult.uploadId}</code>
                 <Button type="button" size="sm" variant="ghost" onClick={() => void copyText(pdfResult.uploadId, "uploadId copiado.")}>
                   Copiar
                 </Button>
               </div>
-              <p className="text-muted-foreground">
+              <p className="text-informative">
                 Resumen: {pdfResult.summary.pdfCount} PDF, listas {pdfResult.summary.readyInvoiceCount} /{" "}
                 {pdfResult.summary.reviewRowCount}, incompletas {pdfResult.summary.incompleteInvoiceCount}, errores de lectura{" "}
                 {pdfResult.summary.parseErrorCount}.
               </p>
               <label className="grid gap-1 text-xs sm:max-w-md">
-                <span className="text-muted-foreground">Perfil destino</span>
+                <span className="text-informative">Perfil destino</span>
                 <select
                   className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
                   value={pdfProfileId}
@@ -566,7 +566,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[48rem] text-xs">
                   <thead>
-                    <tr className="border-b text-left text-muted-foreground">
+                    <tr className="border-b text-left text-informative">
                       <th className="p-1 font-medium">Fichero</th>
                       <th className="p-1 font-medium">Avisos</th>
                       <th className="p-1 font-medium">Fecha</th>

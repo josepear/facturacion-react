@@ -93,7 +93,7 @@ export function InvoiceHeader({
   return (
     <div className="grid gap-4">
       <div className="grid gap-4 rounded-md border p-4">
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">Emisor y perfil</span>
+        <span className="text-informative uppercase tracking-wide">Emisor y perfil</span>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Perfil plantilla">
             <select
@@ -122,7 +122,7 @@ export function InvoiceHeader({
             <Input placeholder="ES..." {...register.bankAccount} />
           </Field>
         </div>
-        <div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-1 text-informative sm:grid-cols-2 lg:grid-cols-4">
           <span>Perfil activo config: {activeTemplateProfileId || "-"}</span>
           <span>Perfil aplicado: {selectedProfileLabel}</span>
           <span>Default pago perfil: {profilePaymentMethod}</span>
@@ -132,7 +132,7 @@ export function InvoiceHeader({
       </div>
 
       <div className="grid gap-4 rounded-md border p-4">
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">Datos del documento</span>
+        <span className="text-informative uppercase tracking-wide">Datos del documento</span>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Tipo" error={typeError}>
             <select

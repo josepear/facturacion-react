@@ -87,10 +87,15 @@ describe("useFacturarForm regression", () => {
 
     act(() => {
       result.current.form.setValue("client.name", "Cliente Test", { shouldValidate: true });
+      result.current.confirmClientModule();
       result.current.form.setValue("items.0.concept", "Servicio", { shouldValidate: true });
       result.current.form.setValue("items.0.quantity", 2, { shouldValidate: true });
       result.current.form.setValue("items.0.unitPrice", 50, { shouldValidate: true });
       result.current.form.setValue("templateProfileId", "perfil-main", { shouldValidate: true });
+      result.current.form.setValue("type", "factura", { shouldValidate: true });
+      result.current.form.setValue("accounting.status", "ENVIADA", { shouldValidate: true });
+      result.current.form.setValue("templateLayout", "pear", { shouldValidate: true });
+      result.current.applyWithholdingMode("sin_irpf");
     });
 
     await waitFor(() => {

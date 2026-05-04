@@ -1,6 +1,6 @@
-import { toNumber } from "@/lib/utils";
-
+import { isPerPersonUnitLabel, normalizePerPersonQuantity } from "@/domain/document/perPersonPricing";
 import type { CalculatedTotals, InvoiceDocument, InvoiceItem } from "@/domain/document/types";
+import { toNumber } from "@/lib/utils";
 
 type TotalsInput = Pick<
   InvoiceDocument,
@@ -22,7 +22,9 @@ function mapItem(item: InvoiceItem): InvoiceItem & { total: number } {
     item.quantity !== undefined &&
     item.quantity !== null &&
     String(item.quantity).trim() !== "";
-  const quantity = hasExplicitQuantity ? toNumber(item.quantity) : 1;
+  const rawQuantity = hasExplicitQuantity ? toNumber(item.quantity) : 1;
+  const perPerson = isPerPersonUnitLabel(item.unitLabel);
+  const quantity = perPerson ? normalizePerPersonQuantity(rawQuantity) : rawQuantity;
   const unitPrice = toNumber(item.unitPrice);
   const explicitLineTotal = parseOptionalLineTotal(item.lineTotal);
 

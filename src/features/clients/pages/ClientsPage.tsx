@@ -239,7 +239,7 @@ export function ClientsPage() {
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Clientes</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-informative">
           Módulo real conectado al contrato legacy de clientes, coherente con Facturar.
         </p>
       </header>
@@ -311,14 +311,14 @@ export function ClientsPage() {
               Nuevo cliente
             </Button>
             {!clientsQuery.isLoading && allClients.length ? (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-informative">
                 Mostrando {filteredClients.length} de {allClients.length}
                 {hasActiveFilters ? " (filtro activo)" : ""}
               </p>
             ) : null}
             <div className="max-h-[480px] overflow-auto rounded-md border">
               {clientsQuery.isLoading ? (
-                <p className="p-3 text-sm text-muted-foreground">Cargando clientes...</p>
+                <p className="p-3 text-informative">Cargando clientes...</p>
               ) : filteredClients.length ? (
                 <ul className="divide-y">
                   {filteredClients.map((client) => {
@@ -341,21 +341,21 @@ export function ClientsPage() {
                           }}
                         >
                           <p className="font-medium">{client.name || "Sin nombre"}</p>
-                          <p className={cn("text-xs", isActive ? "text-primary-foreground/85" : "text-muted-foreground")}>
+                          <p className={cn(isActive ? "text-xs text-primary-foreground/85" : "text-informative")}>
                             {client.taxId || "Sin NIF/CIF"}
                           </p>
                           {String(client.email || "").trim() ? (
-                            <p className={cn("text-xs", isActive ? "text-primary-foreground/85" : "text-muted-foreground")}>
+                            <p className={cn(isActive ? "text-xs text-primary-foreground/85" : "text-informative")}>
                               {String(client.email).trim()}
                             </p>
                           ) : null}
                           {String(client.contactPerson || "").trim() ? (
-                            <p className={cn("text-xs", isActive ? "text-primary-foreground/85" : "text-muted-foreground")}>
+                            <p className={cn(isActive ? "text-xs text-primary-foreground/85" : "text-informative")}>
                               Contacto: {String(client.contactPerson).trim()}
                             </p>
                           ) : null}
                           {(String(client.city || "").trim() || String(client.province || "").trim()) ? (
-                            <p className={cn("text-xs", isActive ? "text-primary-foreground/85" : "text-muted-foreground")}>
+                            <p className={cn(isActive ? "text-xs text-primary-foreground/85" : "text-informative")}>
                               {[String(client.city || "").trim(), String(client.province || "").trim()].filter(Boolean).join(" · ")}
                             </p>
                           ) : null}
@@ -365,7 +365,7 @@ export function ClientsPage() {
                   })}
                 </ul>
               ) : (
-                <p className="p-3 text-sm text-muted-foreground">No hay clientes para ese filtro.</p>
+                <p className="p-3 text-informative">No hay clientes para ese filtro.</p>
               )}
             </div>
           </CardContent>
@@ -378,7 +378,7 @@ export function ClientsPage() {
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             {selectedRecordId ? (
-              <p className="sm:col-span-2 text-sm text-muted-foreground">
+              <p className="sm:col-span-2 text-informative">
                 <span className="font-medium text-foreground">recordId (Facturar / API):</span> {selectedRecordId}
               </p>
             ) : null}
@@ -462,7 +462,12 @@ export function ClientsPage() {
               ) : null}
             </div>
             {statusMessage ? (
-              <p className={cn("sm:col-span-2 text-sm", statusTone === "error" ? "text-red-600" : statusTone === "success" ? "text-emerald-600" : "text-muted-foreground")}>
+              <p
+                className={cn(
+                  "sm:col-span-2",
+                  statusTone === "error" ? "text-sm text-red-600" : statusTone === "success" ? "text-sm text-emerald-600" : "text-informative",
+                )}
+              >
                 {statusMessage}
               </p>
             ) : null}

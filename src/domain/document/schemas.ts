@@ -6,6 +6,8 @@ export const invoiceItemSchema = z.object({
   quantity: z.number().nonnegative(),
   unitPrice: z.number().nonnegative(),
   lineTotal: z.number().optional(),
+  unitLabel: z.string().trim().optional(),
+  hidePerPersonSubtotalInBudget: z.boolean().optional(),
 });
 
 export const invoiceClientSchema = z.object({
@@ -21,7 +23,7 @@ export const invoiceClientSchema = z.object({
 });
 
 export const invoiceAccountingSchema = z.object({
-  status: z.enum(["ENVIADA", "COBRADA", "CANCELADA"]),
+  status: z.union([z.literal(""), z.enum(["ENVIADA", "COBRADA", "CANCELADA"])]),
   paymentDate: z.string().trim(),
   quarter: z.string().trim(),
   invoiceId: z.string().trim(),
@@ -30,7 +32,7 @@ export const invoiceAccountingSchema = z.object({
 });
 
 export const invoiceDocumentSchema = z.object({
-  type: z.enum(["factura", "presupuesto"]),
+  type: z.union([z.literal(""), z.literal("factura"), z.literal("presupuesto")]),
   templateProfileId: z.string().trim().min(1, "Falta el perfil de plantilla."),
   tenantId: z.string().trim(),
   number: z.string().trim(),
@@ -58,6 +60,22 @@ export const invoiceDocumentSchema = z.object({
   taxAmount: z.number(),
   withholdingAmount: z.number(),
   total: z.number(),
-});
+})
+  .superRefine((data, ctx) => {
+    if (data.type !== "factura" && data.type !== "presupuesto") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Elige factura o presupuesto.",
+        path: ["type"],
+      });
+    }
+    if (!data.accounting.status) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Elige un estado contable.",
+        path: ["accounting", "status"],
+      });
+    }
+  });
 
 export type InvoiceDocumentInput = z.infer<typeof invoiceDocumentSchema>;

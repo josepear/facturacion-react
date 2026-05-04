@@ -44,7 +44,7 @@ function LoginFormOnly() {
       <div className="w-full max-w-sm space-y-6 rounded-lg border bg-card p-6 shadow-sm">
         <div className="space-y-1 text-center">
           <h1 className="text-lg font-semibold">Iniciar sesión</h1>
-          <p className="text-xs text-muted-foreground">Mismas credenciales que en la app de facturación.</p>
+          <p className="text-informative">Mismas credenciales que en la app de facturación.</p>
         </div>
 
         <form className="space-y-4" onSubmit={onSubmit}>
@@ -104,7 +104,7 @@ function LoginWithTokenGate() {
 
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4">
-        <p className="max-w-sm text-center text-sm text-muted-foreground">
+        <p className="max-w-sm text-center text-informative">
           Hay un token guardado pero no se pudo validar con el servidor (red temporal o servidor
           reiniciando). Puedes reintentar o cerrar sesión y volver a entrar.
         </p>

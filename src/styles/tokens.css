@@ -14,6 +14,8 @@
   --input: 0 0% 11.76%;
   --ring: 222 84% 5%;
   --radius: 0.625rem;
+  /* Texto informativo / ayuda: un poco menor que el cuerpo (1rem − 5px) */
+  --text-informative-size: calc(1rem - 5px);
 }
 
 .dark {

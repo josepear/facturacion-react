@@ -17,7 +17,7 @@ type TotalRowProps = {
 function TotalRow({ label, value, strong = false }: TotalRowProps) {
   return (
     <div className="flex items-center justify-between text-sm">
-      <span className={strong ? "font-semibold" : "text-muted-foreground"}>{label}</span>
+      <span className={strong ? "font-semibold" : "text-informative"}>{label}</span>
       <span className={strong ? "font-semibold" : "font-medium"}>{value}</span>
     </div>
   );

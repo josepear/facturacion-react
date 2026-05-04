@@ -1,4 +1,5 @@
-export type DocumentType = "factura" | "presupuesto";
+/** En borrador el usuario debe elegir explícitamente en Facturar. */
+export type DocumentType = "" | "factura" | "presupuesto";
 export type TotalsBasis = "items" | "gross";
 
 export type InvoiceItem = {
@@ -7,6 +8,10 @@ export type InvoiceItem = {
   quantity: number;
   unitPrice: number;
   lineTotal?: number;
+  /** Etiqueta de unidad; modo por persona si coincide con persona/personas/comensal/comensales/pax (legacy). */
+  unitLabel?: string;
+  /** Solo aplica en modo por persona: en presupuesto/PDF oculta el subtotal explícito en el texto del concepto. */
+  hidePerPersonSubtotalInBudget?: boolean;
 };
 
 export type DocumentClient = {
@@ -21,7 +26,7 @@ export type DocumentClient = {
   contactPerson: string;
 };
 
-export type DocumentAccountingStatus = "ENVIADA" | "COBRADA" | "CANCELADA";
+export type DocumentAccountingStatus = "" | "ENVIADA" | "COBRADA" | "CANCELADA";
 
 export type DocumentAccounting = {
   status: DocumentAccountingStatus;

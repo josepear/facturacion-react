@@ -17,3 +17,11 @@ body {
 #root {
   min-height: 100vh;
 }
+
+@layer utilities {
+  .text-informative {
+    font-size: var(--text-informative-size);
+    line-height: 1.45;
+    color: hsl(var(--muted-foreground));
+  }
+}

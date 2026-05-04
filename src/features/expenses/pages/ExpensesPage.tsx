@@ -509,7 +509,7 @@ export function ExpensesPage() {
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Gastos</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-informative">
           Módulo real conectado a `/api/expenses` con ciclo de vida y control por perfil.
         </p>
       </header>
@@ -553,7 +553,7 @@ export function ExpensesPage() {
                 ))}
               </select>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-informative">
               <span>
                 Mostrando {filteredItems.length} de {(expensesQuery.data?.items ?? []).length} gastos
               </span>
@@ -587,7 +587,7 @@ export function ExpensesPage() {
               Nuevo gasto
             </Button>
             <div className="grid gap-2 rounded-md border p-3">
-              <p className="text-xs font-medium text-muted-foreground">Exportación (servidor)</p>
+              <p className="text-informative font-medium">Exportación (servidor)</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -640,7 +640,7 @@ export function ExpensesPage() {
               </div>
             </div>
             <div className="grid gap-2 rounded-md border p-3">
-              <p className="text-xs font-medium text-muted-foreground">Archivar ejercicio (perfil + año)</p>
+              <p className="text-informative font-medium">Archivar ejercicio (perfil + año)</p>
               {isAdmin ? (
                 <>
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -674,12 +674,12 @@ export function ExpensesPage() {
                   </Button>
                 </>
               ) : (
-                <p className="text-xs text-muted-foreground">Solo administradores.</p>
+                <p className="text-informative">Solo administradores.</p>
               )}
             </div>
             <div className="max-h-[540px] overflow-auto rounded-md border">
               {expensesQuery.isLoading ? (
-                <p className="p-3 text-sm text-muted-foreground">Cargando gastos...</p>
+                <p className="p-3 text-informative">Cargando gastos...</p>
               ) : filteredItems.length ? (
                 <ul className="divide-y">
                   {filteredItems.map((item) => {
@@ -703,27 +703,27 @@ export function ExpensesPage() {
                           }}
                         >
                           <p className="font-medium">{item.vendor || item.description || "Sin referencia"}</p>
-                          <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                          <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
                             {item.issueDate || "-"} · {item.category || "sin categoría"} · {item.invoiceNumber || "sin nº factura"}
                           </p>
-                          <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                          <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
                             {formatCurrency(Number(item.total || 0))} · {item.recordId}
                           </p>
                           {String(item.quarter || "").trim() ? (
-                            <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                            <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
                               Trimestre: {String(item.quarter).trim()}
                             </p>
                           ) : null}
                           {(String(item.operationDate || "").trim() || String(item.paymentMethod || "").trim()) ? (
-                            <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                            <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
                               {String(item.operationDate || "").trim() ? `Devengo: ${String(item.operationDate).trim()}` : "Devengo: -"}
                               {String(item.paymentMethod || "").trim() ? ` · Pago: ${String(item.paymentMethod).trim()}` : ""}
                             </p>
                           ) : null}
-                          <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                          <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
                             {item.deductible ? "Deducible" : "No deducible"}
                           </p>
-                          <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                          <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
                             Perfil:{" "}
                             <ProfileBadge
                               label={item.templateProfileLabel || item.templateProfileId || "por defecto"}
@@ -731,7 +731,7 @@ export function ExpensesPage() {
                             />
                           </p>
                           {String(item.nextcloudUrl || "").trim() ? (
-                            <p className={`text-xs ${isActive ? "text-primary-foreground/85" : "text-muted-foreground"}`}>
+                            <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
                               <a
                                 href={String(item.nextcloudUrl).trim()}
                                 target="_blank"
@@ -749,7 +749,7 @@ export function ExpensesPage() {
                   })}
                 </ul>
               ) : (
-                <p className="p-3 text-sm text-muted-foreground">No hay gastos para ese filtro.</p>
+                <p className="p-3 text-informative">No hay gastos para ese filtro.</p>
               )}
             </div>
           </CardContent>
@@ -762,7 +762,7 @@ export function ExpensesPage() {
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             {String(draft.year || "").trim() ? (
-              <p className="sm:col-span-2 text-sm text-muted-foreground">
+              <p className="sm:col-span-2 text-informative">
                 <span className="font-medium text-foreground">Ejercicio (registro):</span>{" "}
                 {String(draft.year).trim()}
               </p>
@@ -784,7 +784,7 @@ export function ExpensesPage() {
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-informative">
                 El perfil activo de Configuración es <span className="font-medium text-foreground">{activeProfileId || "—"}</span>
                 {activeProfileLabel && activeProfileLabel !== activeProfileId ? ` (${activeProfileLabel})` : ""}. Vacío = el
                 servidor aplica ese activo; puedes forzar un perfil concreto de la lista.
@@ -827,7 +827,7 @@ export function ExpensesPage() {
                     <Button
                       type="button"
                       variant="ghost"
-                      className="ml-1 shrink-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                      className="ml-1 shrink-0 text-informative underline-offset-2 hover:underline"
                       disabled={saveCatalogMutation.isPending}
                       onClick={() =>
                         saveCatalogMutation.mutate({
@@ -922,7 +922,7 @@ export function ExpensesPage() {
             </Field>
 
             <details className="sm:col-span-2 group rounded-md border border-dashed p-3">
-              <summary className="cursor-pointer text-sm font-medium text-muted-foreground outline-none group-open:text-foreground">
+              <summary className="cursor-pointer text-informative font-medium outline-none group-open:text-foreground">
                 Gasto avanzado — devengo, rango, fiscal proveedor, trimestre, enlaces y concepto
               </summary>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -1033,7 +1033,7 @@ export function ExpensesPage() {
                         <Button
                           type="button"
                           variant="ghost"
-                          className="ml-1 shrink-0 text-xs text-muted-foreground underline-offset-2 hover:underline"
+                          className="ml-1 shrink-0 text-informative underline-offset-2 hover:underline"
                           disabled={saveCatalogMutation.isPending}
                           onClick={() =>
                             saveCatalogMutation.mutate({
@@ -1166,7 +1166,15 @@ export function ExpensesPage() {
               ) : null}
             </div>
             {statusMessage ? (
-              <p className={`sm:col-span-2 text-sm ${statusTone === "error" ? "text-red-600" : statusTone === "success" ? "text-emerald-600" : "text-muted-foreground"}`}>
+              <p
+                className={
+                  statusTone === "error"
+                    ? "sm:col-span-2 text-sm text-red-600"
+                    : statusTone === "success"
+                      ? "sm:col-span-2 text-sm text-emerald-600"
+                      : "sm:col-span-2 text-informative"
+                }
+              >
                 {statusMessage}
               </p>
             ) : null}
@@ -1183,11 +1191,11 @@ export function ExpensesPage() {
         </CardHeader>
         <CardContent className="grid gap-3">
           {!isAdmin ? (
-            <p className="text-sm text-muted-foreground">Sin permisos: solo los administradores pueden borrar en papelera.</p>
+            <p className="text-informative">Sin permisos: solo los administradores pueden borrar en papelera.</p>
           ) : null}
           <div className="max-h-[280px] overflow-auto rounded-md border">
             {trashQuery.isLoading ? (
-              <p className="p-3 text-sm text-muted-foreground">Cargando papelera...</p>
+              <p className="p-3 text-informative">Cargando papelera...</p>
             ) : trashExpenseItems.length ? (
               <ul className="divide-y">
                 {trashExpenseItems.slice(0, 60).map((item) => (
@@ -1206,7 +1214,7 @@ export function ExpensesPage() {
                 ))}
               </ul>
             ) : (
-              <p className="p-3 text-sm text-muted-foreground">No hay gastos en papelera.</p>
+              <p className="p-3 text-informative">No hay gastos en papelera.</p>
             )}
           </div>
         </CardContent>
@@ -1216,7 +1224,7 @@ export function ExpensesPage() {
         <Card>
           <div className="grid gap-4 p-4">
             <h2 className="text-base font-semibold">Importar gastos</h2>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-informative">
               Sube el libro de control (.xlsx) o uno o varios PDFs de facturas para importar gastos en bloque.
             </p>
 
@@ -1260,7 +1268,7 @@ export function ExpensesPage() {
               <div className="grid gap-1">
                 <p className="text-sm text-green-700">Importados: {importResult.created ?? 0}</p>
                 {(importResult.skipped ?? []).length > 0 ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-informative">
                     Omitidos: {(importResult.skipped ?? []).join(", ")}
                   </p>
                 ) : null}
@@ -1312,7 +1320,7 @@ export function ExpensesPage() {
                   }}
                   className="flex cursor-grab items-center gap-2 py-1"
                 >
-                  <span aria-hidden="true" className="select-none text-muted-foreground">
+                  <span aria-hidden="true" className="select-none text-informative">
                     ⠿
                   </span>
                   <span className="flex-1 text-sm">{item}</span>

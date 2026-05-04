@@ -234,7 +234,7 @@ function MembersSection({
       </CardHeader>
       <CardContent className="grid gap-4">
         {usersQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Cargando miembros...</p>
+          <p className="text-informative">Cargando miembros...</p>
         ) : usersQuery.isError ? (
           <p className="text-sm text-red-600">{(usersQuery.error as Error)?.message || "No se pudo cargar la lista de miembros."}</p>
         ) : (
@@ -246,7 +246,7 @@ function MembersSection({
                   <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{user.name || user.email}</p>
-                      <p className="truncate text-xs text-muted-foreground">{user.email} · {user.role}</p>
+                      <p className="truncate text-informative">{user.email} · {user.role}</p>
                     </div>
                     {canEdit && (
                       <div className="flex shrink-0 gap-1">
@@ -346,7 +346,7 @@ function MembersSection({
               );
             })}
             {items.length === 0 && (
-              <p className="text-sm text-muted-foreground">No hay miembros registrados.</p>
+              <p className="text-informative">No hay miembros registrados.</p>
             )}
           </div>
         )}
@@ -430,7 +430,15 @@ function MembersSection({
         )}
 
         {memberStatus && (
-          <p className={`text-sm ${memberStatusTone === "error" ? "text-red-600" : memberStatusTone === "success" ? "text-emerald-600" : "text-muted-foreground"}`}>
+          <p
+            className={
+              memberStatusTone === "error"
+                ? "text-sm text-red-600"
+                : memberStatusTone === "success"
+                  ? "text-sm text-emerald-600"
+                  : "text-informative"
+            }
+          >
             {memberStatus}
           </p>
         )}
@@ -488,7 +496,7 @@ function ExpenseOptionsSection({ canEdit }: { canEdit: boolean }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        {optionsQuery.isLoading && <p className="text-sm text-muted-foreground">Cargando catálogo...</p>}
+        {optionsQuery.isLoading && <p className="text-informative">Cargando catálogo...</p>}
         {optionsQuery.isError && (
           <p className="text-sm text-red-600">No se pudo cargar el catálogo de gastos.</p>
         )}
@@ -496,7 +504,7 @@ function ExpenseOptionsSection({ canEdit }: { canEdit: boolean }) {
           <>
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="grid gap-1">
-                <label className="text-xs font-medium text-muted-foreground">
+                <label className="text-informative font-medium">
                   Proveedores ({toList(vendorsDraft ?? serverVendors).length})
                 </label>
                 <textarea
@@ -508,7 +516,7 @@ function ExpenseOptionsSection({ canEdit }: { canEdit: boolean }) {
                 />
               </div>
               <div className="grid gap-1">
-                <label className="text-xs font-medium text-muted-foreground">
+                <label className="text-informative font-medium">
                   Categorías ({toList(categoriesDraft ?? serverCategories).length})
                 </label>
                 <textarea
@@ -539,7 +547,15 @@ function ExpenseOptionsSection({ canEdit }: { canEdit: boolean }) {
                   </Button>
                 )}
                 {status && (
-                  <p className={`text-sm ${status.tone === "error" ? "text-red-600" : status.tone === "success" ? "text-emerald-600" : "text-muted-foreground"}`}>
+                  <p
+                    className={
+                      status.tone === "error"
+                        ? "text-sm text-red-600"
+                        : status.tone === "success"
+                          ? "text-sm text-emerald-600"
+                          : "text-informative"
+                    }
+                  >
                     {status.text}
                   </p>
                 )}
@@ -631,7 +647,7 @@ function TrashSection({ canEdit }: { canEdit: boolean }) {
       </CardHeader>
       <CardContent className="grid gap-4">
         {trashQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Cargando papelera...</p>
+          <p className="text-informative">Cargando papelera...</p>
         ) : trashQuery.isError ? (
           <p className="text-sm text-red-600">{getErrorMessageFromUnknown(trashQuery.error)}</p>
         ) : (
@@ -645,7 +661,7 @@ function TrashSection({ canEdit }: { canEdit: boolean }) {
             </div>
 
             {items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">La papelera está vacía.</p>
+              <p className="text-informative">La papelera está vacía.</p>
             ) : (
               <div className="grid gap-3">
                 {(["documentos", "gastos", "clientes", "otros"] as const).map((category) => {
@@ -672,7 +688,7 @@ function TrashSection({ canEdit }: { canEdit: boolean }) {
                               }}
                             />
                             <span className="min-w-0 flex-1 break-all">{item.path}</span>
-                            <span className="rounded border px-1.5 py-0.5 text-xs text-muted-foreground">{item.fileType}</span>
+                            <span className="rounded border px-1.5 py-0.5 text-informative">{item.fileType}</span>
                           </li>
                         ))}
                       </ul>
@@ -715,7 +731,15 @@ function TrashSection({ canEdit }: { canEdit: boolean }) {
           </>
         )}
         {status ? (
-          <p className={`text-sm ${status.tone === "error" ? "text-red-600" : status.tone === "success" ? "text-emerald-600" : "text-muted-foreground"}`}>
+          <p
+            className={
+              status.tone === "error"
+                ? "text-sm text-red-600"
+                : status.tone === "success"
+                  ? "text-sm text-emerald-600"
+                  : "text-informative"
+            }
+          >
             {status.text}
           </p>
         ) : null}
@@ -787,12 +811,12 @@ function SettingsConfigLoadError({ error }: { error: unknown }) {
     return (
       <div role="alert" className="space-y-2">
         <p className="font-medium text-red-600">No se pudo cargar la configuración (HTTP {error.status})</p>
-        <p className="text-muted-foreground">
+        <p className="text-informative">
           Una petición a <code className="text-xs">GET /api/config</code> o <code className="text-xs">GET /api/session</code>{" "}
           fue rechazada: <span className="text-foreground">{error.message}</span>. Suele indicar sesión caducada, ausencia de
           token en este origen o credenciales no aceptadas por el servidor.
         </p>
-        <p className="text-muted-foreground">
+        <p className="text-informative">
           Esto no es el modo solo lectura por rol: si la configuración cargara y tu rol en{" "}
           <code className="text-xs">GET /api/session</code> no fuera <code className="text-xs">admin</code>, verías el
           formulario con campos deshabilitados y el aviso «Modo solo lectura».
@@ -1282,7 +1306,7 @@ export function SettingsPage() {
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Miembros / Emisor</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-informative">
           Datos fiscales, logo y textos por defecto del <strong>emisor activo</strong>. Al pulsar «Guardar datos del emisor» se
           guardan en el servidor (legacy pestaña Emisor). Es independiente de «Guardar documento» en Facturar.
         </p>
@@ -1290,7 +1314,7 @@ export function SettingsPage() {
 
       {configQuery.isLoading || sessionQuery.isLoading ? (
         <Card>
-          <CardContent className="pt-6 text-sm text-muted-foreground">Cargando configuración...</CardContent>
+          <CardContent className="pt-6 text-informative">Cargando configuración...</CardContent>
         </Card>
       ) : configQuery.error || sessionQuery.error ? (
         <Card>
@@ -1308,7 +1332,7 @@ export function SettingsPage() {
                     label={serverActiveProfile.label || serverActiveProfile.id}
                     colorKey={serverActiveProfile.colorKey}
                   />
-                  <span className="text-sm font-medium text-muted-foreground">Perfil activo</span>
+                  <span className="text-informative font-medium">Perfil activo</span>
                 </div>
 
                 {serverActiveProfile.business?.brandImage ? (
@@ -1322,7 +1346,7 @@ export function SettingsPage() {
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-lg border p-2">
                     <p className="text-lg font-semibold">{activeProfileStats.count}</p>
-                    <p className="text-xs text-muted-foreground">Facturas</p>
+                    <p className="text-informative">Facturas</p>
                   </div>
                   <div className="rounded-lg border p-2">
                     <p className="text-lg font-semibold">
@@ -1330,18 +1354,18 @@ export function SettingsPage() {
                         activeProfileStats.total,
                       )}
                     </p>
-                    <p className="text-xs text-muted-foreground">Facturado</p>
+                    <p className="text-informative">Facturado</p>
                   </div>
                   <div className="rounded-lg border p-2">
                     <p className="text-lg font-semibold">
                       {activeProfileStats.lastIssueDate ? activeProfileStats.lastIssueDate.slice(0, 10) : "—"}
                     </p>
-                    <p className="text-xs text-muted-foreground">Última factura</p>
+                    <p className="text-informative">Última factura</p>
                   </div>
                 </div>
 
                 {serverActiveProfile.business?.brand || serverActiveProfile.business?.taxId ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-informative">
                     {[serverActiveProfile.business?.brand, serverActiveProfile.business?.taxId].filter(Boolean).join(" · ")}
                   </p>
                 ) : null}
@@ -1397,7 +1421,7 @@ export function SettingsPage() {
                   </Button>
                 </div>
                 {!canEdit ? (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-informative">
                     Solo lectura: el contrato exige usuario administrador para persistir perfiles.
                   </p>
                 ) : null}
@@ -1415,7 +1439,7 @@ export function SettingsPage() {
                 <p><strong>Forma de pago:</strong> {safeValue(configQuery.data?.defaults?.paymentMethod)}</p>
                 <p><strong>IGIC:</strong> {safeValue(configQuery.data?.defaults?.taxRate)}</p>
                 <p><strong>IRPF:</strong> {safeValue(configQuery.data?.defaults?.withholdingRate)}</p>
-                <p className="pt-2 text-xs text-muted-foreground">
+                <p className="pt-2 text-informative">
                   La numeración en Facturar se calcula con el perfil activo/seleccionado vía `/api/next-number`.
                 </p>
               </CardContent>
@@ -1424,7 +1448,7 @@ export function SettingsPage() {
 
           <Card>
             <CardHeader>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Emisor y PDF</p>
+              <p className="text-informative font-medium uppercase tracking-wide">Emisor y PDF</p>
               <CardTitle>Emisor activo</CardTitle>
               <CardDescription>
                 Orden habitual en legacy: primero guarda aquí el emisor; el constructor fino de módulos PDF sigue en la app legacy
@@ -1439,7 +1463,7 @@ export function SettingsPage() {
                   className="rounded-md border border-border bg-muted/60 px-3 py-2 text-sm text-foreground"
                 >
                   <p className="font-medium">Cambios locales pendientes de guardar</p>
-                  <p className="mt-1 text-muted-foreground">
+                  <p className="mt-1 text-informative">
                     Hay ediciones o un perfil activo distinto del último guardado en servidor; nada de esto se aplica en el backend
                     hasta pulsar «Guardar datos del emisor».
                   </p>
@@ -1451,7 +1475,7 @@ export function SettingsPage() {
                   className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-sm"
                 >
                   <p className="font-medium text-foreground">Modo solo lectura</p>
-                  <p className="mt-1 text-muted-foreground">
+                  <p className="mt-1 text-informative">
                     Editar datos del emisor, crear un usuario nuevo y guardar en el servidor solo están habilitados para la
                     sesión cuyo rol en <code className="rounded bg-muted px-1 text-xs">GET /api/session</code> es{" "}
                     <strong>admin</strong>.
@@ -1590,7 +1614,7 @@ export function SettingsPage() {
                   ) : null}
 
                   <details className="group rounded-md border border-dashed p-3" open>
-                    <summary className="cursor-pointer text-sm font-medium text-muted-foreground outline-none group-open:text-foreground">
+                    <summary className="cursor-pointer text-informative font-medium outline-none group-open:text-foreground">
                       Básico del usuario
                     </summary>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1620,7 +1644,7 @@ export function SettingsPage() {
                         />
                         {invoiceTagSuggestions.length > 0 ? (
                           <div className="mt-2 flex flex-wrap gap-1">
-                            <p className="w-full text-xs text-muted-foreground">Prefijos sugeridos (elige uno):</p>
+                            <p className="w-full text-informative">Prefijos sugeridos (elige uno):</p>
                             {invoiceTagSuggestions.map((tag) => (
                               <button
                                 key={tag}
@@ -1738,7 +1762,7 @@ export function SettingsPage() {
                   </details>
 
                   <details className="group rounded-md border border-dashed p-3">
-                    <summary className="cursor-pointer text-sm font-medium text-muted-foreground outline-none group-open:text-foreground">
+                    <summary className="cursor-pointer text-informative font-medium outline-none group-open:text-foreground">
                       Avanzado del usuario
                     </summary>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1770,7 +1794,7 @@ export function SettingsPage() {
                                 Quitar logo
                               </Button>
                             </div>
-                            <p className="text-xs text-muted-foreground">{brandImageSummary}</p>
+                            <p className="text-informative">{brandImageSummary}</p>
                             {brandImageFileError ? (
                               <p className="text-xs text-red-600">{brandImageFileError}</p>
                             ) : null}
@@ -1856,17 +1880,25 @@ export function SettingsPage() {
                     </div>
                   </details>
 
-                  <div className="grid gap-1 rounded-md border p-3 text-xs text-muted-foreground sm:grid-cols-2">
+                  <div className="grid gap-1 rounded-md border p-3 text-informative sm:grid-cols-2">
                     <span>id perfil: {safeValue(editingProfile?.id)}</span>
                     <span>tenantId: {safeValue(editingProfile?.tenantId)}</span>
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">No hay perfiles de emisor disponibles.</p>
+                <p className="text-informative">No hay perfiles de emisor disponibles.</p>
               )}
 
               {statusMessage ? (
-                <p className={`text-sm ${statusTone === "error" ? "text-red-600" : statusTone === "success" ? "text-emerald-600" : "text-muted-foreground"}`}>
+                <p
+                  className={
+                    statusTone === "error"
+                      ? "text-sm text-red-600"
+                      : statusTone === "success"
+                        ? "text-sm text-emerald-600"
+                        : "text-informative"
+                  }
+                >
                   {statusMessage}
                 </p>
               ) : null}
@@ -1883,11 +1915,11 @@ export function SettingsPage() {
                 {gmailOAuthSectionError ? <p className="text-sm text-red-600">{gmailOAuthSectionError}</p> : null}
 
                 {gmailProfilesQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">Cargando estado de Gmail...</p>
+                  <p className="text-informative">Cargando estado de Gmail...</p>
                 ) : null}
 
                 {!gmailProfilesQuery.isLoading && !gmailProfilesQuery.data?.configured ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-informative">
                     Gmail no está configurado en el servidor (faltan credenciales OAuth).
                   </p>
                 ) : null}
@@ -1899,9 +1931,9 @@ export function SettingsPage() {
                         <div>
                           <p className="text-sm font-medium">{item.label}</p>
                           {item.connected && item.email ? (
-                            <p className="text-xs text-muted-foreground">{item.email}</p>
+                            <p className="text-informative">{item.email}</p>
                           ) : null}
-                          {!item.connected ? <p className="text-xs text-muted-foreground">No conectado</p> : null}
+                          {!item.connected ? <p className="text-informative">No conectado</p> : null}
                         </div>
                         <Button
                           type="button"
@@ -1924,7 +1956,7 @@ export function SettingsPage() {
                     ))}
 
                     {gmailProfilesQuery.data?.items?.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No hay perfiles de plantilla con Gmail configurado.</p>
+                      <p className="text-informative">No hay perfiles de plantilla con Gmail configurado.</p>
                     ) : null}
                   </div>
                 ) : null}
@@ -1945,7 +1977,7 @@ export function SettingsPage() {
           >
             <div className="grid gap-4">
               <h2 className="text-base font-semibold">Nueva base de diseño</h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-informative">
                 Crea un perfil vacío con la plantilla visual elegida. Completa datos del emisor y guarda en el servidor.
               </p>
               <Field label="Nombre del perfil">

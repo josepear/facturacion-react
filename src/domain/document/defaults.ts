@@ -6,7 +6,7 @@ export function getToday() {
 
 export function createEmptyDocument(): InvoiceDocument {
   return {
-    type: "factura",
+    type: "",
     templateProfileId: "",
     tenantId: "default",
     number: "",
@@ -15,11 +15,11 @@ export function createEmptyDocument(): InvoiceDocument {
     issueDate: getToday(),
     dueDate: "",
     reference: "",
-    templateLayout: "pear",
+    templateLayout: "",
     paymentMethod: "Transferencia",
     bankAccount: "",
     accounting: {
-      status: "ENVIADA",
+      status: "",
       paymentDate: "",
       quarter: "",
       invoiceId: "",
@@ -37,7 +37,16 @@ export function createEmptyDocument(): InvoiceDocument {
       email: "",
       contactPerson: "",
     },
-    items: [{ concept: "", description: "", quantity: 1, unitPrice: 0 }],
+    items: [
+      {
+        concept: "",
+        description: "",
+        quantity: 1,
+        unitPrice: 0,
+        unitLabel: "",
+        hidePerPersonSubtotalInBudget: false,
+      },
+    ],
     taxRate: 7,
     withholdingRate: "",
     totalsBasis: "items",

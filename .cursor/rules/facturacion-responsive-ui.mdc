@@ -1,0 +1,18 @@
+---
+description: Tablet y móvil al tocar CSS o layout en facturacion-react
+alwaysApply: true
+---
+
+# UI responsive (móvil y tablet)
+
+Al **añadir o modificar estilos CSS** (Tailwind, `index.css`, componentes de presentación) o **rejillas / espaciado** que afecten a pantallas estrechas:
+
+1. **Comprobar al menos dos anchos**: móvil (~360–430px) y tablet en horizontal (~768–1024px), además de escritorio. No asumir solo `lg:` sin revisar cómo se apilan o cortan los bloques por debajo del breakpoint.
+
+2. **Convención Tailwind** (orientativa): primero estilos base pensados para móvil; luego `sm:` (640px+) y `md:` (768px+, tablet típica); `lg:` (1024px+) para sidebar de dos columnas y densidad de formularios.
+
+3. **Interacción táctil**: zonas clicables importantes (cabeceras de acordeón, botones de icono, enlaces en listas) con **altura mínima ~44px** donde aplique, sin romper el diseño en escritorio (`min-h` + `sm:min-h-0` o equivalente si se quiere relajar solo en desktop).
+
+4. **Overflow**: evitar scroll horizontal accidental en `main`, tablas y modales; usar `min-w-0`, `overflow-x-auto` acotado o apilar columnas en `sm`/`md` cuando sea necesario.
+
+5. **No duplicar** esta guía en otros ficheros: mantener esta regla como referencia y enlazarla mentalmente al tocar CSS en este repo.
