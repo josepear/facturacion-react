@@ -42,7 +42,7 @@ export function FacturarSaveSummary({ document, profileLabel, lineTotals }: Fact
       <div className="grid gap-3 text-sm">
         <div className="space-y-2 border-b border-border pb-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Emisor</p>
-          <Row label="Perfil">{profileLabel.trim() || "—"}</Row>
+          <Row label="Emisor">{profileLabel.trim() || "—"}</Row>
           <Row label="Plantilla">{String(document.templateLayout || "").trim() || "—"}</Row>
           <Row label="Pago">{String(document.paymentMethod || "").trim() || "—"}</Row>
           <Row label="Cuenta">{String(document.bankAccount || "").trim() || "—"}</Row>

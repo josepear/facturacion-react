@@ -41,7 +41,7 @@ export function DocumentLivePreview({ document, profileColorKey }: DocumentLiveP
 
         <section className="preview-reference-meta-row">
           <div className="preview-issuer-mini-box">
-            <p><strong>Perfil:</strong> {model.issuerLabel}</p>
+            <p><strong>Emisor:</strong> {model.issuerLabel}</p>
             <p><strong>Base:</strong> {model.totalsBasisLabel}</p>
           </div>
 

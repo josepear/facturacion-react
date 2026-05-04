@@ -1,4 +1,4 @@
-import { request } from "@/infrastructure/api/httpClient";
+import { fetchWithAuth, request } from "@/infrastructure/api/httpClient";
 
 import type { ConfigResponse, InvoiceDocument, TemplateProfileConfig } from "@/domain/document/types";
 
@@ -54,6 +54,34 @@ export async function saveDocument(document: InvoiceDocument, recordId?: string,
       ...(storageScope ? { storageScope } : {}),
     },
   });
+}
+
+/**
+ * HTML de plantilla legacy para el borrador (sin persistir). Requiere sesión.
+ * Misma pipeline que el HTML guardado (`renderDocumentHtml` en servidor).
+ */
+export async function fetchDocumentLegacyPreviewBlob(document: InvoiceDocument, signal?: AbortSignal): Promise<Blob> {
+  let storageScope: "sandbox" | undefined;
+  try {
+    storageScope =
+      typeof globalThis !== "undefined" && globalThis.localStorage?.getItem("facturacion-storage-scope") === "sandbox"
+        ? "sandbox"
+        : undefined;
+  } catch {
+    storageScope = undefined;
+  }
+  const response = await fetchWithAuth("/api/documents/preview-html", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document, ...(storageScope ? { storageScope } : {}) }),
+    signal,
+  });
+  if (!response.ok) {
+    const asJson = (await response.json().catch(() => null)) as { error?: string } | null;
+    const msg = typeof asJson?.error === "string" && asJson.error.trim() ? asJson.error.trim() : `HTTP ${response.status}`;
+    throw new Error(msg);
+  }
+  return response.blob();
 }
 
 type ArchiveYearInput = {

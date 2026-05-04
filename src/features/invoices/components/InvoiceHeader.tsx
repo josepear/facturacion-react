@@ -93,9 +93,9 @@ export function InvoiceHeader({
   return (
     <div className="grid gap-4">
       <div className="grid gap-4 rounded-md border p-4">
-        <span className="text-informative uppercase tracking-wide">Emisor y perfil</span>
+        <span className="text-informative uppercase tracking-wide">Emisor</span>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Field label="Perfil plantilla">
+          <Field label="Emisor">
             <select
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               {...register.templateProfileId}
@@ -104,7 +104,7 @@ export function InvoiceHeader({
                 onTemplateProfileChange(event.target.value);
               }}
             >
-              <option value="">Selecciona perfil</option>
+              <option value="">Selecciona emisor</option>
               {profiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>
                   {profile.label}
@@ -123,11 +123,11 @@ export function InvoiceHeader({
           </Field>
         </div>
         <div className="grid gap-1 text-informative sm:grid-cols-2 lg:grid-cols-4">
-          <span>Perfil activo config: {activeTemplateProfileId || "-"}</span>
-          <span>Perfil aplicado: {selectedProfileLabel}</span>
-          <span>Default pago perfil: {profilePaymentMethod}</span>
-          <span>Default cuenta perfil: {profileBankAccount}</span>
-          <span>Layout perfil: {profileLayout}</span>
+          <span>Emisor activo (config): {activeTemplateProfileId || "-"}</span>
+          <span>Emisor aplicado: {selectedProfileLabel}</span>
+          <span>Default pago emisor: {profilePaymentMethod}</span>
+          <span>Default cuenta emisor: {profileBankAccount}</span>
+          <span>Layout emisor: {profileLayout}</span>
         </div>
       </div>
 
@@ -172,16 +172,16 @@ export function InvoiceHeader({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="Perfil plantilla">
+        <Field label="Emisor">
           <Input value={selectedProfileLabel} readOnly />
         </Field>
         <Field label="Forma de pago">
           <Input value={profilePaymentMethod} readOnly />
         </Field>
-        <Field label="Cuenta perfil">
+        <Field label="Cuenta (emisor)">
           <Input value={profileBankAccount} readOnly />
         </Field>
-        <Field label="Layout perfil">
+        <Field label="Layout (emisor)">
           <Input value={profileLayout} readOnly />
         </Field>
       </div>

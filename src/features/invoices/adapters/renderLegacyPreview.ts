@@ -118,7 +118,7 @@ export function buildLegacyPreviewModel(document: InvoiceDocument): LegacyPrevie
     referenceLabel: String(document.reference || ""),
     paymentMethodLabel: String(document.paymentMethod || "-"),
     paymentAccountLabel: String(document.bankAccount || "-"),
-    issuerLabel: String(document.templateProfileId || "Perfil sin asignar"),
+    issuerLabel: String(document.templateProfileId || "Emisor sin asignar"),
     clientName: String(document.client?.name || "Sin cliente"),
     clientTaxLabel: String(document.client?.taxId || ""),
     clientTaxMetaLabel: [taxIdType, taxCountryCode].filter(Boolean).join(" · "),

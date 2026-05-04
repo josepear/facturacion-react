@@ -6,8 +6,7 @@ import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
-import { DocumentLivePreview } from "@/features/invoices/components/DocumentLivePreview";
-import { FacturarOfficialHtmlPreview } from "@/features/invoices/components/FacturarOfficialHtmlPreview";
+import { FacturarLegacyHtmlPane } from "@/features/invoices/components/FacturarLegacyHtmlPane";
 import { FacturarSaveSummary } from "@/features/invoices/components/FacturarSaveSummary";
 import { InvoiceItemsTable } from "@/features/invoices/components/InvoiceItemsTable";
 import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotalsPanel";
@@ -98,6 +97,7 @@ export function FacturarPage() {
     officialOutputLoading,
     canOpenOfficialOutput,
     officialHtmlPreviewVersion,
+    workflowLayoutResetVersion,
     loadingConfig,
     liveDocument,
     duplicateDocument,
@@ -120,22 +120,51 @@ export function FacturarPage() {
   );
 
   const [moduleUiMode, setModuleUiMode] = useState<FacturarModuleUiMode>("auto");
-  const prevAutoOpenRef = useRef(autoOpenModuleId);
-  useEffect(() => {
-    if (prevAutoOpenRef.current === autoOpenModuleId) {
-      return;
-    }
-    prevAutoOpenRef.current = autoOpenModuleId;
-    setModuleUiMode("auto");
-  }, [autoOpenModuleId]);
-
+  /**
+   * Si el checklist marca Conceptos como «completo» mientras el usuario sigue en modo auto
+   * rellenando líneas, el primer módulo incompleto pasa a ser Fiscal y el acordeón saltaba,
+   * cerrando Conceptos (inputs con inert). Mantenemos Conceptos abierto hasta que el
+   * usuario cierre ese panel o abra otro módulo explícitamente.
+   */
+  const [pinConceptsInWorkflowAuto, setPinConceptsInWorkflowAuto] = useState(false);
+  const prevAutoOpenTargetRef = useRef(autoOpenModuleId);
   const lastWorkflowScrollTargetRef = useRef<string | null>(null);
   const workflowScrollBootRef = useRef(true);
+  const lastWorkflowLayoutResetHandledRef = useRef(0);
+  useEffect(() => {
+    if (workflowLayoutResetVersion === 0) {
+      return;
+    }
+    if (workflowLayoutResetVersion === lastWorkflowLayoutResetHandledRef.current) {
+      return;
+    }
+    lastWorkflowLayoutResetHandledRef.current = workflowLayoutResetVersion;
+    setModuleUiMode("auto");
+    setPinConceptsInWorkflowAuto(false);
+    setClientMoreDetailsOpen(false);
+    prevAutoOpenTargetRef.current = autoOpenFacturarWorkflowModule(workflowChecklist);
+    lastWorkflowScrollTargetRef.current = null;
+    workflowScrollBootRef.current = true;
+  }, [workflowLayoutResetVersion, workflowChecklist, setClientMoreDetailsOpen]);
+  useEffect(() => {
+    const prev = prevAutoOpenTargetRef.current;
+    if (prev === autoOpenModuleId) {
+      return;
+    }
+    if (moduleUiMode === "auto" && prev === "concepts" && autoOpenModuleId !== "concepts") {
+      setPinConceptsInWorkflowAuto(true);
+    }
+    prevAutoOpenTargetRef.current = autoOpenModuleId;
+  }, [autoOpenModuleId, moduleUiMode]);
+  /** Destino visual del scroll en modo auto (respeta el pin de Conceptos). */
+  const autoScrollTargetId =
+    moduleUiMode === "auto" && pinConceptsInWorkflowAuto ? "concepts" : autoOpenModuleId;
+
   useEffect(() => {
     if (moduleUiMode !== "auto") {
       return;
     }
-    const key = autoOpenModuleId;
+    const key = autoScrollTargetId;
     if (lastWorkflowScrollTargetRef.current === key) {
       return;
     }
@@ -156,7 +185,7 @@ export function FacturarPage() {
       el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest", inline: "nearest" });
     });
     return () => globalThis.cancelAnimationFrame(frame);
-  }, [autoOpenModuleId, moduleUiMode]);
+  }, [autoScrollTargetId, moduleUiMode]);
 
   const isModuleOpen = useCallback(
     (id: FacturarWorkflowModuleId) => {
@@ -164,16 +193,23 @@ export function FacturarPage() {
         return false;
       }
       if (moduleUiMode === "auto") {
+        if (pinConceptsInWorkflowAuto) {
+          return id === "concepts";
+        }
         return id === autoOpenModuleId;
       }
       return moduleUiMode === id;
     },
-    [autoOpenModuleId, moduleUiMode],
+    [autoOpenModuleId, moduleUiMode, pinConceptsInWorkflowAuto],
   );
 
   const handleWorkflowModuleOpenChange = useCallback((id: FacturarWorkflowModuleId, nextOpen: boolean) => {
     if (nextOpen) {
+      setPinConceptsInWorkflowAuto(false);
       setModuleUiMode(id);
+    } else if (id === "concepts") {
+      setPinConceptsInWorkflowAuto(false);
+      setModuleUiMode("auto");
     } else {
       setModuleUiMode("none");
     }
@@ -389,7 +425,7 @@ export function FacturarPage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <label className="grid gap-2 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">Perfil plantilla</span>
+                  <span className="font-medium">Emisor</span>
                   {selectedTemplateProfile ? (
                     <ProfileBadge
                       label={selectedTemplateProfile.label}
@@ -406,7 +442,7 @@ export function FacturarPage() {
                       applyTemplateProfile(event.target.value);
                     }}
                   >
-                    <option value="">Selecciona perfil</option>
+                    <option value="">Selecciona emisor</option>
                     {profileOptions.map((profile) => (
                       <option key={profile.id} value={profile.id}>
                         {profile.label}
@@ -595,11 +631,11 @@ export function FacturarPage() {
                 label="Cargar documento guardado"
                 hint={
                   !String(templateProfileIdWatched || "").trim()
-                    ? "Elige un perfil en Emisor para listar los documentos de ese perfil."
+                    ? "Elige un emisor en el desplegable para listar los documentos de ese emisor."
                     : loadingHistory
                       ? "Cargando listado del histórico…"
                       : documentReloadSelectOptions.length === 0
-                        ? "No hay documentos en histórico para este perfil (o aún no se ha sincronizado)."
+                        ? "No hay documentos en histórico para este emisor (o aún no se ha sincronizado)."
                         : undefined
                 }
               >
@@ -919,11 +955,20 @@ export function FacturarPage() {
               onIrpfFieldBlur={commitFiscalIrpfChoiceFromInput}
             />
           </WorkflowModule>
-
-          <DocumentLivePreview document={liveDocument} profileColorKey={selectedTemplateProfile?.colorKey} />
         </div>
 
-        <div className="grid gap-6">
+        <div className="flex min-h-0 flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-1.5rem)] lg:overflow-y-auto lg:min-w-0">
+          <FacturarSaveSummary
+            document={liveDocument}
+            profileLabel={selectedTemplateProfile?.label || String(watch("templateProfileId") || "").trim()}
+            lineTotals={totals.items}
+          />
+          <FacturarLegacyHtmlPane
+            liveDocument={liveDocument}
+            serverRecordId={serverRecordId.trim()}
+            isDirty={isDirty}
+            refreshVersion={officialHtmlPreviewVersion}
+          />
           <WorkflowModule
             title="Guardar"
             stateLabel={workflowChecklist.save.complete ? "Completo" : "Pendiente"}
@@ -933,31 +978,7 @@ export function FacturarPage() {
             onOpenChange={(next) => handleWorkflowModuleOpenChange("save", next)}
             workflowModuleId="save"
           >
-            <div className="grid gap-4">
-              <FacturarSaveSummary
-                document={liveDocument}
-                profileLabel={selectedTemplateProfile?.label || String(watch("templateProfileId") || "").trim()}
-                lineTotals={totals.items}
-              />
-              <div className="grid gap-2">
-                <h3 className="text-sm font-semibold text-foreground">Previsualización HTML</h3>
-                {serverRecordId.trim() && isDirty ? (
-                  <p className="text-xs text-amber-800 dark:text-amber-200">
-                    Tienes cambios sin guardar: el HTML incrustado corresponde al último guardado en el servidor.
-                  </p>
-                ) : null}
-                {!serverRecordId.trim() ? (
-                  <>
-                    <p className="text-xs text-muted-foreground">
-                      Tras el primer guardado, aquí se mostrará el HTML oficial generado en el servidor (misma salida
-                      que «Ver HTML oficial»).
-                    </p>
-                    <DocumentLivePreview document={liveDocument} profileColorKey={selectedTemplateProfile?.colorKey} />
-                  </>
-                ) : (
-                  <FacturarOfficialHtmlPreview recordId={serverRecordId.trim()} refreshVersion={officialHtmlPreviewVersion} />
-                )}
-              </div>
+            <div className="grid gap-3">
               <Button type="submit" disabled={isSubmitting || saveMutation.isPending || loadingConfig}>
                 {saveMutation.isPending ? "Guardando..." : "Guardar documento"}
               </Button>

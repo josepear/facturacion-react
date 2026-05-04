@@ -90,6 +90,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const [officialOutputLoading, setOfficialOutputLoading] = useState<OfficialDocumentOutputKind | null>(null);
   /** Se incrementa al guardar o cargar un documento para refrescar la vista HTML incrustada en Facturar. */
   const [officialHtmlPreviewVersion, setOfficialHtmlPreviewVersion] = useState(0);
+  /** Se incrementa solo tras un guardado OK para que FacturarPage restablezca acordeones y scroll del flujo. */
+  const [workflowLayoutResetVersion, setWorkflowLayoutResetVersion] = useState(0);
   const [hasLastSetup, setHasLastSetup] = useState(false);
   const bootstrappedRecordIdRef = useRef("");
   const bootstrappedTemplateProfileRef = useRef("");
@@ -284,8 +286,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       emitter: {
         complete: emitterComplete,
         tip: emitterComplete
-          ? "Perfil, plantilla, pago y cuenta listos."
-          : "Elige perfil de plantilla, plantilla/layout (obligatorio), y revisa forma de pago y cuenta.",
+          ? "Emisor, plantilla, pago y cuenta listos."
+          : "Elige emisor, plantilla/layout (obligatorio), y revisa forma de pago y cuenta.",
       },
       document: {
         complete: documentComplete,
@@ -521,7 +523,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         throw new Error("Selecciona factura o presupuesto antes de pedir el número.");
       }
       if (!draft.templateProfileId) {
-        throw new Error("Selecciona perfil antes de pedir el número.");
+        throw new Error("Selecciona emisor antes de pedir el número.");
       }
       const profileMeta = (configQuery.data?.templateProfiles ?? []).find((p) => p.id === draft.templateProfileId);
       const invoiceNumberTag = String(profileMeta?.invoiceNumberTag || "").trim() || undefined;
@@ -550,7 +552,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         throw new Error("Selecciona factura o presupuesto para validar el número.");
       }
       if (!draft.templateProfileId) {
-        throw new Error("Selecciona perfil para validar número.");
+        throw new Error("Selecciona emisor para validar número.");
       }
       const profileMeta = (configQuery.data?.templateProfiles ?? []).find((p) => p.id === draft.templateProfileId);
       const invoiceNumberTag = String(profileMeta?.invoiceNumberTag || "").trim() || undefined;
@@ -624,6 +626,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       setNumberAvailabilityTone("success");
       setFiscalIrpfChoiceAcknowledged(true);
       setClientModuleConfirmed(true);
+      setWorkflowLayoutResetVersion((v) => v + 1);
     },
   });
 
@@ -893,6 +896,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     officialOutputLoading,
     canOpenOfficialOutput: Boolean(serverRecordId),
     officialHtmlPreviewVersion,
+    workflowLayoutResetVersion,
     loadingConfig: configQuery.isLoading,
     liveDocument,
     isDirty: form.formState.isDirty,
