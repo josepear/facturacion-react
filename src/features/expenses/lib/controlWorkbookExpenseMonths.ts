@@ -1,6 +1,8 @@
 import type { ExpenseRecord } from "@/domain/expenses/types";
 import { ADVISOR_PROFILE_ALL, ADVISOR_PROFILE_UNASSIGNED } from "@/features/data/lib/advisorShareFilters";
 
+export { workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
+
 /** Mapea filtros de perfil de la SPA al token de la hoja de control legacy (`__all__` / `__unassigned__`). */
 export function mapReactExpenseProfileFilterToControl(profileFilter: string): string {
   if (profileFilter === "all") {
@@ -10,17 +12,6 @@ export function mapReactExpenseProfileFilterToControl(profileFilter: string): st
     return ADVISOR_PROFILE_UNASSIGNED;
   }
   return profileFilter;
-}
-
-export function workbookQuarterRowToneClass(quarter: string): string {
-  const k = String(quarter || "").trim().toUpperCase();
-  const by: Record<string, string> = {
-    T1: "border-l-4 border-l-emerald-500/70",
-    T2: "border-l-4 border-l-sky-500/70",
-    T3: "border-l-4 border-l-violet-500/70",
-    T4: "border-l-4 border-l-amber-500/70",
-  };
-  return by[k] || "border-l-4 border-l-muted";
 }
 
 export function getControlExpenseMonthKey(item: ExpenseRecord): string {

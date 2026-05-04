@@ -16,6 +16,11 @@
   --radius: 0.625rem;
   /* Texto informativo / ayuda: un poco menor que el cuerpo (1rem − 5px) */
   --text-informative-size: calc(1rem - 5px);
+  /*
+   * Trimestres (badges y borde de fila): paleta unificada en código en
+   * `src/features/shared/lib/quarterVisual.ts` + `QuarterBadge`.
+   * Colores de emisor (badge + punto): `src/components/ui/ProfileBadge.tsx`.
+   */
 }
 
 .dark {

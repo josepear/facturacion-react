@@ -3,6 +3,10 @@ import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
 import { AppShell } from "@/app/AppShell";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RequireAuth } from "@/features/auth/RequireAuth";
+import { AsesorLayout } from "@/features/asesor/layout/AsesorLayout";
+import { AsesorCeliaPage } from "@/features/asesor/pages/AsesorCeliaPage";
+import { AsesorLibroPage } from "@/features/asesor/pages/AsesorLibroPage";
+import { AsesorResumenPage } from "@/features/asesor/pages/AsesorResumenPage";
 import { ClientsPage } from "@/features/clients/pages/ClientsPage";
 import { DataPage } from "@/features/data/pages/DataPage";
 import { ExpensesPage } from "@/features/expenses/pages/ExpensesPage";
@@ -10,6 +14,7 @@ import { HistoryPage } from "@/features/history/pages/HistoryPage";
 import { FacturarPage } from "@/features/invoices/pages/FacturarPage";
 import { SettingsPage } from "@/features/settings/pages/SettingsPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
+import { SharedReportPublicPage } from "@/pages/SharedReportPublicPage";
 
 function IndexRedirectToFacturar() {
   const { search } = useLocation();
@@ -23,6 +28,10 @@ export const router = createBrowserRouter(
     {
       path: "/login",
       element: <LoginPage />,
+    },
+    {
+      path: "/informe-compartido",
+      element: <SharedReportPublicPage />,
     },
     {
       path: "/",
@@ -55,6 +64,16 @@ export const router = createBrowserRouter(
         {
           path: "datos",
           element: <DataPage />,
+        },
+        {
+          path: "asesor",
+          element: <AsesorLayout />,
+          children: [
+            { index: true, element: <Navigate to="resumen" replace /> },
+            { path: "resumen", element: <AsesorResumenPage /> },
+            { path: "celia", element: <AsesorCeliaPage /> },
+            { path: "libro", element: <AsesorLibroPage /> },
+          ],
         },
         {
           path: "configuracion",

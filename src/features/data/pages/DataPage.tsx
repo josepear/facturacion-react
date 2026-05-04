@@ -1,18 +1,19 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
-import { AdvisorSummaryDialog } from "@/features/data/components/AdvisorSummaryDialog";
+import { QuarterBadge } from "@/components/ui/QuarterBadge";
 import { DataHistoricalImportPanel } from "@/features/data/components/DataHistoricalImportPanel";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
+import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
+import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
-import { runAccountingExportDownload } from "@/infrastructure/api/exportReportsApi";
 import { fetchExpenses } from "@/infrastructure/api/expensesApi";
-import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 function formatDate(value: string): string {
   const safe = String(value || "").trim();
@@ -22,7 +23,6 @@ function formatDate(value: string): string {
 export function DataPage() {
   const [filterYear, setFilterYear] = useState("");
   const [filterProfile, setFilterProfile] = useState("");
-  const [advisorSummaryOpen, setAdvisorSummaryOpen] = useState(false);
 
   const historyQuery = useQuery({
     queryKey: ["history-invoices"],
@@ -91,24 +91,10 @@ export function DataPage() {
   );
   const resultado = totalInvoiced - totalExpenses;
 
-  const accountingExportMutation = useMutation({
-    mutationFn: () => {
-      const y = String(filterYear || "").trim();
-      if (!/^\d{4}$/u.test(y)) {
-        throw new Error("Selecciona un ejercicio (AAAA) para exportar el Excel Celia.");
-      }
-      const pid = String(filterProfile || "").trim();
-      return runAccountingExportDownload({
-        year: y,
-        templateProfileId: pid || undefined,
-      });
-    },
-  });
-
   const hasActiveFilters = Boolean(filterYear || filterProfile);
 
   return (
-    <main className="mx-auto grid w-full max-w-5xl gap-6 p-4">
+    <main className="mx-auto grid w-full max-w-7xl gap-6 p-4">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold">Datos</h1>
         <p className="text-informative">Resumen financiero y listados de facturas y gastos con los mismos filtros.</p>
@@ -197,50 +183,13 @@ export function DataPage() {
       </Card>
 
       {isAdmin ? (
-        <>
-          <Card>
-            <CardContent className="grid gap-4 pt-6">
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" onClick={() => setAdvisorSummaryOpen(true)}>
-                    Resumen asesor
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={accountingExportMutation.isPending}
-                    onClick={() => accountingExportMutation.mutate()}
-                  >
-                    {accountingExportMutation.isPending ? "Exportando…" : "Exportar Excel Celia"}
-                  </Button>
-                </div>
-                <p className="max-w-xl text-sm text-informative">
-                  Mismo listado que en Datos, sin acciones; enlace de solo lectura para quien declare a Hacienda.
-                </p>
-              </div>
-              {accountingExportMutation.isError ? (
-                <p className="text-sm text-red-600">{getErrorMessageFromUnknown(accountingExportMutation.error)}</p>
-              ) : null}
-            </CardContent>
-          </Card>
-          <AdvisorSummaryDialog
-            open={advisorSummaryOpen}
-            onClose={() => setAdvisorSummaryOpen(false)}
-            historyItems={historyItems}
-            expenseItems={expenseItems}
-            profileOptions={profileOptions}
-            pageFilterYear={filterYear}
-            pageFilterProfile={filterProfile}
-            availableYears={availableYears}
-          />
-          <DataHistoricalImportPanel
-            templateProfiles={profileOptions.map((p) => ({ id: p.id, label: p.label ?? undefined }))}
-          />
-        </>
+        <DataHistoricalImportPanel
+          templateProfiles={profileOptions.map((p) => ({ id: p.id, label: p.label ?? undefined }))}
+        />
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+      <div className="grid w-full grid-cols-1 gap-6">
+        <Card className="w-full min-w-0">
           <CardHeader>
             <CardTitle className="text-base">Facturas ({filteredInvoices.length})</CardTitle>
           </CardHeader>
@@ -252,9 +201,10 @@ export function DataPage() {
             ) : filteredInvoices.length === 0 ? (
               <p className="p-4 text-informative">Sin datos</p>
             ) : (
-              <table className="w-full min-w-[20rem] text-sm">
+              <table className={`${workbookDataTableBase} min-w-[20rem]`}>
                 <thead>
                   <tr className="border-b text-left text-informative">
+                    <th className="p-2 font-medium">Trim.</th>
                     <th className="p-2 font-medium">Número</th>
                     <th className="p-2 font-medium">Cliente</th>
                     <th className="p-2 font-medium">Fecha</th>
@@ -263,31 +213,46 @@ export function DataPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredInvoices.map((i) => (
-                    <tr key={i.recordId} className="border-b border-border/60">
-                      <td className="p-2">{i.number || "—"}</td>
-                      <td className="p-2">{i.clientName || "—"}</td>
-                      <td className="p-2 whitespace-nowrap">{formatDate(i.issueDate)}</td>
-                      <td className="p-2">
+                  {filteredInvoices.map((i) => {
+                    const qNorm = resolveCalendarQuarter("", String(i.issueDate || ""));
+                    const client = i.clientName || "—";
+                    return (
+                    <tr key={i.recordId} className={`border-b border-border/60 ${workbookQuarterRowToneClass(qNorm)}`}>
+                      <td className="p-2 align-middle">
+                        <QuarterBadge issueDate={String(i.issueDate || "")} />
+                      </td>
+                      <td className={cn(workbookDataTdTight, "text-left")} title={i.number || undefined}>
+                        {i.number || "—"}
+                      </td>
+                      <td className={workbookDataTdVariable} title={client !== "—" ? client : undefined}>
+                        {client}
+                      </td>
+                      <td className={workbookDataTdTight} title={formatDate(i.issueDate)}>
+                        {formatDate(i.issueDate)}
+                      </td>
+                      <td className={workbookDataTdVariable} title={i.templateProfileLabel || undefined}>
                         {i.templateProfileLabel ? (
-                          <ProfileBadge
-                            label={i.templateProfileLabel}
-                            colorKey={profileOptions.find((p) => p.id === i.templateProfileId)?.colorKey}
-                          />
+                          <span className="inline-flex min-w-0 max-w-full align-middle">
+                            <ProfileBadge
+                              label={i.templateProfileLabel}
+                              colorKey={colorKeyForTemplateProfile(profileOptions, i.templateProfileId)}
+                            />
+                          </span>
                         ) : (
                           "—"
                         )}
                       </td>
-                      <td className="p-2 text-right tabular-nums">{formatCurrency(Number(i.total || 0))}</td>
+                      <td className={`${workbookDataTdTight} text-right tabular-nums`}>{formatCurrency(Number(i.total || 0))}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             )}
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="w-full min-w-0">
           <CardHeader>
             <CardTitle className="text-base">Gastos ({filteredExpenses.length})</CardTitle>
           </CardHeader>
@@ -299,9 +264,10 @@ export function DataPage() {
             ) : filteredExpenses.length === 0 ? (
               <p className="p-4 text-informative">Sin datos</p>
             ) : (
-              <table className="w-full min-w-[20rem] text-sm">
+              <table className={`${workbookDataTableBase} min-w-[20rem]`}>
                 <thead>
                   <tr className="border-b text-left text-informative">
+                    <th className="p-2 font-medium">Trim.</th>
                     <th className="p-2 font-medium">Proveedor</th>
                     <th className="p-2 font-medium">Concepto</th>
                     <th className="p-2 font-medium">Fecha</th>
@@ -312,22 +278,36 @@ export function DataPage() {
                 <tbody>
                   {filteredExpenses.map((e) => {
                     const rid = String(e.recordId || e.id || "").trim() || `${e.issueDate}-${e.vendor}-${e.total}`;
+                    const qNorm = resolveCalendarQuarter(String(e.quarter || ""), String(e.issueDate || ""));
+                    const vendor = e.vendor || "—";
+                    const concept = String(e.expenseConcept || e.description || "").trim() || "—";
                     return (
-                      <tr key={rid} className="border-b border-border/60">
-                        <td className="p-2">{e.vendor || "—"}</td>
-                        <td className="p-2">{String(e.expenseConcept || e.description || "").trim() || "—"}</td>
-                        <td className="p-2 whitespace-nowrap">{formatDate(String(e.issueDate || ""))}</td>
-                        <td className="p-2">
+                      <tr key={rid} className={`border-b border-border/60 ${workbookQuarterRowToneClass(qNorm)}`}>
+                        <td className="p-2 align-middle">
+                          <QuarterBadge quarter={String(e.quarter || "")} issueDate={String(e.issueDate || "")} />
+                        </td>
+                        <td className={workbookDataTdVariable} title={vendor !== "—" ? vendor : undefined}>
+                          {vendor}
+                        </td>
+                        <td className={workbookDataTdVariable} title={concept !== "—" ? concept : undefined}>
+                          {concept}
+                        </td>
+                        <td className={workbookDataTdTight} title={formatDate(String(e.issueDate || ""))}>
+                          {formatDate(String(e.issueDate || ""))}
+                        </td>
+                        <td className={workbookDataTdVariable} title={e.templateProfileLabel || undefined}>
                           {e.templateProfileLabel ? (
-                            <ProfileBadge
-                              label={e.templateProfileLabel}
-                              colorKey={profileOptions.find((p) => p.id === e.templateProfileId)?.colorKey}
-                            />
+                            <span className="inline-flex min-w-0 max-w-full align-middle">
+                              <ProfileBadge
+                                label={e.templateProfileLabel}
+                                colorKey={colorKeyForTemplateProfile(profileOptions, e.templateProfileId)}
+                              />
+                            </span>
                           ) : (
                             "—"
                           )}
                         </td>
-                        <td className="p-2 text-right tabular-nums">{formatCurrency(Number(e.total || 0))}</td>
+                        <td className={`${workbookDataTdTight} text-right tabular-nums`}>{formatCurrency(Number(e.total || 0))}</td>
                       </tr>
                     );
                   })}

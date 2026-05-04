@@ -1,0 +1,9 @@
+# Tablas de facturación y gastos (libro / datos / informes)
+
+En tablas de solo lectura con filas de **facturas** o **gastos** (Datos, Gastos libro, informe compartido, resumen asesor, Celia, etc.):
+
+1. **Una sola línea por celda de texto variable** (cliente, proveedor, concepto, emisor, enlace, etc.): no `break-words` ni segunda línea en la misma celda.
+2. **Overflow:** usar las utilidades de `src/features/shared/lib/workbookTableText.ts` (`workbookDataTableBase`, `workbookDataTdVariable`, `workbookDataTdTight`) y, cuando el texto pueda cortarse, **`title={textoCompleto}`** para ver el valor al pasar el ratón.
+3. **Badges / componentes inline:** envolver en `span.inline-flex.min-w-0.max-w-full` dentro de la celda con `workbookDataTdVariable` para que el elipsis respete el ancho.
+
+No apliques esta regla a tablas de **formulario editable** (inputs por celda) salvo que el producto pida el mismo comportamiento.

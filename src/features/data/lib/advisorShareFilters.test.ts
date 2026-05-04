@@ -4,6 +4,7 @@ import type { HistoryInvoiceItem } from "@/infrastructure/api/historyApi";
 
 import {
   ADVISOR_PROFILE_ALL,
+  accountingQuarterSelectFromIssueDate,
   buildShareReportInvoiceListFromParams,
   normalizeQuarterValue,
 } from "./advisorShareFilters";
@@ -12,6 +13,14 @@ describe("advisorShareFilters", () => {
   it("normalizes quarter from ISO date", () => {
     expect(normalizeQuarterValue("", "2024-02-15")).toBe("T1");
     expect(normalizeQuarterValue("", "2024-08-01")).toBe("T3");
+  });
+
+  it("maps issue date to 1T…4T for form selects", () => {
+    expect(accountingQuarterSelectFromIssueDate("2024-02-15")).toBe("1T");
+    expect(accountingQuarterSelectFromIssueDate("2024-05-01")).toBe("2T");
+    expect(accountingQuarterSelectFromIssueDate("2024-08-01")).toBe("3T");
+    expect(accountingQuarterSelectFromIssueDate("2024-11-30")).toBe("4T");
+    expect(accountingQuarterSelectFromIssueDate("")).toBe("");
   });
 
   it("applies pending_any as not COBRADA then leaves ENVIADA/CANCELADA in list", () => {

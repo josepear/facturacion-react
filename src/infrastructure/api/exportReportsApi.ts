@@ -144,6 +144,111 @@ export async function downloadControlWorkbookExport(body: ControlWorkbookExportB
 
 export type ShareReportResponse = { ok: boolean; token?: string; shareViewUrl?: string };
 
+/** Alineado con `normalizeShareReportToken` en `share-report-server.mjs`. */
+export function normalizeShareReportToken(raw: string): string {
+  return String(raw || "")
+    .replace(/[^\w-]/gu, "")
+    .slice(0, 80);
+}
+
+/**
+ * URL absoluta del visor React del informe compartido (sin sesión).
+ * Sustituye `share-view.html` del legacy cuando el servidor devuelve `token`.
+ */
+export function buildShareReportViewerUrl(token: string): string {
+  const safe = normalizeShareReportToken(token);
+  if (!safe) {
+    return "";
+  }
+  const base = String(import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+  const pathname = `${base}/informe-compartido`;
+  const qs = `?t=${encodeURIComponent(safe)}`;
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return `${window.location.origin}${pathname}${qs}`;
+  }
+  return `${pathname}${qs}`;
+}
+
+export type PublicShareReportMeta = {
+  profileLabel?: string;
+  templateProfileId?: string;
+  year?: string;
+  quarter?: string;
+  scope?: string;
+  invoiceStatus?: string;
+  client?: string;
+  expenseDeductible?: string;
+  vendor?: string;
+  category?: string;
+};
+
+export type PublicShareReportTotals = {
+  invoiceCount?: number;
+  expenseCount?: number;
+  invoicesTotal?: number;
+  invoicesVigente?: number;
+  expensesTotal?: number;
+  marginApprox?: number;
+};
+
+export type PublicShareInvoiceRow = {
+  issueDate?: string;
+  number?: string;
+  clientName?: string;
+  status?: string;
+  total?: number;
+  templateProfileLabel?: string;
+  templateProfileId?: string;
+  colorKey?: string;
+};
+
+export type PublicShareExpenseRow = {
+  issueDate?: string;
+  quarter?: string;
+  vendor?: string;
+  expenseConcept?: string;
+  total?: number;
+  templateProfileLabel?: string;
+  templateProfileId?: string;
+  colorKey?: string;
+};
+
+export type PublicShareReportPayload = {
+  version?: number;
+  createdAt?: string;
+  expiresAt?: string;
+  dataRefreshedAt?: string;
+  meta?: PublicShareReportMeta;
+  totals?: PublicShareReportTotals;
+  invoices?: PublicShareInvoiceRow[];
+  expenses?: PublicShareExpenseRow[];
+};
+
+export async function fetchPublicShareReport(token: string): Promise<PublicShareReportPayload> {
+  const safe = normalizeShareReportToken(token);
+  if (!safe) {
+    throw new ApiError("Enlace no válido.", 400);
+  }
+  const response = await fetch(`/api/public-share-report/${encodeURIComponent(safe)}`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | { ok?: boolean; report?: PublicShareReportPayload; error?: string }
+    | null;
+  if (!response.ok) {
+    const message =
+      (payload && typeof payload.error === "string" && payload.error.trim()) ||
+      `HTTP ${response.status}`;
+    throw new ApiError(message, response.status, payload);
+  }
+  const report = payload?.report;
+  if (!report || typeof report !== "object") {
+    throw new ApiError("Respuesta del servidor incompleta.", 500, payload);
+  }
+  return report;
+}
+
 export function postShareReport(body: {
   templateProfileId: string;
   year?: string;

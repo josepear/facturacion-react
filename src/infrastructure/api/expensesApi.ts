@@ -65,11 +65,24 @@ export async function archiveExpenseYear(input: ArchiveExpenseYearInput) {
   });
 }
 
+export type ControlExpensesImportResponse = {
+  ok?: boolean;
+  /** Si true, no se ha guardado nada: `previews` trae el borrador (p. ej. un PDF). */
+  preview?: boolean;
+  previews?: { file: string; expense: ExpenseRecord }[];
+  created?: number;
+  skipped?: unknown[];
+  errors?: unknown[];
+  conceptResolution?: unknown;
+};
+
 export async function importControlExpenses(payload: {
   templateProfileId: string;
   files: { name: string; contentBase64: string }[];
-}): Promise<{ created?: number; skipped?: string[]; error?: string }> {
-  return request<{ created?: number; skipped?: string[]; error?: string }>("/api/control-expenses-import", {
+  /** Solo un PDF: devuelve datos para el formulario sin persistir (legacy: antes se guardaba al vuelo). */
+  previewOnly?: boolean;
+}): Promise<ControlExpensesImportResponse> {
+  return request<ControlExpensesImportResponse>("/api/control-expenses-import", {
     method: "POST",
     body: payload,
   });

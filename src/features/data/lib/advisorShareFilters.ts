@@ -75,6 +75,27 @@ export function normalizeQuarterValue(value = "", fallbackDate = ""): string {
   return "";
 }
 
+/**
+ * Código de trimestre para desplegables (1T…4T), alineado con `mapExpenseExcelQuarter` / legacy.
+ * Vacío si la fecha no es ISO YYYY-MM-DD.
+ */
+export function accountingQuarterSelectFromIssueDate(issueDateIso: string): string {
+  const t = normalizeQuarterValue("", String(issueDateIso || "").trim());
+  if (t === "T1") {
+    return "1T";
+  }
+  if (t === "T2") {
+    return "2T";
+  }
+  if (t === "T3") {
+    return "3T";
+  }
+  if (t === "T4") {
+    return "4T";
+  }
+  return "";
+}
+
 export function matchesControlProfileFilter(
   item: { templateProfileId?: string },
   selectedProfile: string,

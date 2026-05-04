@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { BarChart2, LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
+import { BarChart2, FileSpreadsheet, LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
@@ -21,6 +21,7 @@ const navItems: ShellNavItem[] = [
   { to: "/historial", label: "Historial", icon: LayoutGrid },
   { to: "/gastos", label: "Gastos", icon: WalletCards },
   { to: "/datos", label: "Datos", icon: BarChart2 },
+  { to: "/asesor", label: "Asesor", icon: FileSpreadsheet },
   { to: "/clientes", label: "Clientes", icon: Users },
   { to: "/configuracion", label: "Emisores", icon: Settings },
 ];
@@ -153,7 +154,22 @@ export function AppShell() {
   };
 
   const shellTitle = useMemo(() => {
-    return navItems.find((item) => location.pathname.startsWith(item.to))?.label || "Facturación";
+    const path = location.pathname;
+    if (path.startsWith("/asesor/")) {
+      if (path.startsWith("/asesor/resumen")) {
+        return "Asesor · Resumen";
+      }
+      if (path.startsWith("/asesor/libro")) {
+        return "Asesor · Libro de control";
+      }
+      if (path.startsWith("/asesor/celia")) {
+        return "Asesor · Excel Celia";
+      }
+    }
+    if (path === "/asesor") {
+      return "Asesor";
+    }
+    return navItems.find((item) => path.startsWith(item.to))?.label || "Facturación";
   }, [location.pathname]);
 
   useEffect(() => {

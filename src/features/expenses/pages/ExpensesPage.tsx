@@ -6,16 +6,14 @@ import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ProfileBadge } from "@/components/ui/ProfileBadge";
+import { QuarterBadge } from "@/components/ui/QuarterBadge";
 import type { ExpenseRecord } from "@/domain/expenses/types";
-import { AdvisorSummaryDialog } from "@/features/data/components/AdvisorSummaryDialog";
 import {
+  accountingQuarterSelectFromIssueDate,
   exerciseYearFromItem,
   filterControlExpensesWorkbook,
   filterExerciseScopeExpensesWorkbook,
   formatAdvisorCompactDate,
-  formatQuarterShortLabel,
-  normalizeQuarterValue,
   sortExpenseWorkbookDefault,
 } from "@/features/data/lib/advisorShareFilters";
 import {
@@ -23,9 +21,10 @@ import {
   mapReactExpenseProfileFilterToControl,
   workbookQuarterRowToneClass,
 } from "@/features/expenses/lib/controlWorkbookExpenseMonths";
+import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { resolveCalendarQuarter } from "@/features/shared/lib/quarterVisual";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
-import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import {
   archiveExpense,
   archiveExpenseYear,
@@ -37,7 +36,24 @@ import {
 } from "@/infrastructure/api/expensesApi";
 import { ApiError, getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { deleteTrashEntries, fetchTrash } from "@/infrastructure/api/trashApi";
-import { formatCurrency, toNumber } from "@/lib/utils";
+import { cn, formatCurrency, toNumber } from "@/lib/utils";
+
+function coerceExpenseQuarterSelectValue(raw: string): string {
+  const s = String(raw || "").trim().toUpperCase();
+  if (s === "T1") {
+    return "1T";
+  }
+  if (s === "T2") {
+    return "2T";
+  }
+  if (s === "T3") {
+    return "3T";
+  }
+  if (s === "T4") {
+    return "4T";
+  }
+  return String(raw || "").trim();
+}
 
 function createEmptyExpense(profileId?: string): ExpenseRecord {
   return {
@@ -275,9 +291,15 @@ function normalizeExpenseDraft(expense: ExpenseRecord): ExpenseRecord {
     : Number((subtotal * (withholdingRate / 100)).toFixed(2));
   const total = Number((subtotal + taxAmount - withholdingAmount).toFixed(2));
 
+  const issueDateNorm = String(expense.issueDate || "").trim();
+  let quarterNorm = coerceExpenseQuarterSelectValue(String(expense.quarter || "").trim());
+  if (!quarterNorm && /^\d{4}-\d{2}-\d{2}$/u.test(issueDateNorm)) {
+    quarterNorm = accountingQuarterSelectFromIssueDate(issueDateNorm);
+  }
+
   return {
     ...expense,
-    issueDate: String(expense.issueDate || "").trim(),
+    issueDate: issueDateNorm,
     operationDate: String(expense.operationDate || "").trim(),
     vendor: String(expense.vendor || "").trim(),
     taxId: String(expense.taxId || "").trim(),
@@ -288,7 +310,7 @@ function normalizeExpenseDraft(expense: ExpenseRecord): ExpenseRecord {
     category: String(expense.category || "").trim(),
     expenseConcept: String(expense.expenseConcept || "").trim(),
     paymentMethod: String(expense.paymentMethod || "").trim(),
-    quarter: String(expense.quarter || "").trim(),
+    quarter: quarterNorm,
     nextcloudUrl: String(expense.nextcloudUrl || "").trim(),
     description: String(expense.description || "").trim(),
     subtotal,
@@ -301,6 +323,42 @@ function normalizeExpenseDraft(expense: ExpenseRecord): ExpenseRecord {
     notes: String(expense.notes || "").trim(),
     templateProfileId: String(expense.templateProfileId || "").trim(),
   };
+}
+
+function formatExpenseImportSkippedLines(skipped: unknown): string[] {
+  if (!Array.isArray(skipped)) {
+    return [];
+  }
+  return skipped.map((item) => {
+    if (item && typeof item === "object") {
+      const o = item as Record<string, unknown>;
+      const file = o.file != null ? String(o.file) : "";
+      const sheet = o.sheet != null ? String(o.sheet) : "";
+      const row = o.row != null ? String(o.row) : "";
+      const reason = o.reason != null ? String(o.reason) : "";
+      const loc = [file, sheet && `hoja ${sheet}`, row && `fila ${row}`].filter(Boolean).join(" · ");
+      return [loc, reason].filter(Boolean).join(": ") || JSON.stringify(item);
+    }
+    return String(item ?? "");
+  });
+}
+
+function formatExpenseImportErrorLines(errors: unknown): string[] {
+  if (!Array.isArray(errors)) {
+    return [];
+  }
+  return errors.map((item) => {
+    if (item && typeof item === "object") {
+      const o = item as Record<string, unknown>;
+      const file = o.file != null ? String(o.file) : "";
+      const sheet = o.sheet != null ? String(o.sheet) : "";
+      const row = o.row != null ? String(o.row) : "";
+      const err = o.error != null ? String(o.error) : "";
+      const loc = [file, sheet && `hoja ${sheet}`, row && `fila ${row}`].filter(Boolean).join(" · ");
+      return [loc, err].filter(Boolean).join(": ") || JSON.stringify(item);
+    }
+    return String(item ?? "");
+  });
 }
 
 export function ExpensesPage() {
@@ -329,7 +387,6 @@ export function ExpensesPage() {
   const [profileFilter, setProfileFilter] = useState(initialProfileFilter);
   const [quarterFilter, setQuarterFilter] = useState(initialQuarterFilter);
   const [deductibleFilter, setDeductibleFilter] = useState<"all" | "yes" | "no">(initialDeductibleFilter);
-  const [advisorSummaryOpen, setAdvisorSummaryOpen] = useState(false);
   const [selectedRecordId, setSelectedRecordId] = useState("");
   const [archiveYear, setArchiveYear] = useState("");
   const [archiveProfileId, setArchiveProfileId] = useState("");
@@ -351,7 +408,12 @@ export function ExpensesPage() {
   const newCategoryInModalRef = useRef<HTMLInputElement>(null);
   const dragLabelRef = useRef<{ list: "vendors" | "categories"; fromIndex: number } | null>(null);
   const [importProfileId, setImportProfileId] = useState("");
-  const [importResult, setImportResult] = useState<{ created?: number; skipped?: string[] } | null>(null);
+  const [importFileName, setImportFileName] = useState("");
+  const [importResult, setImportResult] = useState<{
+    created?: number;
+    skipped?: string[];
+    errors?: string[];
+  } | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const configQuery = useQuery({
@@ -364,12 +426,6 @@ export function ExpensesPage() {
   const expensesQuery = useQuery({
     queryKey: ["expenses"],
     queryFn: fetchExpenses,
-  });
-
-  const historyQuery = useQuery({
-    queryKey: ["history-invoices"],
-    queryFn: fetchHistoryInvoices,
-    staleTime: 60_000,
   });
 
   const expenseOptionsQuery = useQuery({
@@ -429,13 +485,6 @@ export function ExpensesPage() {
     () => exerciseScopeExpenses.reduce((s, e) => s + (Number(e.total) || 0), 0),
     [exerciseScopeExpenses],
   );
-
-  const historyItems = historyQuery.data ?? [];
-  const advisorAvailableYears = useMemo(() => {
-    const fromExp = availableYears;
-    const fromHist = historyItems.map((i) => String(i.issueDate || "").slice(0, 4)).filter(Boolean);
-    return Array.from(new Set([...fromExp, ...fromHist])).sort().reverse();
-  }, [availableYears, historyItems]);
 
   const deductibleFilterLabel =
     deductibleFilter === "yes" ? "Solo deducibles" : deductibleFilter === "no" ? "Solo no deducibles" : "Todos los gastos";
@@ -542,13 +591,56 @@ export function ExpensesPage() {
   });
 
   const importExpensesMutation = useMutation({
-    mutationFn: (payload: { templateProfileId: string; files: { name: string; contentBase64: string }[] }) =>
-      importControlExpenses(payload),
+    mutationFn: (payload: {
+      templateProfileId: string;
+      files: { name: string; contentBase64: string }[];
+      previewOnly?: boolean;
+    }) => importControlExpenses(payload),
     onSuccess: (data) => {
-      setImportResult({ created: data.created, skipped: data.skipped });
-      void queryClient.invalidateQueries({ queryKey: ["expenses"] });
       if (importFileRef.current) {
         importFileRef.current.value = "";
+      }
+      setImportFileName("");
+
+      const firstPreview = Array.isArray(data.previews) ? data.previews[0] : undefined;
+      const previewExpense = firstPreview?.expense;
+      const treatAsPdfPreview = Boolean(data.preview) || Boolean(previewExpense);
+
+      if (treatAsPdfPreview) {
+        if (previewExpense) {
+          setImportResult(null);
+          setDraft(normalizeExpenseDraft(previewExpense));
+          setSelectedRecordId("");
+          setRecordIdSearchParam("");
+          const label = String(firstPreview?.file || "PDF").trim() || "PDF";
+          setStatusMessage(
+            `«${label}» analizado: datos en el formulario como gasto nuevo. Revisa y pulsa «Guardar gasto».`,
+          );
+          setStatusTone("success");
+          return;
+        }
+        setImportResult({
+          created: 0,
+          skipped: formatExpenseImportSkippedLines(data.skipped),
+          errors: formatExpenseImportErrorLines(data.errors),
+        });
+        setStatusMessage("No se pudo rellenar el formulario desde ese PDF. Revisa omitidos o errores abajo.");
+        setStatusTone(data.errors?.length ? "error" : "neutral");
+        return;
+      }
+
+      const created = data.created ?? 0;
+      setImportResult({
+        created,
+        skipped: formatExpenseImportSkippedLines(data.skipped),
+        errors: formatExpenseImportErrorLines(data.errors),
+      });
+      void queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      if (created > 0) {
+        setStatusMessage(
+          `Se guardaron ${created} gasto(s) en el servidor (importación clásica). Revisa el listado; con la versión nueva del servidor el PDF puede rellenar el formulario sin guardar hasta que confirmes.`,
+        );
+        setStatusTone("success");
       }
     },
     onError: () => {
@@ -558,15 +650,29 @@ export function ExpensesPage() {
 
   function handleImportExpenses() {
     const file = importFileRef.current?.files?.[0];
-    if (!file || !importProfileId) {
+    if (!importProfileId) {
+      setStatusMessage("Selecciona el emisor destino antes de importar.");
+      setStatusTone("error");
       return;
     }
+    if (!file) {
+      setStatusMessage("Selecciona un archivo .xlsx o .pdf.");
+      setStatusTone("error");
+      return;
+    }
+    const isPdf = /\.pdf$/iu.test(file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
       const contentBase64 = String(e.target?.result || "").split(",")[1] ?? "";
+      if (!contentBase64.trim()) {
+        setStatusMessage("No se pudo leer el archivo (codificación vacía).");
+        setStatusTone("error");
+        return;
+      }
       importExpensesMutation.mutate({
         templateProfileId: importProfileId,
         files: [{ name: file.name, contentBase64 }],
+        previewOnly: isPdf,
       });
     };
     reader.readAsDataURL(file);
@@ -774,7 +880,10 @@ export function ExpensesPage() {
             <div className="grid gap-4 p-4">
               <h2 className="text-base font-semibold">Importar gastos</h2>
               <p className="text-informative">
-                Sube el libro de control (.xlsx) o uno o varios PDFs de facturas para importar gastos en bloque.
+                <strong>Excel (.xlsx):</strong> importa filas y crea gastos en el servidor (como en la vista legacy).
+                <strong className="mt-1 block">PDF:</strong> un solo PDF rellena el formulario de la derecha como{" "}
+                <strong>gasto nuevo</strong> (sin guardar hasta que pulses «Guardar gasto»). Varios PDFs seguidos:
+                súbelos uno a uno en vista previa, o usa Excel para carga masiva.
               </p>
 
               <div className="grid gap-2">
@@ -795,7 +904,13 @@ export function ExpensesPage() {
 
               <div className="grid gap-2">
                 <label className="text-sm font-medium">Archivo (.xlsx o .pdf)</label>
-                <input ref={importFileRef} type="file" accept=".xlsx,.pdf" className="text-sm" />
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept=".xlsx,.pdf"
+                  className="text-sm"
+                  onChange={(event) => setImportFileName(event.target.files?.[0]?.name || "")}
+                />
               </div>
 
               <Button
@@ -804,7 +919,11 @@ export function ExpensesPage() {
                 onClick={handleImportExpenses}
                 disabled={importExpensesMutation.isPending || !importProfileId}
               >
-                {importExpensesMutation.isPending ? "Importando..." : "Importar gastos"}
+                {importExpensesMutation.isPending
+                  ? "Procesando..."
+                  : /\.pdf$/iu.test(importFileName)
+                    ? "Analizar PDF en formulario"
+                    : "Importar desde Excel"}
               </Button>
 
               {importExpensesMutation.isError ? (
@@ -814,12 +933,32 @@ export function ExpensesPage() {
               ) : null}
 
               {importResult ? (
-                <div className="grid gap-1">
-                  <p className="text-sm text-green-700">Importados: {importResult.created ?? 0}</p>
+                <div className="grid gap-2 rounded-md border border-border bg-muted/20 p-3 text-sm">
+                  <p className="font-medium text-foreground">Resultado</p>
+                  <p className="text-emerald-700">Creados en servidor: {importResult.created ?? 0}</p>
                   {(importResult.skipped ?? []).length > 0 ? (
-                    <p className="text-informative">
-                      Omitidos: {(importResult.skipped ?? []).join(", ")}
-                    </p>
+                    <div className="grid gap-1">
+                      <p className="text-xs font-medium text-informative">Omitidos</p>
+                      <ul className="max-h-40 list-inside list-disc overflow-y-auto text-xs text-informative">
+                        {(importResult.skipped ?? []).map((line) => (
+                          <li key={line} className="break-words">
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {(importResult.errors ?? []).length > 0 ? (
+                    <div className="grid gap-1">
+                      <p className="text-xs font-medium text-red-700">Errores</p>
+                      <ul className="max-h-40 list-inside list-disc overflow-y-auto text-xs text-red-700">
+                        {(importResult.errors ?? []).map((line) => (
+                          <li key={line} className="break-words">
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   ) : null}
                 </div>
               ) : null}
@@ -946,11 +1085,6 @@ export function ExpensesPage() {
                   Limpiar filtro
                 </Button>
               ) : null}
-              {isAdmin ? (
-                <Button type="button" onClick={() => setAdvisorSummaryOpen(true)}>
-                  Resumen asesor
-                </Button>
-              ) : null}
             </div>
             <div className="grid gap-2 rounded-md border p-3">
               <p className="text-informative font-medium">Archivar ejercicio (emisor + año)</p>
@@ -994,7 +1128,7 @@ export function ExpensesPage() {
               {expensesQuery.isLoading ? (
                 <p className="p-3 text-informative">Cargando gastos...</p>
               ) : workbookFilteredExpenses.length ? (
-                <table className="w-full min-w-[44rem] text-sm" aria-label="Gastos del ejercicio filtrados">
+                <table className={cn(workbookDataTableBase, "min-w-[44rem]")} aria-label="Gastos del ejercicio filtrados">
                   <thead>
                     <tr className="border-b bg-muted/40 text-left text-informative">
                       <th className="p-2 font-medium">Trim.</th>
@@ -1017,8 +1151,7 @@ export function ExpensesPage() {
                       </tr>
                       {group.items.map((item) => {
                         const rid = String(item.recordId || item.id || "").trim();
-                        const qNorm = normalizeQuarterValue(String(item.quarter || ""), String(item.issueDate || ""));
-                        const qShort = formatQuarterShortLabel(qNorm || "SIN_TRIMESTRE") || "—";
+                        const qNorm = resolveCalendarQuarter(String(item.quarter || ""), String(item.issueDate || ""));
                         const dateMeta =
                           String(item.operationDate || "").trim()
                           && String(item.operationDate || "").trim() !== String(item.issueDate || "").trim()
@@ -1034,6 +1167,9 @@ export function ExpensesPage() {
                           .join(" · ");
                         const isActive = rid === selectedRecordId;
                         const nc = String(item.nextcloudUrl || "").trim();
+                        const issueFmt = formatAdvisorCompactDate(String(item.issueDate || ""));
+                        const dateTitle = [issueFmt, dateMeta].filter(Boolean).join(" · ");
+                        const vendorTitle = [item.vendor || "—", vendorMeta].filter(Boolean).join(" · ");
                         return (
                           <tr
                             key={rid || `${group.monthKey}-${item.vendor}-${item.issueDate}`}
@@ -1051,37 +1187,38 @@ export function ExpensesPage() {
                               setStatusTone("neutral");
                             }}
                           >
-                            <td className="p-2 align-top">
-                              <span className="inline-flex rounded border border-border bg-background px-1.5 py-0.5 text-xs font-medium tabular-nums">
-                                {qShort}
-                              </span>
+                            <td className="p-2 align-middle">
+                              <QuarterBadge quarter={String(item.quarter || "")} issueDate={String(item.issueDate || "")} />
                             </td>
-                            <td className="p-2 align-top">
-                              <div className="grid gap-0.5">
-                                <span className="font-mono text-xs">{formatAdvisorCompactDate(String(item.issueDate || ""))}</span>
-                                {dateMeta ? <span className="text-xs text-informative">{dateMeta}</span> : null}
-                              </div>
+                            <td className={workbookDataTdVariable} title={dateTitle || undefined}>
+                              <span className="block truncate font-mono text-xs">{issueFmt}</span>
                             </td>
-                            <td className="p-2 align-top">
-                              <div className="grid gap-0.5">
-                                <span className="font-medium">{item.vendor || "—"}</span>
-                                {vendorMeta ? <span className="text-xs text-informative">{vendorMeta}</span> : null}
-                              </div>
+                            <td className={workbookDataTdVariable} title={vendorTitle || undefined}>
+                              <span className="block truncate font-medium">{item.vendor || "—"}</span>
                             </td>
-                            <td className="max-w-[12rem] p-2 align-top break-all text-xs" onClick={(e) => e.stopPropagation()}>
+                            <td
+                              className={`${workbookDataTdVariable} text-xs`}
+                              title={nc || undefined}
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               {!nc ? (
                                 <span className="text-informative">—</span>
                               ) : /^https?:\/\//iu.test(nc) ? (
-                                <a href={nc} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                                  {nc.length > 42 ? `${nc.slice(0, 39)}…` : nc}
+                                <a
+                                  href={nc}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block truncate text-primary underline"
+                                >
+                                  {nc}
                                 </a>
                               ) : (
-                                <span title={nc}>{nc.length > 36 ? `${nc.slice(0, 33)}…` : nc}</span>
+                                <span className="block truncate">{nc}</span>
                               )}
                             </td>
-                            <td className="p-2 align-top text-right tabular-nums font-medium">{formatCurrency(Number(item.total || 0))}</td>
-                            <td className="p-2 align-top" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex flex-wrap gap-1">
+                            <td className={`${workbookDataTdTight} text-right tabular-nums font-medium`}>{formatCurrency(Number(item.total || 0))}</td>
+                            <td className={`${workbookDataTdTight} align-middle`} onClick={(e) => e.stopPropagation()}>
+                              <div className="flex flex-nowrap gap-1">
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -1196,7 +1333,17 @@ export function ExpensesPage() {
                   aria-label="Fecha factura del gasto"
                   className="min-w-0 flex-1"
                   value={draft.issueDate || ""}
-                  onChange={(event) => setDraft((prev) => ({ ...prev, issueDate: event.target.value }))}
+                  onChange={(event) => {
+                    const issueDate = event.target.value;
+                    const nextQuarter = /^\d{4}-\d{2}-\d{2}$/u.test(issueDate)
+                      ? accountingQuarterSelectFromIssueDate(issueDate)
+                      : "";
+                    setDraft((prev) => ({
+                      ...prev,
+                      issueDate,
+                      quarter: nextQuarter,
+                    }));
+                  }}
                 />
                 <Button
                   type="button"
@@ -1205,7 +1352,14 @@ export function ExpensesPage() {
                   className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
                   title="Usar la fecha de hoy"
                   aria-label="Poner fecha factura a hoy"
-                  onClick={() => setDraft((prev) => ({ ...prev, issueDate: new Date().toISOString().slice(0, 10) }))}
+                  onClick={() => {
+                    const issueDate = new Date().toISOString().slice(0, 10);
+                    setDraft((prev) => ({
+                      ...prev,
+                      issueDate,
+                      quarter: accountingQuarterSelectFromIssueDate(issueDate),
+                    }));
+                  }}
                 >
                   <span className="text-xs font-medium">Hoy</span>
                 </Button>
@@ -1574,23 +1728,6 @@ export function ExpensesPage() {
           </CardContent>
         </Card>
       </section>
-
-      {isAdmin ? (
-        <AdvisorSummaryDialog
-          open={advisorSummaryOpen}
-          onClose={() => setAdvisorSummaryOpen(false)}
-          historyItems={historyItems}
-          expenseItems={expensesQuery.data?.items ?? []}
-          profileOptions={profileOptions}
-          pageFilterYear={yearFilter === "all" ? "" : yearFilter}
-          pageFilterProfile={
-            profileFilter === "all" || profileFilter === "__default__" || profileFilter === "__unassigned__"
-              ? ""
-              : profileFilter
-          }
-          availableYears={advisorAvailableYears}
-        />
-      ) : null}
 
       <Card>
         <CardHeader>

@@ -1,6 +1,7 @@
 import { isPerPersonUnitLabel } from "@/domain/document/perPersonPricing";
 import type { DocumentAccountingStatus, InvoiceDocument, InvoiceItem } from "@/domain/document/types";
 import { createEmptyDocument } from "@/domain/document/defaults";
+import { accountingQuarterSelectFromIssueDate } from "@/features/data/lib/advisorShareFilters";
 import { toNumber } from "@/lib/utils";
 
 function getQuarterLabel(dateString: string): string {
@@ -65,6 +66,8 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
   const rawItems = Array.isArray(record.items) ? record.items : [];
 
   const mappedItems = rawItems.length ? rawItems.map(mapItem) : base.items;
+  const issueDateMapped = asString(record.issueDate) || base.issueDate;
+  const paymentDateMapped = asString(accounting.paymentDate);
 
   const typeRaw = record.type;
   const rawType = asString(typeRaw).toLowerCase();
@@ -85,7 +88,7 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
     number: asString(record.number),
     numberEnd: asString(record.numberEnd),
     series: asString(record.series),
-    issueDate: asString(record.issueDate) || base.issueDate,
+    issueDate: issueDateMapped,
     dueDate: asString(record.dueDate),
     reference: asString(record.reference),
     templateLayout: asString(design.layout) || base.templateLayout,
@@ -103,8 +106,13 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
         }
         return "ENVIADA";
       })(),
-      paymentDate: asString(accounting.paymentDate),
-      quarter: asString(accounting.quarter) || getQuarterLabel(asString(accounting.paymentDate)),
+      paymentDate: paymentDateMapped,
+      quarter:
+        asString(accounting.quarter)
+        || accountingQuarterSelectFromIssueDate(issueDateMapped)
+        || accountingQuarterSelectFromIssueDate(paymentDateMapped)
+        || getQuarterLabel(issueDateMapped)
+        || getQuarterLabel(paymentDateMapped),
       invoiceId:
         asString(accounting.invoiceId || accounting.driveLabel)
         || (mappedType === "presupuesto" ? "Presupuesto" : mappedType === "factura" ? "Factura" : ""),
@@ -184,7 +192,12 @@ export function mapFormToLegacyDocument(document: InvoiceDocument): InvoiceDocum
       ...document.accounting,
       status: accountingStatus,
       paymentDate: asString(document.accounting.paymentDate),
-      quarter: asString(document.accounting.quarter) || getQuarterLabel(asString(document.accounting.paymentDate)),
+      quarter:
+        asString(document.accounting.quarter)
+        || accountingQuarterSelectFromIssueDate(asString(document.issueDate))
+        || accountingQuarterSelectFromIssueDate(asString(document.accounting.paymentDate))
+        || getQuarterLabel(asString(document.issueDate))
+        || getQuarterLabel(asString(document.accounting.paymentDate)),
       invoiceId: asString(document.accounting.invoiceId) || (docType === "presupuesto" ? "Presupuesto" : "Factura"),
       netCollected: toNumber(document.accounting.netCollected),
       taxes: asString(document.accounting.taxes),

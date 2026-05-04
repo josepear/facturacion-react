@@ -7,6 +7,7 @@ import { calculateTotals } from "@/domain/document/calculateTotals";
 import { createEmptyDocument } from "@/domain/document/defaults";
 import { getNextNumber, validateNumberAvailability } from "@/domain/numbering/usecases/getNextNumber";
 import { invoiceDocumentSchema } from "@/domain/document/schemas";
+import { accountingQuarterSelectFromIssueDate } from "@/features/data/lib/advisorShareFilters";
 import type { CalculatedTotals, InvoiceDocument } from "@/domain/document/types";
 import { fetchClients } from "@/infrastructure/api/clientsApi";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
@@ -130,6 +131,27 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       setClientMoreDetailsOpen(true);
     }
   }, [selectedClientOptionId]);
+
+  const issueDateForQuarter = useWatch({ control: form.control, name: "issueDate" });
+
+  useEffect(() => {
+    const iso = String(issueDateForQuarter || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/u.test(iso)) {
+      return;
+    }
+    const nextQ = accountingQuarterSelectFromIssueDate(iso);
+    if (!nextQ) {
+      return;
+    }
+    const current = String(form.getValues("accounting.quarter") || "").trim();
+    if (current === nextQ) {
+      return;
+    }
+    form.setValue("accounting.quarter", nextQ, {
+      shouldDirty: Boolean(current),
+      shouldValidate: true,
+    });
+  }, [issueDateForQuarter, form]);
 
   const watched = useWatch({ control: form.control });
   const { dirtyFields } = useFormState({ control: form.control });

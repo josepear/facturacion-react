@@ -4,10 +4,13 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
+import { QuarterBadge } from "@/components/ui/QuarterBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
+import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
 import { archiveDocument, archiveDocumentYear, fetchDocumentDetail, fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
 import {
   fetchGmailOAuthStartUrl,
@@ -16,7 +19,7 @@ import {
   sendGmailInvoiceBatch,
 } from "@/infrastructure/api/gmailApi";
 import { openGmailOAuthPopupAndWait } from "@/infrastructure/gmail/oauthPopup";
-import { postShareReport } from "@/infrastructure/api/exportReportsApi";
+import { buildShareReportViewerUrl, postShareReport } from "@/infrastructure/api/exportReportsApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { openOfficialDocumentInNewTab } from "@/infrastructure/api/openOfficialDocumentOutput";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
@@ -519,7 +522,10 @@ export function HistoryPage() {
       });
     },
     onSuccess: (data) => {
-      const url = String(data.shareViewUrl || "").trim();
+      const token = String(data.token || "").trim();
+      const reactUrl = token ? buildShareReportViewerUrl(token) : "";
+      const legacyUrl = String(data.shareViewUrl || "").trim();
+      const url = reactUrl || legacyUrl;
       setShareUrl(url);
       setShareMessage(
         url ? { text: "Enlace generado. Puedes copiarlo o abrirlo.", tone: "success" } : { text: "Respuesta sin URL.", tone: "error" },
@@ -799,6 +805,7 @@ export function HistoryPage() {
                   {filteredItems.map((item) => {
                     const isActive = item.recordId === selectedRecordId;
                     const atSelectionLimit = selectedRecordIds.size >= 20 && !selectedRecordIds.has(item.recordId);
+                    const qNorm = resolveCalendarQuarter("", String(item.issueDate || ""));
                     return (
                       <li key={item.recordId} className="flex">
                         {item.type === "factura" ? (
@@ -820,12 +827,22 @@ export function HistoryPage() {
                         ) : null}
                         <button
                           type="button"
-                          className={`min-w-0 flex-1 px-3 py-2 text-left text-sm transition-colors ${
+                          className={`min-w-0 flex-1 px-3 py-2 text-left text-sm transition-colors ${workbookQuarterRowToneClass(qNorm)} ${
                             isActive ? "bg-primary text-primary-foreground" : "hover:bg-accent"
                           }`}
                           onClick={() => selectRecord(item.recordId)}
                         >
-                          <p className="font-medium">{item.number || "Sin número"}</p>
+                          <p className="flex flex-wrap items-center gap-2 font-medium">
+                            <QuarterBadge
+                              issueDate={String(item.issueDate || "")}
+                              className={
+                                isActive
+                                  ? "!border-primary-foreground/40 !bg-primary-foreground/15 !text-primary-foreground"
+                                  : undefined
+                              }
+                            />
+                            <span>{item.number || "Sin número"}</span>
+                          </p>
                           <p className={isActive ? "text-xs text-primary-foreground/85" : "text-informative"}>
                             {item.clientName || "Sin cliente"} · {item.typeLabel || item.type} · {formatDate(item.issueDate)}
                           </p>
@@ -836,7 +853,7 @@ export function HistoryPage() {
                                 {" · "}
                                 <ProfileBadge
                                   label={item.templateProfileLabel}
-                                  colorKey={profileOptions.find((p) => p.id === item.templateProfileId)?.colorKey}
+                                  colorKey={colorKeyForTemplateProfile(profileOptions, item.templateProfileId)}
                                 />
                               </>
                             ) : null}

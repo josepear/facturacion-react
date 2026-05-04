@@ -16,11 +16,22 @@ export function getProfileAccentColor(colorKey?: string): string {
   return (PROFILE_BADGE_PALETTE[key] ?? TEAL).color;
 }
 
-export function ProfileBadge({ label, colorKey }: { label: string; colorKey?: string }) {
+export function ProfileBadge({
+  label,
+  colorKey,
+  showLeadingDot = true,
+}: {
+  label: string;
+  colorKey?: string;
+  /** Punto de acento del emisor (misma paleta que el badge). */
+  showLeadingDot?: boolean;
+}) {
   const key = String(colorKey ?? "").trim().toLowerCase();
   const palette = PROFILE_BADGE_PALETTE[key] ?? TEAL;
+  const dotColor = palette.color;
   return (
     <span
+      className="inline-flex max-w-full items-center align-middle"
       style={{
         ...palette,
         borderRadius: 4,
@@ -29,7 +40,14 @@ export function ProfileBadge({ label, colorKey }: { label: string; colorKey?: st
         fontWeight: 500,
       }}
     >
-      {label}
+      {showLeadingDot ? (
+        <span
+          aria-hidden
+          className="mr-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+          style={{ backgroundColor: dotColor }}
+        />
+      ) : null}
+      <span className="min-w-0 truncate">{label}</span>
     </span>
   );
 }

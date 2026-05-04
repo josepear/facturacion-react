@@ -74,6 +74,7 @@ vi.mock("@/infrastructure/api/expensesApi", () => ({
   saveExpense: saveExpenseMock,
   archiveExpense: archiveExpenseMock,
   archiveExpenseYear: archiveExpenseYearMock,
+  importControlExpenses: vi.fn().mockResolvedValue({ created: 0, skipped: [] }),
 }));
 
 vi.mock("@/infrastructure/api/historyApi", () => ({
