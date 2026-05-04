@@ -16,7 +16,7 @@ Base limpia de frontend para facturación, iniciada en Fase 0.
 - `src/infrastructure`: APIs y adaptadores.
 - `src/features`: casos de uso de producto.
 - `src/components`: librería reutilizable.
-- `docs`: decisiones de Fase 0 (reutilización y guardrails); flujo Git en [`docs/git-workflow.md`](docs/git-workflow.md). Resumen de mejoras recientes en Facturar / emisores / paridad: [`docs/facturar-mejoras-y-paridad-conceptos.md`](docs/facturar-mejoras-y-paridad-conceptos.md).
+- `docs`: decisiones de Fase 0 (reutilización y guardrails); flujo Git en [`docs/git-workflow.md`](docs/git-workflow.md). Resumen de mejoras recientes en Facturar / emisores / paridad: [`docs/facturar-mejoras-y-paridad-conceptos.md`](docs/facturar-mejoras-y-paridad-conceptos.md). Migrar emisores y usuarios desde `facturacion.config.json` legacy: [`docs/migracion-facturacion-config-emisores-y-usuarios.md`](docs/migracion-facturacion-config-emisores-y-usuarios.md).
 - `scripts/legacy-html-field-inventory.mjs`: extrae todos los `name="..."` del `index.html` legacy agrupados por pestaña (`data-tab-panel`), para checklist antes de implementar en React.
 
 ## Paridad legacy → React (inventario automático)
@@ -29,6 +29,22 @@ npm run inventory:legacy:md       # tablas Markdown en stdout
 ```
 
 No sustituye revisar payloads en `app.js` ni el contrato `/api/*`, pero evita descubrir a medias campos que ya existen en el HTML.
+
+Extraer `templateProfiles` y preparar `users` como editores desde una copia de `facturacion.config.json`:
+
+```bash
+npm run config:extract-profiles -- /ruta/a/facturacion.config.json --out-dir ./tmp-migracion
+```
+
+Para **subir al servidor** los perfiles del legacy sin machacar los actuales (fusiona por `id`, token **admin**):
+
+```bash
+export FACTURACION_API_BASE=https://facturacion.pearandco.es
+export FACTURACION_TOKEN='…'
+npm run config:extract-profiles -- /ruta/a/facturacion.config.json.LEGACY --out-dir ./tmp-migracion --apply
+```
+
+Detalle y opciones (`--keep-password-fields`, `--dry-run`, `--replace-all-profiles`, fusión en el mini): [`docs/migracion-facturacion-config-emisores-y-usuarios.md`](docs/migracion-facturacion-config-emisores-y-usuarios.md). El backend y `facturacion.config.json` de desarrollo suelen estar en el repo padre **`/Volumes/RAID/Repos/apps/facturacion`** (no en `facturacion-react/` sola).
 
 ## Vertical slice actual
 `InvoiceDraftPage` valida la base técnica:

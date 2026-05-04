@@ -13,7 +13,8 @@
     "test:e2e": "PATH=/opt/homebrew/bin:/usr/local/bin:$PATH E2E_NODE_PATH=/opt/homebrew/bin/node PLAYWRIGHT_BROWSERS_PATH=0 playwright test",
     "test:e2e:headed": "PATH=/opt/homebrew/bin:/usr/local/bin:$PATH E2E_NODE_PATH=/opt/homebrew/bin/node PLAYWRIGHT_BROWSERS_PATH=0 playwright test --headed",
     "inventory:legacy": "node scripts/legacy-html-field-inventory.mjs",
-    "inventory:legacy:md": "node scripts/legacy-html-field-inventory.mjs --markdown"
+    "inventory:legacy:md": "node scripts/legacy-html-field-inventory.mjs --markdown",
+    "config:extract-profiles": "node scripts/extract-template-profiles-from-config.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
