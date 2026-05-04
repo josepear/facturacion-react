@@ -100,6 +100,9 @@ function getNextProfileColorKey(list: TemplateProfileConfig[]): (typeof PROFILE_
   return (sorted[0]?.[0] as (typeof PROFILE_COLOR_KEYS)[number]) || PROFILE_COLOR_KEYS[0];
 }
 
+/** UI de miembros del sistema oculta temporalmente (emisores como foco único). */
+const SHOW_SYSTEM_MEMBERS_UI = false;
+
 const ROLE_OPTIONS = [
   { value: "admin", label: "Administrador" },
   { value: "editor", label: "Editor" },
@@ -1321,27 +1324,41 @@ export function SettingsPage() {
     setStatusTone("neutral");
   };
 
-  const handleDeleteTemplateProfile = () => {
-    if (!isAdmin || profiles.length <= 1) {
+  const handleDeleteEmitterById = (idToRemove: string) => {
+    if (!isAdmin) {
+      setStatusMessage("Solo un administrador puede borrar emisores.");
+      setStatusTone("error");
       return;
     }
-    const idToRemove = String(effectiveActiveProfileId || "").trim();
-    const victim = profiles.find((p) => p.id === idToRemove);
+    if (profiles.length <= 1) {
+      setStatusMessage("Tiene que existir al menos un emisor en la configuración.");
+      setStatusTone("error");
+      return;
+    }
+    const safeId = String(idToRemove || "").trim();
+    const victim = profiles.find((p) => p.id === safeId);
+    if (!victim) {
+      return;
+    }
     if (
       !window.confirm(
-        `Se borrará el emisor «${victim?.label || idToRemove}». ¿Seguimos? (Igual que legacy: se elimina el emisor activo.)`,
+        `Se eliminará el emisor «${victim.label || safeId}» de la lista local (debes pulsar «${SAVE} datos del emisor» para aplicarlo en el servidor). ¿Continuar?`,
       )
     ) {
       return;
     }
-    const idx = profiles.findIndex((p) => p.id === idToRemove);
-    const nextList = profiles.filter((p) => p.id !== idToRemove);
+    const idx = profiles.findIndex((p) => p.id === safeId);
+    const nextList = profiles.filter((p) => p.id !== safeId);
     const fallback = nextList[Math.max(0, idx - 1)] || nextList[0];
     if (!fallback) {
       return;
     }
     setProfileListOverride(nextList);
-    setDraftByProfileId({});
+    setDraftByProfileId((prev) => {
+      const next = { ...prev };
+      delete next[safeId];
+      return next;
+    });
     syncLauncherSelection(fallback.id);
     setStatusMessage(`Emisor eliminado en memoria. Pulsa «${SAVE} datos del emisor» para fijarlo en el servidor.`);
     setStatusTone("neutral");
@@ -1350,10 +1367,10 @@ export function SettingsPage() {
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Emisores</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Configuración · Emisores</h1>
         <p className="text-informative">
-          Datos fiscales, logo y textos por defecto del <strong>emisor activo</strong>. Al pulsar «{SAVE} datos del emisor» se
-          guardan en el servidor (legacy pestaña Emisor). Es independiente de «{SAVE} documento» en Facturar.
+          Gestiona emisores desde el listado: edita o borra cada fila y guarda los cambios en el servidor con «{SAVE} datos del
+          emisor». Independiente de «{SAVE} documento» en Facturar.
         </p>
       </header>
 
@@ -1369,136 +1386,261 @@ export function SettingsPage() {
         </Card>
       ) : (
         <>
-          {serverActiveProfile ? (
-            <Card>
-              <div className="grid gap-3 p-4">
-                <div className="flex items-center gap-3">
-                  <ProfileBadge
-                    label={serverActiveProfile.label || serverActiveProfile.id}
-                    colorKey={serverActiveProfile.colorKey}
-                  />
-                  <span className="text-informative font-medium">Emisor activo</span>
+          <Card>
+            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="min-w-0 space-y-1">
+                <CardTitle>Emisores</CardTitle>
+                <CardDescription>
+                  Listado de emisores configurados. «Activo en servidor» es el que publica hoy <code className="text-xs">/api/config</code>.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="shrink-0"
+                disabled={!isAdmin || isCreatingProfile}
+                onClick={startNewTemplateProfile}
+              >
+                Nuevo emisor
+              </Button>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              {profiles.length ? (
+                <div className="overflow-x-auto rounded-md border border-border">
+                  <table className="w-full min-w-[28rem] text-left text-sm">
+                    <thead className="border-b border-border bg-muted/40 text-informative">
+                      <tr>
+                        <th className="px-3 py-2 font-medium">Nombre</th>
+                        <th className="px-3 py-2 font-medium">Email</th>
+                        <th className="px-3 py-2 font-medium text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {profiles.map((profile) => {
+                        const rowDraft = draftByProfileId[profile.id];
+                        const merged = rowDraft ? mergeProfileWithDraft(profile, rowDraft) : profile;
+                        const email = String(merged.business?.email || "").trim();
+                        const isServerActive = profile.id === serverActiveProfileId;
+                        const isRowSelected = profile.id === effectiveEditingProfileId;
+                        return (
+                          <tr
+                            key={profile.id}
+                            data-testid={`emitter-row-${profile.id}`}
+                            className={cn("border-b border-border last:border-b-0", isRowSelected && "bg-muted/30")}
+                          >
+                            <td className="px-3 py-2 align-middle">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <ProfileBadge label={merged.label || profile.id} colorKey={merged.colorKey} />
+                                {isServerActive ? (
+                                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                                    Activo en servidor
+                                  </span>
+                                ) : null}
+                              </div>
+                            </td>
+                            <td className="max-w-[14rem] truncate px-3 py-2 align-middle text-informative" title={email || undefined}>
+                              {email || "—"}
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-2 text-right align-middle">
+                              <div className="flex flex-wrap justify-end gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => syncLauncherSelection(profile.id)}
+                                >
+                                  Editar
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  disabled={!isAdmin || profiles.length <= 1}
+                                  title={
+                                    !isAdmin
+                                      ? "Solo los administradores pueden borrar emisores."
+                                      : profiles.length <= 1
+                                        ? "Tiene que existir al menos un emisor."
+                                        : undefined
+                                  }
+                                  onClick={() => handleDeleteEmitterById(profile.id)}
+                                >
+                                  Borrar
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
+              ) : (
+                <p className="text-informative">No hay emisores configurados.</p>
+              )}
+              <select
+                aria-label="Emisor"
+                className="sr-only"
+                value={effectiveEditingProfileId}
+                onChange={(event) => syncLauncherSelection(event.target.value)}
+                disabled={!profiles.length}
+              >
+                {profiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.label || profile.id}
+                  </option>
+                ))}
+              </select>
+            </CardContent>
+          </Card>
 
-                {serverActiveProfile.business?.brandImage ? (
-                  <img
-                    src={serverActiveProfile.business.brandImage}
-                    alt="Logo del emisor"
-                    style={{ maxHeight: 40, maxWidth: 120, objectFit: "contain" }}
-                  />
-                ) : null}
+          <details className="group rounded-lg border border-border bg-card">
+            <summary className="cursor-pointer list-none px-4 py-3 font-medium text-foreground outline-none marker:hidden [&::-webkit-details-marker]:hidden">
+              <span className="text-informative group-open:text-foreground">Servidor y resumen técnico (opcional)</span>
+            </summary>
+            <div className="grid gap-4 border-t border-border p-4 pt-2">
+              {serverActiveProfile ? (
+                <Card>
+                  <div className="grid gap-3 p-4">
+                    <div className="flex items-center gap-3">
+                      <ProfileBadge
+                        label={serverActiveProfile.label || serverActiveProfile.id}
+                        colorKey={serverActiveProfile.colorKey}
+                      />
+                      <span className="text-informative font-medium">Emisor activo en servidor</span>
+                    </div>
 
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-lg border p-2">
-                    <p className="text-lg font-semibold">{activeProfileStats.count}</p>
-                    <p className="text-informative">Facturas</p>
+                    {serverActiveProfile.business?.brandImage ? (
+                      <img
+                        src={serverActiveProfile.business.brandImage}
+                        alt="Logo del emisor"
+                        style={{ maxHeight: 40, maxWidth: 120, objectFit: "contain" }}
+                      />
+                    ) : null}
+
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="rounded-lg border p-2">
+                        <p className="text-lg font-semibold">{activeProfileStats.count}</p>
+                        <p className="text-informative">Facturas</p>
+                      </div>
+                      <div className="rounded-lg border p-2">
+                        <p className="text-lg font-semibold">
+                          {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(
+                            activeProfileStats.total,
+                          )}
+                        </p>
+                        <p className="text-informative">Facturado</p>
+                      </div>
+                      <div className="rounded-lg border p-2">
+                        <p className="text-lg font-semibold">
+                          {activeProfileStats.lastIssueDate ? activeProfileStats.lastIssueDate.slice(0, 10) : "—"}
+                        </p>
+                        <p className="text-informative">Última factura</p>
+                      </div>
+                    </div>
+
+                    {serverActiveProfile.business?.brand || serverActiveProfile.business?.taxId ? (
+                      <p className="text-informative">
+                        {[serverActiveProfile.business?.brand, serverActiveProfile.business?.taxId].filter(Boolean).join(" · ")}
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="rounded-lg border p-2">
-                    <p className="text-lg font-semibold">
-                      {new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(
-                        activeProfileStats.total,
+                </Card>
+              ) : null}
+
+              <section className="grid gap-4 lg:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Emisor activo (servidor)</CardTitle>
+                    <CardDescription>
+                      El que publica <code className="text-xs">/api/config</code> como <code className="text-xs">activeTemplateProfileId</code>{" "}
+                      en el <strong>último guardado</strong>. El parámetro de URL{" "}
+                      <code className="text-xs">templateProfileId</code> usa la misma clave que Facturar.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 text-sm">
+                    <p><strong>Id (servidor):</strong> {safeValue(serverActiveProfile?.id)}</p>
+                    <p className="flex flex-wrap items-center gap-2">
+                      <strong>Nombre:</strong>
+                      {serverActiveProfile ? (
+                        <ProfileBadge
+                          label={String(serverActiveProfile.label || serverActiveProfile.id)}
+                          colorKey={serverActiveProfile.colorKey}
+                        />
+                      ) : (
+                        safeValue(undefined)
                       )}
                     </p>
-                    <p className="text-informative">Facturado</p>
-                  </div>
-                  <div className="rounded-lg border p-2">
-                    <p className="text-lg font-semibold">
-                      {activeProfileStats.lastIssueDate ? activeProfileStats.lastIssueDate.slice(0, 10) : "—"}
+                    <p><strong>Forma de pago:</strong> {safeValue(serverActiveProfile?.defaults?.paymentMethod)}</p>
+                    <p><strong>Cuenta:</strong> {safeValue(serverActiveProfile?.business?.bankAccount)}</p>
+                    <p><strong>Plantilla PDF:</strong> {safeValue(serverActiveProfile?.design?.layout)}</p>
+                    <p><strong>IGIC:</strong> {safeValue(serverActiveProfile?.defaults?.taxRate)}</p>
+                    <p><strong>IRPF:</strong> {safeValue(serverActiveProfile?.defaults?.withholdingRate)}</p>
+                    {String(effectiveActiveProfileId || "").trim()
+                    && String(effectiveActiveProfileId || "").trim() !== String(serverActiveProfileId || "").trim() ? (
+                      <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-900 dark:text-amber-100">
+                        La selección de emisor activo en el formulario (
+                        <strong>{safeValue(activeProfileForNextSave?.label || effectiveActiveProfileId)}</strong>
+                        ) aún no está guardada en el servidor; pulsa «{SAVE} datos del emisor» para fijarla.
+                      </p>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Button
+                        type="button"
+                        onClick={() =>
+                          navigate(`/facturar?templateProfileId=${encodeURIComponent(String(effectiveActiveProfileId || ""))}`)
+                        }
+                        disabled={!effectiveActiveProfileId}
+                      >
+                        Abrir Facturar con este emisor
+                      </Button>
+                    </div>
+                    {!canEditEmitterData ? (
+                      <p className="text-informative">
+                        Solo lectura: necesitas rol editor o administrador para guardar cambios de emisor.
+                      </p>
+                    ) : null}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Defaults runtime</CardTitle>
+                    <CardDescription>Valores efectivos publicados por `/api/config`.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-1 text-sm">
+                    <p><strong>Tenant:</strong> {safeValue(sessionQuery.data?.authenticated ? sessionQuery.data.user.tenantId : "")}</p>
+                    <p><strong>Rol sesión:</strong> {safeValue(sessionQuery.data?.authenticated ? sessionQuery.data.user.role : "")}</p>
+                    <p><strong>Forma de pago:</strong> {safeValue(configQuery.data?.defaults?.paymentMethod)}</p>
+                    <p><strong>IGIC:</strong> {safeValue(configQuery.data?.defaults?.taxRate)}</p>
+                    <p><strong>IRPF:</strong> {safeValue(configQuery.data?.defaults?.withholdingRate)}</p>
+                    <p className="pt-2 text-informative">
+                      La numeración en Facturar se calcula con el emisor activo o seleccionado vía `/api/next-number`.
                     </p>
-                    <p className="text-informative">Última factura</p>
-                  </div>
-                </div>
-
-                {serverActiveProfile.business?.brand || serverActiveProfile.business?.taxId ? (
-                  <p className="text-informative">
-                    {[serverActiveProfile.business?.brand, serverActiveProfile.business?.taxId].filter(Boolean).join(" · ")}
-                  </p>
-                ) : null}
-              </div>
-            </Card>
-          ) : null}
-
-          <section className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Emisor activo (servidor)</CardTitle>
-                <CardDescription>
-                  El que publica <code className="text-xs">/api/config</code> como <code className="text-xs">activeTemplateProfileId</code>{" "}
-                  en el <strong>último guardado</strong>. La selección para el próximo guardado se hace en «Emisor activo»; el parámetro de URL{" "}
-                  <code className="text-xs">templateProfileId</code> usa la misma clave que Facturar.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-3 text-sm">
-                <p><strong>Id (servidor):</strong> {safeValue(serverActiveProfile?.id)}</p>
-                <p className="flex flex-wrap items-center gap-2">
-                  <strong>Nombre del usuario:</strong>
-                  {serverActiveProfile ? (
-                    <ProfileBadge
-                      label={String(serverActiveProfile.label || serverActiveProfile.id)}
-                      colorKey={serverActiveProfile.colorKey}
-                    />
-                  ) : (
-                    safeValue(undefined)
-                  )}
-                </p>
-                <p><strong>Forma de pago:</strong> {safeValue(serverActiveProfile?.defaults?.paymentMethod)}</p>
-                <p><strong>Cuenta:</strong> {safeValue(serverActiveProfile?.business?.bankAccount)}</p>
-                <p><strong>Plantilla PDF:</strong> {safeValue(serverActiveProfile?.design?.layout)}</p>
-                <p><strong>IGIC:</strong> {safeValue(serverActiveProfile?.defaults?.taxRate)}</p>
-                <p><strong>IRPF:</strong> {safeValue(serverActiveProfile?.defaults?.withholdingRate)}</p>
-                {String(effectiveActiveProfileId || "").trim()
-                && String(effectiveActiveProfileId || "").trim() !== String(serverActiveProfileId || "").trim() ? (
-                  <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-900 dark:text-amber-100">
-                    La selección de emisor activo en el formulario (
-                    <strong>{safeValue(activeProfileForNextSave?.label || effectiveActiveProfileId)}</strong>
-                    ) aún no está guardada en el servidor; pulsa «{SAVE} datos del emisor» para fijarla.
-                  </p>
-                ) : null}
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <Button
-                    type="button"
-                    onClick={() =>
-                      navigate(`/facturar?templateProfileId=${encodeURIComponent(String(effectiveActiveProfileId || ""))}`)
-                    }
-                    disabled={!effectiveActiveProfileId}
-                  >
-                    Abrir Facturar con este emisor
-                  </Button>
-                </div>
-                {!canEditEmitterData ? (
-                  <p className="text-informative">
-                    Solo lectura: necesitas rol editor o administrador para guardar cambios de emisor.
-                  </p>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Defaults runtime</CardTitle>
-                <CardDescription>Valores efectivos publicados por `/api/config`.</CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-1 text-sm">
-                <p><strong>Tenant:</strong> {safeValue(sessionQuery.data?.authenticated ? sessionQuery.data.user.tenantId : "")}</p>
-                <p><strong>Rol usuario:</strong> {safeValue(sessionQuery.data?.authenticated ? sessionQuery.data.user.role : "")}</p>
-                <p><strong>Forma de pago:</strong> {safeValue(configQuery.data?.defaults?.paymentMethod)}</p>
-                <p><strong>IGIC:</strong> {safeValue(configQuery.data?.defaults?.taxRate)}</p>
-                <p><strong>IRPF:</strong> {safeValue(configQuery.data?.defaults?.withholdingRate)}</p>
-                <p className="pt-2 text-informative">
-                  La numeración en Facturar se calcula con el emisor activo o seleccionado vía `/api/next-number`.
-                </p>
-              </CardContent>
-            </Card>
-          </section>
+                  </CardContent>
+                </Card>
+              </section>
+            </div>
+          </details>
 
           <Card>
             <CardHeader>
-              <p className="text-informative font-medium uppercase tracking-wide">Emisor y PDF</p>
-              <CardTitle>Emisor activo</CardTitle>
+              <p className="text-informative font-medium uppercase tracking-wide">Formulario</p>
+              <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
+                {editingProfile ? (
+                  <>
+                    <span>Editando</span>
+                    <ProfileBadge label={String(editingDraft.label || editingProfile.id)} colorKey={editingDraft.colorKey} />
+                    <span className="text-informative text-base font-normal normal-case">({editingProfile.id})</span>
+                  </>
+                ) : (
+                  "Emisor"
+                )}
+              </CardTitle>
               <CardDescription>
-                Orden habitual en legacy: primero guarda aquí el emisor; el constructor fino de módulos PDF sigue en la app legacy
-                (pestaña Plantilla). Puedes abrir directamente un emisor con{" "}
-                <code className="text-xs">/configuracion?templateProfileId=…</code> (mismo nombre de parámetro que en Facturar).
+                Elige el emisor en el listado superior. Elige la plantilla PDF y completa los datos; guarda con «{SAVE} datos del
+                emisor». El ajuste fino de módulos PDF sigue en la app legacy (pestaña Plantilla).
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
@@ -1523,7 +1665,7 @@ export function SettingsPage() {
                   <p className="mt-1 text-informative">
                     Con rol <strong>solo lectura</strong> (viewer) no puedes modificar emisores ni guardar aquí. Los roles{" "}
                     <strong>editor</strong> y <strong>administrador</strong> pueden editar datos de emisores ya existentes y
-                    guardarlos; crear o borrar emisores y gestionar miembros del sistema queda reservado a administradores.
+                    guardarlos; crear o borrar emisores queda reservado a administradores.
                     {configuredRoleLabel ? (
                       <>
                         {" "}
@@ -1549,71 +1691,26 @@ export function SettingsPage() {
               ) : null}
               {profiles.length ? (
                 <>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Emisor">
-                      <select
-                        aria-label="Emisor"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        value={effectiveEditingProfileId}
-                        onChange={(event) => syncLauncherSelection(event.target.value)}
-                      >
-                        {profiles.map((profile) => (
-                          <option key={profile.id} value={profile.id}>
-                            {profile.label || profile.id}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Plantilla">
-                      <select
-                        aria-label="Plantilla"
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        value={
-                          TEMPLATE_LAYOUT_OPTIONS.some((o) => o.value === editingDraft.layout) ? editingDraft.layout : ""
-                        }
-                        onChange={(event) => updateDraft({ layout: event.target.value })}
-                        disabled={!canEditEmitterData}
-                      >
-                        <option value="">Plantilla...</option>
-                        {TEMPLATE_LAYOUT_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                  </div>
+                  <Field label="Plantilla PDF">
+                    <select
+                      aria-label="Plantilla"
+                      className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={
+                        TEMPLATE_LAYOUT_OPTIONS.some((o) => o.value === editingDraft.layout) ? editingDraft.layout : ""
+                      }
+                      onChange={(event) => updateDraft({ layout: event.target.value })}
+                      disabled={!canEditEmitterData}
+                    >
+                      <option value="">Plantilla...</option>
+                      {TEMPLATE_LAYOUT_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
 
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={!isAdmin || isCreatingProfile}
-                      onClick={startNewTemplateProfile}
-                    >
-                      Nuevo emisor
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={!isAdmin || isCreatingProfile || newBaseOpen}
-                      onClick={() => {
-                        setNewBaseLabel("");
-                        setNewBaseLayout("pear");
-                        setNewBaseOpen(true);
-                      }}
-                    >
-                      Nueva base de diseño
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="text-destructive hover:text-destructive"
-                      disabled={!isAdmin || profiles.length <= 1}
-                      onClick={handleDeleteTemplateProfile}
-                    >
-                      Borrar emisor
-                    </Button>
                     <Button
                       type="button"
                       disabled={!canEditEmitterData || saveConfigMutation.isPending || !profiles.length}
@@ -1621,26 +1718,6 @@ export function SettingsPage() {
                     >
                       {saveConfigMutation.isPending ? savePending() : `${SAVE} datos del emisor`}
                     </Button>
-                    {isAdmin ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={propagateMutation.isPending || saveConfigMutation.isPending}
-                        onClick={() => {
-                          const profileId = String(effectiveActiveProfileId || "").trim();
-                          if (!profileId) {
-                            setStatusMessage("Selecciona un emisor activo antes de propagar.");
-                            setStatusTone("error");
-                            return;
-                          }
-                          propagateMutation.mutate(profileId);
-                        }}
-                      >
-                        {propagateMutation.isPending
-                          ? "Propagando..."
-                          : "Guardar diseño y actualizar facturas anteriores"}
-                      </Button>
-                    ) : null}
                     <Button
                       type="button"
                       variant="outline"
@@ -1652,6 +1729,45 @@ export function SettingsPage() {
                       Abrir Facturar
                     </Button>
                   </div>
+                  {isAdmin ? (
+                    <details className="rounded-md border border-dashed border-border p-3">
+                      <summary className="cursor-pointer text-sm font-medium text-informative outline-none">
+                        Más acciones (admin)
+                      </summary>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={!isAdmin || isCreatingProfile || newBaseOpen}
+                          onClick={() => {
+                            setNewBaseLabel("");
+                            setNewBaseLayout("pear");
+                            setNewBaseOpen(true);
+                          }}
+                        >
+                          Nueva base de diseño
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={propagateMutation.isPending || saveConfigMutation.isPending}
+                          onClick={() => {
+                            const profileId = String(effectiveActiveProfileId || "").trim();
+                            if (!profileId) {
+                              setStatusMessage("Selecciona un emisor activo antes de propagar.");
+                              setStatusTone("error");
+                              return;
+                            }
+                            propagateMutation.mutate(profileId);
+                          }}
+                        >
+                          {propagateMutation.isPending
+                            ? "Propagando..."
+                            : "Guardar diseño y actualizar facturas anteriores"}
+                        </Button>
+                      </div>
+                    </details>
+                  ) : null}
                   {isCreatingProfile ? (
                     <div className="grid gap-2 rounded-md border border-dashed p-3 sm:grid-cols-[1fr_auto_auto]">
                       <Input
@@ -1672,10 +1788,10 @@ export function SettingsPage() {
 
                   <details className="group rounded-md border border-dashed p-3" open>
                     <summary className="cursor-pointer text-informative font-medium outline-none group-open:text-foreground">
-                      Básico del usuario
+                      Datos principales del emisor
                     </summary>
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      <Field label="Nombre del usuario">
+                      <Field label="Nombre visible">
                         <Input
                           placeholder="Ejemplo: Pear&co."
                           value={editingDraft.label}
@@ -1783,7 +1899,7 @@ export function SettingsPage() {
                           disabled={!canEditEmitterData}
                         />
                       </Field>
-                      <Field label="Email">
+                      <Field label="Email de contacto (factura)">
                         <Input
                           type="email"
                           value={editingDraft.email}
@@ -1791,6 +1907,10 @@ export function SettingsPage() {
                           disabled={!canEditEmitterData}
                         />
                       </Field>
+                      <p className="sm:col-span-2 lg:col-span-3 text-xs text-informative">
+                        Los emisores no tienen contraseña de acceso a la aplicación; el login lo gestionan los usuarios del sistema
+                        (fuera de esta pantalla). No hay rol por emisor en la API actual.
+                      </p>
                       <Field label="Telefono">
                         <Input
                           value={editingDraft.phone}
@@ -2074,7 +2194,7 @@ export function SettingsPage() {
             </div>
           </dialog>
 
-          {isAdmin ? (
+          {SHOW_SYSTEM_MEMBERS_UI && isAdmin ? (
             <MembersSection
               canEdit
               profiles={serverProfiles}

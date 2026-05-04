@@ -127,36 +127,16 @@ describe("SettingsPage regression", () => {
     useSessionQueryMock.mockReturnValue(adminSessionQueryResult);
   });
 
-  it("shows members API unavailable help and copies diagnostic on 404", async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    vi.stubGlobal("navigator", { ...globalThis.navigator, clipboard: { writeText } });
-
-    fetchSystemUsersMock.mockReset();
-    fetchSystemUsersMock.mockImplementation(() => Promise.reject(new ApiError("Not Found", 404)));
+  it("hides system members UI while focusing on emitters list", async () => {
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
       templateProfiles: [{ id: "perfil-1", label: "Perfil 1", defaults: { paymentMethod: "Transferencia" } }],
     });
 
-    try {
-      render(<SettingsPage />, { wrapper: createPageWrapper() });
+    render(<SettingsPage />, { wrapper: createPageWrapper() });
 
-      await screen.findByText("Miembros del sistema");
-      await waitFor(() => expect(fetchSystemUsersMock).toHaveBeenCalled());
-      expect(await screen.findByText("Gestión de miembros no disponible en este servidor")).toBeTruthy();
-      expect(screen.getByText(/Este entorno no expone/)).toBeTruthy();
-      expect(screen.getByText(/facturacion\.config\.json/)).toBeTruthy();
-
-      await userEvent.click(screen.getByRole("button", { name: "Copiar diagnóstico" }));
-      await waitFor(() => {
-        expect(writeText).toHaveBeenCalledTimes(1);
-      });
-      const copied = String(writeText.mock.calls[0]?.[0] ?? "");
-      expect(copied).toMatch(/^API miembros no disponible: GET \/api\/users -> 404 en /);
-      expect(await screen.findByText("Diagnóstico copiado al portapapeles.")).toBeTruthy();
-    } finally {
-      vi.unstubAllGlobals();
-    }
+    await screen.findByText(/Listado de emisores configurados/);
+    expect(screen.queryByText("Miembros del sistema")).toBeNull();
   });
 
   it("loads and saves active profile/defaults for admin", async () => {
@@ -184,9 +164,9 @@ describe("SettingsPage regression", () => {
 
     render(<SettingsPage />, { wrapper: createPageWrapper() });
 
-    await screen.findByText("Emisor activo (servidor)");
+    await screen.findByText(/Listado de emisores configurados/);
 
-    await userEvent.selectOptions(screen.getByLabelText("Emisor"), "perfil-2");
+    await userEvent.click(within(screen.getByTestId("emitter-row-perfil-2")).getByRole("button", { name: "Editar" }));
     expect(searchState.query).toContain("templateProfileId=perfil-2");
     expect(screen.getByText(/Cambios locales pendientes de guardar/)).toBeTruthy();
     const advancedDetails = screen.getByText("Avanzado del usuario").closest("details");
@@ -216,7 +196,7 @@ describe("SettingsPage regression", () => {
     saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
 
     render(<SettingsPage />, { wrapper: createPageWrapper() });
-    await screen.findByText("Emisor activo (servidor)");
+    await screen.findByText(/Listado de emisores configurados/);
 
     expect(screen.queryByText("Modo solo lectura")).toBeNull();
     expect(screen.getByText(/Rol editor/)).toBeTruthy();
@@ -301,7 +281,7 @@ describe("SettingsPage regression", () => {
     saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
 
     render(<SettingsPage />, { wrapper: createPageWrapper() });
-    await screen.findByText("Emisor activo (servidor)");
+    await screen.findByText(/Listado de emisores configurados/);
 
     await userEvent.click(screen.getByRole("button", { name: "Nuevo emisor" }));
     const inlineNameInput = await screen.findByLabelText("Nombre del nuevo emisor");
@@ -345,7 +325,7 @@ describe("SettingsPage regression", () => {
     saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
 
     render(<SettingsPage />, { wrapper: createPageWrapper() });
-    await screen.findByText("Emisor activo (servidor)");
+    await screen.findByText(/Listado de emisores configurados/);
 
     const advancedDetails = screen.getByText("Avanzado del usuario").closest("details");
     expect(advancedDetails).toBeTruthy();
