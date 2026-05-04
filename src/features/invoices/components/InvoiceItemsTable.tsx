@@ -47,6 +47,14 @@ export function InvoiceItemsTable({
         </Button>
       </div>
 
+      <div className="mb-1 hidden gap-3 px-1 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-12 sm:items-end">
+        <div className="sm:col-span-5">Concepto</div>
+        <div className="sm:col-span-2">Comensales</div>
+        <div className="sm:col-span-2">€ x persona</div>
+        <div className="sm:col-span-2 text-right">Total línea</div>
+        <div className="sm:col-span-1" aria-hidden />
+      </div>
+
       {Array.from({ length: itemCount }).map((_, index) => {
         const row = items[index];
         const isPerPerson = isPerPersonUnitLabel(row?.unitLabel);
@@ -65,13 +73,13 @@ export function InvoiceItemsTable({
         return (
           <div key={index} className="grid gap-3 rounded-md border p-3">
             <input type="hidden" {...register(`items.${index}.unitLabel`)} />
-            <div className="grid gap-3 sm:grid-cols-12 sm:items-end">
+            <div className="grid gap-3 sm:grid-cols-12 sm:items-end sm:gap-3">
               <div className="sm:col-span-5">
                 <label className="grid gap-1 text-xs">
-                  <span>Concepto</span>
+                  <span className="sm:sr-only">Concepto</span>
                   <Input placeholder="Servicio" {...register(`items.${index}.concept`)} />
                 </label>
-                <div className="mt-2 flex flex-col gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
                   <label className="flex cursor-pointer items-center gap-2 text-xs">
                     <input
                       type="checkbox"
@@ -104,93 +112,56 @@ export function InvoiceItemsTable({
                     <span>Precio por persona</span>
                   </label>
                   {isPerPerson ? (
-                    <label className="flex cursor-pointer items-center gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+                    <label className="flex cursor-pointer items-center gap-2 text-xs">
                       <input
                         type="checkbox"
                         className="h-4 w-4 shrink-0 rounded border border-input"
                         {...register(`items.${index}.hidePerPersonSubtotalInBudget`)}
                       />
-                      <span>Ocultar subt. en concepto</span>
+                      <span>Ocultar subtotal en concepto</span>
                     </label>
                   ) : null}
-                  {perPersonHint ? <p className="text-xs text-muted-foreground">{perPersonHint}</p> : null}
                 </div>
+                {perPersonHint ? <p className="mt-1 text-xs text-muted-foreground">{perPersonHint}</p> : null}
               </div>
               <div className="sm:col-span-2">
                 <label className="grid gap-1 text-xs">
-                  <span>{isPerPerson ? "Comensales" : "Cant."}</span>
-                  <div className="flex gap-1">
-                    <Input
-                      type="number"
-                      min={0}
-                      step={isPerPerson ? 1 : "0.01"}
-                      className="min-w-0 flex-1"
-                      {...register(`items.${index}.quantity`, {
-                        valueAsNumber: true,
-                        setValueAs: (value) => {
-                          if (value === "" || value === null || value === undefined) {
-                            return 1;
-                          }
-                          const parsed = Number(value);
-                          if (!Number.isFinite(parsed) || parsed < 0) {
-                            return isPerPerson ? 0 : 1;
-                          }
-                          return isPerPerson ? normalizePerPersonQuantity(parsed) : parsed;
-                        },
-                      })}
-                    />
-                    {isPerPerson ? (
-                      <div className="flex shrink-0 flex-col gap-0.5">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 min-w-8 px-0 text-xs"
-                          aria-label="Aumentar comensales"
-                          onClick={() => {
-                            const q = getValues(`items.${index}.quantity`);
-                            setValue(`items.${index}.quantity`, normalizePerPersonQuantity(q) + 1, {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                            });
-                          }}
-                        >
-                          +
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 min-w-8 px-0 text-xs"
-                          aria-label="Reducir comensales"
-                          onClick={() => {
-                            const q = getValues(`items.${index}.quantity`);
-                            setValue(`items.${index}.quantity`, Math.max(0, normalizePerPersonQuantity(q) - 1), {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                            });
-                          }}
-                        >
-                          −
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
+                  <span className="sm:sr-only">{isPerPerson ? "Comensales" : "Cant."}</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={isPerPerson ? 1 : "0.01"}
+                    className="min-w-0 w-full"
+                    {...register(`items.${index}.quantity`, {
+                      valueAsNumber: true,
+                      setValueAs: (value) => {
+                        if (value === "" || value === null || value === undefined) {
+                          return 1;
+                        }
+                        const parsed = Number(value);
+                        if (!Number.isFinite(parsed) || parsed < 0) {
+                          return isPerPerson ? 0 : 1;
+                        }
+                        return isPerPerson ? normalizePerPersonQuantity(parsed) : parsed;
+                      },
+                    })}
+                  />
                 </label>
               </div>
               <div className="sm:col-span-2">
                 <label className="grid gap-1 text-xs">
-                  <span>{isPerPerson ? "€ x persona" : "Precio"}</span>
+                  <span className="sm:sr-only">{isPerPerson ? "€ x persona" : "Precio"}</span>
                   <Input type="number" step="0.01" {...register(`items.${index}.unitPrice`, { valueAsNumber: true })} />
                 </label>
               </div>
               <div className="sm:col-span-2">
                 <label className="grid gap-1 text-xs">
-                  <span>Total línea</span>
+                  <span className="sm:sr-only">Total línea</span>
                   <Input
                     type="number"
                     step="0.01"
                     placeholder="Auto"
+                    className="sm:text-right"
                     {...register(`items.${index}.lineTotal`, {
                       setValueAs: (value) => {
                         if (value === "" || value === null || value === undefined) {
@@ -230,7 +201,7 @@ export function InvoiceItemsTable({
       {errors.items?.message ? <p className="text-sm text-red-600">{errors.items.message}</p> : null}
       {totalsBasis === "gross" ? (
         <p className="text-informative">
-          En modo bruto, estas líneas se mantienen para detalle/preview, pero el cálculo usa la base imponible manual.
+          En modo bruto, los importes se calculan a partir de estas líneas (detalle y vista previa).
         </p>
       ) : null}
     </section>

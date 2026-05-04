@@ -203,7 +203,7 @@ export function SharedReportPublicPage() {
                       <td className="p-2 align-middle">
                         <QuarterBadge issueDate={String(row.issueDate || "")} />
                       </td>
-                      <td className={workbookDataTdTight} title={row.number || undefined}>
+                      <td className={workbookDataTdVariable} title={row.number || undefined}>
                         {row.number || "—"}
                       </td>
                       <td className={workbookDataTdVariable} title={client !== "—" ? client : undefined}>

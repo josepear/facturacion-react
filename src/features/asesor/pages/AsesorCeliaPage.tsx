@@ -11,6 +11,7 @@ import { runAccountingExportDownload } from "@/infrastructure/api/exportReportsA
 import { fetchExpenses } from "@/infrastructure/api/expensesApi";
 import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
+import { ExpensePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -240,6 +241,7 @@ export function AsesorCeliaPage() {
                       <th className="whitespace-nowrap p-2 font-medium">Fecha</th>
                       <th className="p-2 font-medium">Proveedor</th>
                       <th className="whitespace-nowrap p-2 text-right font-medium">Total</th>
+                      <th className="w-10 whitespace-nowrap p-2 text-center font-medium">Ver</th>
                       <th className="whitespace-nowrap p-2 text-right font-medium">Acción</th>
                     </tr>
                   </thead>
@@ -256,6 +258,9 @@ export function AsesorCeliaPage() {
                             {vendor}
                           </td>
                           <td className={`${workbookDataTdTight} text-right tabular-nums`}>{formatCurrency(Number(e.total || 0))}</td>
+                          <td className="p-2 text-center align-middle">
+                            <ExpensePreviewListTrigger expense={e} />
+                          </td>
                           <td className="p-2 text-right">
                             <Link
                               to={editHref}

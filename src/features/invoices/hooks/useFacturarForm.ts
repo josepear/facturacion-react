@@ -4,6 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm, useFormState, useWatch } from "react-hook-form";
 
 import { calculateTotals } from "@/domain/document/calculateTotals";
+import {
+  FACTURAR_CLIENT_HISTORY_EMPTY_LIST,
+  FACTURAR_CLIENT_HISTORY_NEED_CONFIRM,
+  FACTURAR_CLIENT_HISTORY_NEED_NAME,
+  facturarClientHistoryCountTip,
+} from "@/features/invoices/lib/facturarClientHistoryCopy";
 import { createEmptyDocument } from "@/domain/document/defaults";
 import { getNextNumber, validateNumberAvailability } from "@/domain/numbering/usecases/getNextNumber";
 import { invoiceDocumentSchema } from "@/domain/document/schemas";
@@ -74,7 +80,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const [numberAvailabilityTone, setNumberAvailabilityTone] = useState<"neutral" | "success" | "error">("neutral");
   const [selectedClientOptionId, setSelectedClientOptionId] = useState("");
   const [selectedHistoryRecordId, setSelectedHistoryRecordId] = useState("");
-  const [historySearchTerm, setHistorySearchTerm] = useState("");
   const [withoutWithholding, setWithoutWithholding] = useState(true);
   /** Hasta que el usuario elija IRPF o SIN IRPF, Fiscalidad sigue «Pendiente» (IGIC 7% por defecto). */
   const [fiscalIrpfChoiceAcknowledged, setFiscalIrpfChoiceAcknowledged] = useState(false);
@@ -97,6 +102,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const bootstrappedRecordIdRef = useRef("");
   const bootstrappedTemplateProfileRef = useRef("");
   const lastSavedSnapshotRef = useRef<InvoiceDocument | null>(null);
+  const previousTotalsBasisRef = useRef<InvoiceDocument["totalsBasis"] | undefined>(undefined);
 
   const form = useForm<InvoiceDocument>({
     resolver: zodResolver(invoiceDocumentSchema),
@@ -155,6 +161,15 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
   const watched = useWatch({ control: form.control });
   const { dirtyFields } = useFormState({ control: form.control });
+
+  useEffect(() => {
+    const b = watched.totalsBasis === "gross" ? "gross" : "items";
+    const prev = previousTotalsBasisRef.current;
+    previousTotalsBasisRef.current = b;
+    if (prev !== undefined && b === "gross" && prev !== "gross") {
+      form.setValue("manualGrossSubtotal", 0, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [watched.totalsBasis, form]);
 
   useEffect(() => {
     if (String(serverRecordId || "").trim()) {
@@ -274,6 +289,80 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     };
   }, [watched.taxRate, watched.withholdingRate, fiscalIrpfChoiceAcknowledged]);
 
+  const historyOptions = useMemo(
+    () =>
+      (historyQuery.data ?? [])
+        .slice()
+        .sort((left, right) => String(right.savedAt || right.issueDate).localeCompare(String(left.savedAt || left.issueDate)))
+        .slice(0, 100)
+        .map((item) => {
+          const issueDate = String(item.issueDate || "").trim();
+          const dateLabel = issueDate || "sin fecha";
+          const numberLabel = String(item.number || "").trim() || "sin número";
+          const clientLabel = String(item.clientName || "").trim() || "sin cliente";
+          const typeLabel = String(item.typeLabel || item.type || "").trim();
+          const totalLabel = Number.isFinite(Number(item.total))
+            ? Number(item.total).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            : "";
+          return {
+            recordId: item.recordId,
+            type: item.type,
+            issueDate,
+            label: `${numberLabel} · ${clientLabel} · ${dateLabel}${typeLabel ? ` · ${typeLabel}` : ""}${totalLabel ? ` · ${totalLabel} €` : ""}`,
+          };
+        }),
+    [historyQuery.data],
+  );
+
+  /** Facturas/presupuestos guardados cuyo cliente coincide con el del borrador (sin filtros manuales). */
+  const clientHistoryOptions = useMemo(() => {
+    const name = String(watched.client?.name || "").trim();
+    if (!name) {
+      return [];
+    }
+    return (historyQuery.data ?? [])
+      .filter(
+        (item) =>
+          (item.type === "factura" || item.type === "presupuesto") &&
+          sameClientName(String(item.clientName || ""), name),
+      )
+      .slice()
+      .sort((left, right) => String(right.savedAt || right.issueDate).localeCompare(String(left.savedAt || left.issueDate)))
+      .slice(0, 100)
+      .map((item) => {
+        const issueDate = String(item.issueDate || "").trim();
+        const dateLabel = issueDate || "sin fecha";
+        const numberLabel = String(item.number || "").trim() || "sin número";
+        const clientLabel = String(item.clientName || "").trim() || "sin cliente";
+        const typeLabel = String(item.typeLabel || item.type || "").trim();
+        const totalLabel = Number.isFinite(Number(item.total))
+          ? Number(item.total).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : "";
+        const totalNum = Number(item.total);
+        const totalAmount = Number.isFinite(totalNum) ? totalNum : null;
+        return {
+          recordId: item.recordId,
+          type: item.type,
+          issueDate,
+          number: numberLabel,
+          typeLabel: typeLabel || (item.type === "presupuesto" ? "Presupuesto" : "Factura"),
+          totalAmount,
+          label: `${numberLabel} · ${clientLabel} · ${dateLabel}${typeLabel ? ` · ${typeLabel}` : ""}${totalLabel ? ` · ${totalLabel} €` : ""}`,
+        };
+      });
+  }, [historyQuery.data, watched.client?.name]);
+
+  useEffect(() => {
+    const sel = String(selectedHistoryRecordId || "").trim();
+    if (!sel) {
+      return;
+    }
+    const ok = clientHistoryOptions.some((o) => o.recordId === sel);
+    if (!ok) {
+      setSelectedHistoryRecordId("");
+    }
+  }, [clientHistoryOptions, selectedHistoryRecordId]);
+
   const workflowChecklist = useMemo(() => {
     const hasTemplateProfile = Boolean(String(watched.templateProfileId || "").trim());
     const hasTemplateLayout = Boolean(String(watched.templateLayout || "").trim());
@@ -297,9 +386,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     const clientComplete = hasClientName && clientModuleConfirmed;
 
     const hasConceptItems = (watched.items ?? []).some((item) => String(item.concept || "").trim() || String(item.description || "").trim());
-    const conceptsComplete = watched.totalsBasis === "gross"
-      ? Number(watched.manualGrossSubtotal || 0) > 0 && hasConceptItems
-      : hasConceptItems;
+    const conceptsComplete = hasConceptItems;
 
     const fiscalComplete = taxValidation.isReady;
     const saveComplete = emitterComplete && documentComplete && clientComplete && conceptsComplete && fiscalComplete;
@@ -333,7 +420,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         complete: conceptsComplete,
         tip:
           watched.totalsBasis === "gross"
-            ? (conceptsComplete ? "Modo bruto listo: base manual y líneas con concepto." : "En bruto, indica base manual y al menos una línea.")
+            ? (conceptsComplete
+                ? "Modo bruto: totales calculados automáticamente desde las líneas."
+                : "En bruto, añade al menos una línea con concepto o descripción.")
             : (conceptsComplete ? "Conceptos listos por líneas." : "Añade al menos una línea con concepto o descripción."),
       },
       fiscal: {
@@ -342,7 +431,13 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       },
       history: {
         complete: true,
-        tip: "Consulta y carga documentos recientes para re-editar.",
+        tip: !hasClientName
+          ? FACTURAR_CLIENT_HISTORY_NEED_NAME
+          : !clientModuleConfirmed
+            ? FACTURAR_CLIENT_HISTORY_NEED_CONFIRM
+            : clientHistoryOptions.length > 0
+              ? facturarClientHistoryCountTip(clientHistoryOptions.length)
+              : FACTURAR_CLIENT_HISTORY_EMPTY_LIST,
       },
       save: {
         complete: saveComplete,
@@ -358,13 +453,13 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     clientModuleConfirmed,
     watched.issueDate,
     watched.items,
-    watched.manualGrossSubtotal,
     watched.number,
     watched.paymentMethod,
     watched.bankAccount,
     watched.templateProfileId,
     watched.templateLayout,
     watched.totalsBasis,
+    clientHistoryOptions.length,
   ]);
 
   const profileOptions = useMemo(
@@ -400,43 +495,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       }),
     [clientsQuery.data],
   );
-
-  const historyOptions = useMemo(
-    () =>
-      (historyQuery.data ?? [])
-        .slice()
-        .sort((left, right) => String(right.savedAt || right.issueDate).localeCompare(String(left.savedAt || left.issueDate)))
-        .slice(0, 100)
-        .map((item) => {
-          const issueDate = String(item.issueDate || "").trim();
-          const dateLabel = issueDate || "sin fecha";
-          const numberLabel = String(item.number || "").trim() || "sin número";
-          const clientLabel = String(item.clientName || "").trim() || "sin cliente";
-          const typeLabel = String(item.typeLabel || item.type || "").trim();
-          const totalLabel = Number.isFinite(Number(item.total))
-            ? Number(item.total).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-            : "";
-          return {
-            recordId: item.recordId,
-            type: item.type,
-            issueDate,
-            label: `${numberLabel} · ${clientLabel} · ${dateLabel}${typeLabel ? ` · ${typeLabel}` : ""}${totalLabel ? ` · ${totalLabel} €` : ""}`,
-          };
-        }),
-    [historyQuery.data],
-  );
-  const filteredHistoryOptions = useMemo(() => {
-    const term = String(historySearchTerm || "").trim().toLowerCase();
-    if (!term) {
-      return historyOptions;
-    }
-
-    return historyOptions.filter((option) => {
-      const labelMatch = option.label.toLowerCase().includes(term);
-      const recordMatch = option.recordId.toLowerCase().includes(term);
-      return labelMatch || recordMatch;
-    });
-  }, [historyOptions, historySearchTerm]);
 
   const profileIdForReload = String(watched.templateProfileId || "").trim();
   const profileDocumentReloadOptions = useMemo(() => {
@@ -904,9 +962,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     loadByRecordId: () => loadMutation.mutate(recordIdInput),
     profileDocumentReloadOptions,
     historyOptions,
-    filteredHistoryOptions,
-    historySearchTerm,
-    setHistorySearchTerm,
+    clientHistoryOptions,
     selectedHistoryRecordId,
     setSelectedHistoryRecordId,
     loadBySelectedHistory,

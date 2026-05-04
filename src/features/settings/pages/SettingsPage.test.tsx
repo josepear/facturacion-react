@@ -9,6 +9,7 @@ import { createPageWrapper } from "@/test/test-utils";
 const {
   fetchRuntimeConfigMock,
   fetchSessionMock,
+  fetchSystemUsersMock,
   saveTemplateProfilesConfigMock,
   navigateMock,
   searchState,
@@ -37,6 +38,7 @@ const {
   return {
     fetchRuntimeConfigMock: vi.fn(),
     fetchSessionMock: vi.fn(),
+    fetchSystemUsersMock: vi.fn().mockResolvedValue({ items: [] }),
     saveTemplateProfilesConfigMock: vi.fn(),
     navigateMock: vi.fn(),
     searchState: { query: "" },
@@ -86,7 +88,7 @@ vi.mock("@/infrastructure/api/sessionApi", () => ({
 }));
 
 vi.mock("@/infrastructure/api/usersApi", () => ({
-  fetchSystemUsers: vi.fn().mockResolvedValue({ items: [] }),
+  fetchSystemUsers: (...args: unknown[]) => fetchSystemUsersMock(...args),
   upsertSystemUser: vi.fn().mockResolvedValue({
     id: "u1",
     name: "Admin",
@@ -117,11 +119,44 @@ describe("SettingsPage regression", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     searchState.query = "";
+    fetchSystemUsersMock.mockResolvedValue({ items: [] });
     fetchSessionMock.mockResolvedValue({
       authenticated: true,
       user: { id: "u1", name: "Admin", email: "admin@test", role: "admin", tenantId: "default" },
     });
     useSessionQueryMock.mockReturnValue(adminSessionQueryResult);
+  });
+
+  it("shows members API unavailable help and copies diagnostic on 404", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { ...globalThis.navigator, clipboard: { writeText } });
+
+    fetchSystemUsersMock.mockReset();
+    fetchSystemUsersMock.mockImplementation(() => Promise.reject(new ApiError("Not Found", 404)));
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-1",
+      templateProfiles: [{ id: "perfil-1", label: "Perfil 1", defaults: { paymentMethod: "Transferencia" } }],
+    });
+
+    try {
+      render(<SettingsPage />, { wrapper: createPageWrapper() });
+
+      await screen.findByText("Miembros del sistema");
+      await waitFor(() => expect(fetchSystemUsersMock).toHaveBeenCalled());
+      expect(await screen.findByText("Gestión de miembros no disponible en este servidor")).toBeTruthy();
+      expect(screen.getByText(/Este entorno no expone/)).toBeTruthy();
+      expect(screen.getByText(/facturacion\.config\.json/)).toBeTruthy();
+
+      await userEvent.click(screen.getByRole("button", { name: "Copiar diagnóstico" }));
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledTimes(1);
+      });
+      const copied = String(writeText.mock.calls[0]?.[0] ?? "");
+      expect(copied).toMatch(/^API miembros no disponible: GET \/api\/users -> 404 en /);
+      expect(await screen.findByText("Diagnóstico copiado al portapapeles.")).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("loads and saves active profile/defaults for admin", async () => {

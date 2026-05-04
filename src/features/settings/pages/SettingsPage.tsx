@@ -22,6 +22,8 @@ import { formatTrashItemPath } from "@/features/settings/lib/formatTrashItemPath
 import { deleteTrashEntries, emptyTrash, fetchTrash, type TrashItem } from "@/infrastructure/api/trashApi";
 import { type SystemUser, type UpsertUserInput, deleteSystemUser, fetchSystemUsers, upsertSystemUser } from "@/infrastructure/api/usersApi";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { TEMPLATE_LAYOUT_OPTIONS, type TemplateLayoutValue } from "@/features/shared/lib/templateLayoutOptions";
+import { CANCEL, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { cn, toNumber } from "@/lib/utils";
 
 /** Misma secuencia que legacy `PROFILE_COLOR_SEQUENCE` en `public/app.js`. */
@@ -37,12 +39,6 @@ const PROFILE_COLOR_LABELS: Record<(typeof PROFILE_COLOR_KEYS)[number], string> 
   blue: "Azul",
   coral: "Coral",
 };
-
-const LAYOUT_OPTIONS = [
-  { value: "pear", label: "Pear&co. clásica" },
-  { value: "editorial", label: "Editorial / Nacho" },
-  { value: "voulita", label: "Eventos / La Jaulita" },
-] as const;
 
 function buildClientProfileId(label: string, usedIds: Set<string>): string {
   const baseText =
@@ -136,6 +132,23 @@ function MembersSection({
   const [editingUser, setEditingUser] = useState<(UpsertUserInput & { isNew: boolean }) | null>(null);
   const [memberStatus, setMemberStatus] = useState("");
   const [memberStatusTone, setMemberStatusTone] = useState<"neutral" | "success" | "error">("neutral");
+  const usersQueryError = usersQuery.error;
+  /** Incluye `status` por si el error no pasa `instanceof ApiError` (p. ej. duplicado de módulo en tests). */
+  const usersErrorHttpStatus = (() => {
+    if (usersQueryError instanceof ApiError) {
+      return usersQueryError.status;
+    }
+    if (usersQueryError && typeof usersQueryError === "object" && "status" in usersQueryError) {
+      const n = Number((usersQueryError as { status: unknown }).status);
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  })();
+  const usersApiUnavailable =
+    usersQuery.isError && (usersErrorHttpStatus === 404 || usersErrorHttpStatus === 405);
+  const usersUnavailableStatus: 404 | 405 | null =
+    usersErrorHttpStatus === 404 || usersErrorHttpStatus === 405 ? usersErrorHttpStatus : null;
+  const canManageMembers = canEdit && !usersApiUnavailable;
 
   const upsertMutation = useMutation({
     mutationFn: (user: UpsertUserInput) => upsertSystemUser(user),
@@ -165,6 +178,11 @@ function MembersSection({
   });
 
   const handleDelete = (user: SystemUser) => {
+    if (!canManageMembers) {
+      setMemberStatus("Tu servidor actual no soporta la gestión de miembros (/api/users).");
+      setMemberStatusTone("error");
+      return;
+    }
     if (!window.confirm(`¿Eliminar al miembro «${user.name || user.email}»? Esta acción no se puede deshacer.`)) {
       return;
     }
@@ -172,6 +190,11 @@ function MembersSection({
   };
 
   const handleEdit = (user: SystemUser) => {
+    if (!canManageMembers) {
+      setMemberStatus("Tu servidor actual no soporta la gestión de miembros (/api/users).");
+      setMemberStatusTone("error");
+      return;
+    }
     setEditingUser({
       isNew: false,
       id: user.id,
@@ -185,6 +208,11 @@ function MembersSection({
   };
 
   const handleNew = () => {
+    if (!canManageMembers) {
+      setMemberStatus("Tu servidor actual no soporta la gestión de miembros (/api/users).");
+      setMemberStatusTone("error");
+      return;
+    }
     setEditingUser({ isNew: true, ...EMPTY_USER_FORM });
     setMemberStatus("");
   };
@@ -201,6 +229,11 @@ function MembersSection({
   };
 
   const handleSubmit = () => {
+    if (!canManageMembers) {
+      setMemberStatus("Tu servidor actual no soporta la gestión de miembros (/api/users).");
+      setMemberStatusTone("error");
+      return;
+    }
     if (!editingUser) {
       return;
     }
@@ -235,8 +268,60 @@ function MembersSection({
       <CardContent className="grid gap-4">
         {usersQuery.isLoading ? (
           <p className="text-informative">Cargando miembros...</p>
+        ) : usersQuery.isError && usersApiUnavailable ? (
+          <div
+            role="region"
+            aria-label="Gestión de miembros no disponible en este servidor"
+            className="space-y-3 rounded-md border border-border bg-muted/40 px-3 py-3 text-sm"
+          >
+            <div className="space-y-2">
+              <p className="font-medium text-foreground">
+                Gestión de miembros no disponible en este servidor
+              </p>
+              <ul className="list-disc space-y-1.5 pl-5 text-informative">
+                <li>
+                  Este entorno no expone <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">/api/users</code>.
+                </li>
+                <li>
+                  Para habilitar creación/edición de miembros, hay que activar esa API en el backend runtime.
+                </li>
+                <li>
+                  Mientras tanto, los accesos se gestionan en{" "}
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">facturacion.config.json</code> (
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">users</code>/
+                  <code className="rounded bg-muted px-1 py-0.5 text-xs text-foreground">templateProfiles</code>).
+                </li>
+              </ul>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="self-start"
+              onClick={async () => {
+                const status = usersUnavailableStatus ?? 404;
+                const stamp = new Date().toLocaleString("es-ES", { dateStyle: "short", timeStyle: "medium" });
+                const line = `API miembros no disponible: GET /api/users -> ${status} en ${stamp}`;
+                try {
+                  if (!navigator.clipboard?.writeText) {
+                    throw new Error("clipboard_unavailable");
+                  }
+                  await navigator.clipboard.writeText(line);
+                  setMemberStatus("Diagnóstico copiado al portapapeles.");
+                  setMemberStatusTone("success");
+                } catch {
+                  setMemberStatus("No se pudo copiar (permisos del navegador o contexto no seguro).");
+                  setMemberStatusTone("error");
+                }
+              }}
+            >
+              Copiar diagnóstico
+            </Button>
+          </div>
         ) : usersQuery.isError ? (
-          <p className="text-sm text-red-600">{(usersQuery.error as Error)?.message || "No se pudo cargar la lista de miembros."}</p>
+          <p className="text-sm text-red-600">
+            {(usersQuery.error as Error)?.message || "No se pudo cargar la lista de miembros."}
+          </p>
         ) : (
           <div className="grid gap-2">
             {items.map((user) => {
@@ -248,7 +333,7 @@ function MembersSection({
                       <p className="truncate font-medium">{user.name || user.email}</p>
                       <p className="truncate text-informative">{user.email} · {user.role}</p>
                     </div>
-                    {canEdit && (
+                    {canManageMembers && (
                       <div className="flex shrink-0 gap-1">
                         <Button
                           type="button"
@@ -256,7 +341,7 @@ function MembersSection({
                           size="sm"
                           onClick={() => isEditing ? setEditingUser(null) : handleEdit(user)}
                         >
-                          {isEditing ? "Cerrar" : "Editar"}
+                          {isEditing ? CANCEL : "Editar"}
                         </Button>
                         <Button
                           type="button"
@@ -334,10 +419,10 @@ function MembersSection({
                       )}
                       <div className="flex gap-2">
                         <Button type="button" onClick={handleSubmit} disabled={upsertMutation.isPending}>
-                          {upsertMutation.isPending ? "Guardando..." : "Guardar"}
+                          {upsertMutation.isPending ? savePending() : SAVE}
                         </Button>
                         <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>
-                          Cancelar
+                          {CANCEL}
                         </Button>
                       </div>
                     </div>
@@ -351,7 +436,7 @@ function MembersSection({
           </div>
         )}
 
-        {canEdit && !editingUser && (
+        {canManageMembers && !editingUser && (
           <Button type="button" variant="outline" onClick={handleNew} className="self-start">
             Nuevo miembro
           </Button>
@@ -420,10 +505,10 @@ function MembersSection({
             )}
             <div className="flex gap-2">
               <Button type="button" onClick={handleSubmit} disabled={upsertMutation.isPending}>
-                {upsertMutation.isPending ? "Guardando..." : "Guardar miembro"}
+                {upsertMutation.isPending ? savePending() : `${SAVE} miembro`}
               </Button>
               <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>
-                Cancelar
+                {CANCEL}
               </Button>
             </div>
           </div>
@@ -852,7 +937,7 @@ export function SettingsPage() {
   const newBaseDialogRef = useRef<HTMLDialogElement>(null);
   const [newBaseOpen, setNewBaseOpen] = useState(false);
   const [newBaseLabel, setNewBaseLabel] = useState("");
-  const [newBaseLayout, setNewBaseLayout] = useState<(typeof LAYOUT_OPTIONS)[number]["value"]>("pear");
+  const [newBaseLayout, setNewBaseLayout] = useState<TemplateLayoutValue>("pear");
   const [gmailOAuthSectionError, setGmailOAuthSectionError] = useState("");
 
   const serverProfiles = useMemo(
@@ -1194,7 +1279,7 @@ export function SettingsPage() {
     setIsCreatingProfile(false);
     setNewProfileLabelDraft("");
     setNewProfileSourceId("");
-    setStatusMessage("Emisor nuevo en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
+    setStatusMessage(`Emisor nuevo en memoria. Pulsa «${SAVE} datos del emisor» para fijarlo en el servidor.`);
     setStatusTone("neutral");
   };
 
@@ -1232,7 +1317,7 @@ export function SettingsPage() {
     setNewBaseLabel("");
     setNewBaseLayout("pear");
     newBaseDialogRef.current?.close();
-    setStatusMessage("Emisor nuevo desde plantilla en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
+    setStatusMessage(`Emisor nuevo desde plantilla en memoria. Pulsa «${SAVE} datos del emisor» para fijarlo en el servidor.`);
     setStatusTone("neutral");
   };
 
@@ -1258,7 +1343,7 @@ export function SettingsPage() {
     setProfileListOverride(nextList);
     setDraftByProfileId({});
     syncLauncherSelection(fallback.id);
-    setStatusMessage("Emisor eliminado en memoria. Pulsa «Guardar datos del emisor» para fijarlo en el servidor.");
+    setStatusMessage(`Emisor eliminado en memoria. Pulsa «${SAVE} datos del emisor» para fijarlo en el servidor.`);
     setStatusTone("neutral");
   };
 
@@ -1267,8 +1352,8 @@ export function SettingsPage() {
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Emisores</h1>
         <p className="text-informative">
-          Datos fiscales, logo y textos por defecto del <strong>emisor activo</strong>. Al pulsar «Guardar datos del emisor» se
-          guardan en el servidor (legacy pestaña Emisor). Es independiente de «Guardar documento» en Facturar.
+          Datos fiscales, logo y textos por defecto del <strong>emisor activo</strong>. Al pulsar «{SAVE} datos del emisor» se
+          guardan en el servidor (legacy pestaña Emisor). Es independiente de «{SAVE} documento» en Facturar.
         </p>
       </header>
 
@@ -1366,7 +1451,7 @@ export function SettingsPage() {
                   <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-900 dark:text-amber-100">
                     La selección de emisor activo en el formulario (
                     <strong>{safeValue(activeProfileForNextSave?.label || effectiveActiveProfileId)}</strong>
-                    ) aún no está guardada en el servidor; pulsa «Guardar datos del emisor» para fijarla.
+                    ) aún no está guardada en el servidor; pulsa «{SAVE} datos del emisor» para fijarla.
                   </p>
                 ) : null}
                 <div className="flex flex-wrap gap-2 pt-1">
@@ -1425,7 +1510,7 @@ export function SettingsPage() {
                   <p className="font-medium">Cambios locales pendientes de guardar</p>
                   <p className="mt-1 text-informative">
                     Hay ediciones o un emisor activo distinto del último guardado en servidor; nada de esto se aplica en el backend
-                    hasta pulsar «Guardar datos del emisor».
+                    hasta pulsar «{SAVE} datos del emisor».
                   </p>
                 </div>
               ) : null}
@@ -1484,13 +1569,13 @@ export function SettingsPage() {
                         aria-label="Plantilla"
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                         value={
-                          LAYOUT_OPTIONS.some((o) => o.value === editingDraft.layout) ? editingDraft.layout : ""
+                          TEMPLATE_LAYOUT_OPTIONS.some((o) => o.value === editingDraft.layout) ? editingDraft.layout : ""
                         }
                         onChange={(event) => updateDraft({ layout: event.target.value })}
                         disabled={!canEditEmitterData}
                       >
                         <option value="">Plantilla...</option>
-                        {LAYOUT_OPTIONS.map((opt) => (
+                        {TEMPLATE_LAYOUT_OPTIONS.map((opt) => (
                           <option key={opt.value} value={opt.value}>
                             {opt.label}
                           </option>
@@ -1534,7 +1619,7 @@ export function SettingsPage() {
                       disabled={!canEditEmitterData || saveConfigMutation.isPending || !profiles.length}
                       onClick={() => saveConfigMutation.mutate()}
                     >
-                      {saveConfigMutation.isPending ? "Guardando..." : "Guardar datos del emisor"}
+                      {saveConfigMutation.isPending ? savePending() : `${SAVE} datos del emisor`}
                     </Button>
                     {isAdmin ? (
                       <Button
@@ -1580,7 +1665,7 @@ export function SettingsPage() {
                         Crear emisor
                       </Button>
                       <Button type="button" variant="outline" onClick={cancelNewTemplateProfile}>
-                        Cancelar
+                        {CANCEL}
                       </Button>
                     </div>
                   ) : null}
@@ -1963,9 +2048,9 @@ export function SettingsPage() {
                   aria-label="Plantilla base del nuevo emisor"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={newBaseLayout}
-                  onChange={(e) => setNewBaseLayout(e.target.value as (typeof LAYOUT_OPTIONS)[number]["value"])}
+                  onChange={(e) => setNewBaseLayout(e.target.value as TemplateLayoutValue)}
                 >
-                  {LAYOUT_OPTIONS.map((opt) => (
+                  {TEMPLATE_LAYOUT_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
@@ -1980,7 +2065,7 @@ export function SettingsPage() {
                     newBaseDialogRef.current?.close();
                   }}
                 >
-                  Cancelar
+                  {CANCEL}
                 </Button>
                 <Button type="button" onClick={confirmNewProfileFromBase} disabled={!isAdmin}>
                   Crear en memoria
