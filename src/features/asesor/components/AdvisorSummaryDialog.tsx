@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { QuarterBadge } from "@/components/ui/QuarterBadge";
+import { formatQuarterShortLabel } from "@/domain/accounting/quarter";
 import type { ExpenseRecord } from "@/domain/expenses/types";
 import {
   accountingStatusLabel,
@@ -15,7 +16,6 @@ import {
   collectShareReportAlerts,
   formatAdvisorCompactDate,
   formatAdvisorSectionTitle,
-  formatQuarterShortLabel,
   normAdvisorStatus,
   type AdvisorInvoiceStatusFilter,
   type AdvisorShareScope,
@@ -29,7 +29,7 @@ import {
 import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
 import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
 import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
-import type { HistoryInvoiceItem } from "@/infrastructure/api/historyApi";
+import type { HistoryInvoice } from "@/features/history/types/historyInvoice";
 import { buildShareReportViewerUrl, postShareReport } from "@/infrastructure/api/exportReportsApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -39,7 +39,7 @@ type ProfileOption = { id: string; label?: string; colorKey?: string };
 type Props = {
   open: boolean;
   onClose: () => void;
-  historyItems: HistoryInvoiceItem[];
+  historyItems: HistoryInvoice[];
   expenseItems: ExpenseRecord[];
   profileOptions: ProfileOption[];
   /** Año sugerido al abrir (`""` = todos). */

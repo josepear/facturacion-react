@@ -8,6 +8,7 @@ import { QuarterBadge } from "@/components/ui/QuarterBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
+import type { HistoryInvoice } from "@/features/history/types/historyInvoice";
 import { PageHeader } from "@/features/shared/components/PageHeader";
 import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
@@ -137,7 +138,7 @@ export function HistoryPage() {
 
   const filteredItems = useMemo(() => {
     const term = String(searchTerm || "").trim().toLowerCase();
-    let items = historyQuery.data ?? [];
+    let items: HistoryInvoice[] = historyQuery.data ?? [];
     if (filterType) {
       items = items.filter((item) => item.type === filterType);
     }

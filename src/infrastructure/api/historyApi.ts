@@ -1,24 +1,10 @@
+import type { HistoryInvoice } from "@/features/history/types/historyInvoice";
 import { request } from "@/infrastructure/api/httpClient";
+import type { HistoryInvoicesResponseDto } from "@/infrastructure/api/historyInvoiceDto";
+import { mapHistoryInvoiceDtosToDomain } from "@/infrastructure/mappers/historyInvoiceMapper";
 
-export type HistoryInvoiceItem = {
-  recordId: string;
-  type: "factura" | "presupuesto";
-  typeLabel: string;
-  number: string;
-  clientName: string;
-  issueDate: string;
-  total: number;
-  savedAt: string;
-  status: string;
-  templateProfileId: string;
-  templateProfileLabel: string;
-};
-
-type HistoryResponse = {
-  items?: HistoryInvoiceItem[];
-};
-
-export async function fetchHistoryInvoices() {
-  const payload = await request<HistoryResponse>("/api/history");
-  return (payload.items ?? []).filter((item) => item.type === "factura" || item.type === "presupuesto");
+export async function fetchHistoryInvoices(): Promise<HistoryInvoice[]> {
+  const payload = await request<HistoryInvoicesResponseDto>("/api/history");
+  const raw = (payload.items ?? []).filter((item) => item.type === "factura" || item.type === "presupuesto");
+  return mapHistoryInvoiceDtosToDomain(raw);
 }

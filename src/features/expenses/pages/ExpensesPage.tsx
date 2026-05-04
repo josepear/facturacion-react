@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { QuarterBadge } from "@/components/ui/QuarterBadge";
+import { accountingQuarterSelectFromIssueDate } from "@/domain/accounting/quarter";
 import type { ExpenseRecord } from "@/domain/expenses/types";
 import {
-  accountingQuarterSelectFromIssueDate,
   exerciseYearFromItem,
   filterControlExpensesWorkbook,
   filterExerciseScopeExpensesWorkbook,

@@ -1,7 +1,7 @@
 import { isPerPersonUnitLabel } from "@/domain/document/perPersonPricing";
 import type { DocumentAccountingStatus, InvoiceDocument, InvoiceItem } from "@/domain/document/types";
 import { createEmptyDocument } from "@/domain/document/defaults";
-import { accountingQuarterSelectFromIssueDate } from "@/features/data/lib/advisorShareFilters";
+import { accountingQuarterSelectFromIssueDate } from "@/domain/accounting/quarter";
 import { toNumber } from "@/lib/utils";
 
 function getQuarterLabel(dateString: string): string {

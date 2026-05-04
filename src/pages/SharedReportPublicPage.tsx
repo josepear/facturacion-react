@@ -5,11 +5,11 @@ import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { QuarterBadge } from "@/components/ui/QuarterBadge";
+import { formatQuarterShortLabel } from "@/domain/accounting/quarter";
 import {
   accountingStatusLabel,
   formatAdvisorCompactDate,
   formatAdvisorSectionTitle,
-  formatQuarterShortLabel,
 } from "@/features/data/lib/advisorShareFilters";
 import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
 import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";

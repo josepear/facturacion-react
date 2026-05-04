@@ -13,7 +13,7 @@ import {
 import { createEmptyDocument } from "@/domain/document/defaults";
 import { getNextNumber, validateNumberAvailability } from "@/domain/numbering/usecases/getNextNumber";
 import { invoiceDocumentSchema } from "@/domain/document/schemas";
-import { accountingQuarterSelectFromIssueDate } from "@/features/data/lib/advisorShareFilters";
+import { accountingQuarterSelectFromIssueDate } from "@/domain/accounting/quarter";
 import type { CalculatedTotals, InvoiceDocument } from "@/domain/document/types";
 import { fetchClients } from "@/infrastructure/api/clientsApi";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";

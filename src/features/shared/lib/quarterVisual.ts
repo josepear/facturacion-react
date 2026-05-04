@@ -1,4 +1,4 @@
-import { formatQuarterShortLabel, normalizeQuarterValue } from "@/features/data/lib/advisorShareFilters";
+import { formatQuarterShortLabel, normalizeQuarterValue } from "@/domain/accounting/quarter";
 
 /** Borde izquierdo por trimestre (filas tipo libro de control). */
 export function workbookQuarterRowToneClass(quarter: string): string {
