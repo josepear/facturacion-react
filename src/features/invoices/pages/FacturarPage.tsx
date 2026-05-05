@@ -491,7 +491,7 @@ export function FacturarPage() {
         onSubmit={submit}
       >
         <div ref={workflowRailContainerRef} className="flex min-w-0 items-start gap-3 md:gap-4">
-          <div className="step-indicator-custom sticky top-4 hidden w-14 shrink-0 self-start md:block lg:w-16">
+          <div className="step-indicator-custom hidden w-14 shrink-0 self-start md:block lg:w-16">
             {(() => {
               const firstCenter = workflowRailCenters.emitter;
               const lastCenter = workflowRailCenters.save;
