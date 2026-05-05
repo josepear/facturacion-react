@@ -28,6 +28,7 @@ import { fetchHistoryInvoices } from "@/infrastructure/api/historyApi";
 import { ApiError, getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { openGmailOAuthPopupAndWait } from "@/infrastructure/gmail/oauthPopup";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { TEMPLATE_LAYOUT_OPTIONS, type TemplateLayoutValue } from "@/features/shared/lib/templateLayoutOptions";
 import { CANCEL, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { cn, toNumber } from "@/lib/utils";
@@ -206,7 +207,15 @@ export function SettingsPage() {
     () => configQuery.data?.templateProfiles ?? [],
     [configQuery.data?.templateProfiles],
   );
-  const profiles = profileListOverride ?? serverProfiles;
+  const allProfiles = profileListOverride ?? serverProfiles;
+  const sessionScope = useMemo(
+    () => resolveSessionScope(sessionQuery.data, allProfiles),
+    [sessionQuery.data, allProfiles],
+  );
+  const profiles = useMemo(
+    () => allProfiles.filter((profile) => isTemplateProfileInScope(profile.id, sessionScope)),
+    [allProfiles, sessionScope],
+  );
   const urlTemplateProfileId = String(searchParams.get("templateProfileId") || "").trim();
   const sessionRole = sessionQuery.data?.authenticated
     ? String(sessionQuery.data.user.role || "").trim().toLowerCase()
@@ -214,7 +223,7 @@ export function SettingsPage() {
   const sessionReady = !sessionQuery.isLoading && !sessionQuery.error;
   const isAdmin = sessionReady && sessionRole === "admin";
   /** Editar y guardar datos de emisores ya existentes (admin o editor). */
-  const canEditEmitterData = sessionReady && (sessionRole === "admin" || sessionRole === "editor");
+  const canEditEmitterData = sessionReady && sessionScope.hasEmitterScope && (sessionRole === "admin" || sessionRole === "editor");
   const configuredRoleLabel = sessionQuery.data?.authenticated
     ? String(sessionQuery.data.user.role ?? "").trim()
     : "";
@@ -684,6 +693,14 @@ export function SettingsPage() {
         </Card>
       ) : (
         <>
+          {!sessionScope.hasEmitterScope ? (
+            <Card>
+              <CardContent className="pt-6 text-sm text-informative">
+                Tu sesión no tiene emisores asignados para operar en Configuración. Contacta con un administrador.
+              </CardContent>
+            </Card>
+          ) : null}
+          {sessionScope.hasEmitterScope ? (
           <Card>
             <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
               <div className="min-w-0 space-y-1">
@@ -799,8 +816,9 @@ export function SettingsPage() {
               </select>
             </CardContent>
           </Card>
+          ) : null}
 
-          <details className="group rounded-lg border border-border bg-card">
+          {sessionScope.hasEmitterScope ? <details className="group rounded-lg border border-border bg-card">
             <summary className="cursor-pointer list-none px-4 py-3 font-medium text-foreground outline-none marker:hidden [&::-webkit-details-marker]:hidden">
               <span className="text-informative group-open:text-foreground">Servidor y resumen técnico (opcional)</span>
             </summary>
@@ -927,7 +945,7 @@ export function SettingsPage() {
                 </Card>
               </section>
             </div>
-          </details>
+          </details> : null}
 
           <dialog
             ref={emitterDialogRef}
@@ -1405,7 +1423,7 @@ export function SettingsPage() {
             </CardContent>
           </dialog>
 
-          {isAdmin ? (
+          {isAdmin && sessionScope.hasEmitterScope ? (
             <Card>
               <div className="grid gap-4 p-4">
                 <h2 className="text-base font-semibold">Integración Gmail</h2>
@@ -1462,7 +1480,7 @@ export function SettingsPage() {
             </Card>
           ) : null}
 
-          <TrashSection canEdit={isAdmin} />
+          <TrashSection canEdit={isAdmin && sessionScope.hasEmitterScope} />
 
           <dialog
             ref={newBaseDialogRef}

@@ -13,6 +13,7 @@ import { PageHeader } from "@/features/shared/components/PageHeader";
 import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { ACCOUNTING_STATUS_OPTIONS, formatAccountingStatusLabel } from "@/features/shared/lib/accountingStatusOptions";
 import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
 import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
@@ -105,6 +106,18 @@ export function HistoryPage() {
   });
 
   const sessionQuery = useSessionQuery();
+  const profileOptions = useMemo(
+    () => configQuery.data?.templateProfiles ?? [],
+    [configQuery.data?.templateProfiles],
+  );
+  const sessionScope = useMemo(
+    () => resolveSessionScope(sessionQuery.data, profileOptions),
+    [sessionQuery.data, profileOptions],
+  );
+  const scopedProfileOptions = useMemo(
+    () => profileOptions.filter((profile) => isTemplateProfileInScope(profile.id, sessionScope)),
+    [profileOptions, sessionScope],
+  );
 
   const trashQuery = useQuery({
     queryKey: ["trash"],
@@ -114,8 +127,29 @@ export function HistoryPage() {
   const detailQuery = useQuery({
     queryKey: ["document-detail", selectedRecordId],
     queryFn: () => fetchDocumentDetail(selectedRecordId),
-    enabled: Boolean(selectedRecordId),
+    enabled: Boolean(
+      selectedRecordId &&
+      (historyQuery.data ?? []).some(
+        (item) =>
+          String(item.recordId || "").trim() === String(selectedRecordId || "").trim() &&
+          isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope),
+      ),
+    ),
   });
+  useEffect(() => {
+    const safeSelected = String(selectedRecordId || "").trim();
+    if (!safeSelected) {
+      return;
+    }
+    const inScope = (historyQuery.data ?? []).some(
+      (item) =>
+        String(item.recordId || "").trim() === safeSelected &&
+        isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope),
+    );
+    if (!inScope) {
+      selectRecord("");
+    }
+  }, [historyQuery.data, selectedRecordId, sessionScope]);
 
   const toggleRecordSelection = (recordId: string, docType: string) => {
     if (docType !== "factura") {
@@ -138,7 +172,9 @@ export function HistoryPage() {
 
   const filteredItems = useMemo(() => {
     const term = String(searchTerm || "").trim().toLowerCase();
-    let items: HistoryInvoice[] = historyQuery.data ?? [];
+    let items: HistoryInvoice[] = (historyQuery.data ?? []).filter((item) =>
+      isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope),
+    );
     if (filterType) {
       items = items.filter((item) => item.type === filterType);
     }
@@ -170,7 +206,7 @@ export function HistoryPage() {
         profileLabel.includes(term)
       );
     });
-  }, [historyQuery.data, searchTerm, filterType, filterYear, filterStatus, filterProfile]);
+  }, [historyQuery.data, searchTerm, filterType, filterYear, filterStatus, filterProfile, sessionScope]);
 
   const visibleFacturas = useMemo(() => filteredItems.filter((i) => i.type === "factura"), [filteredItems]);
 
@@ -222,11 +258,6 @@ export function HistoryPage() {
       Array.from(new Set((historyQuery.data ?? []).map((item) => String(item.issueDate || "").slice(0, 4)).filter(Boolean)))
         .sort((a, b) => b.localeCompare(a)),
     [historyQuery.data],
-  );
-
-  const profileOptions = useMemo(
-    () => configQuery.data?.templateProfiles ?? [],
-    [configQuery.data?.templateProfiles],
   );
 
   /** Solo lectura: `id` viene del detalle; `label` solo si coincide con `/api/config` ya cargado (sin inferir). */
@@ -496,6 +527,21 @@ export function HistoryPage() {
       setShareProfileId(filterProfile);
     }
   }, [filterProfile]);
+  useEffect(() => {
+    if (filterProfile && !isTemplateProfileInScope(filterProfile, sessionScope)) {
+      setFilterProfile("");
+    }
+  }, [filterProfile, sessionScope]);
+  useEffect(() => {
+    if (archiveProfileId && !isTemplateProfileInScope(archiveProfileId, sessionScope)) {
+      setArchiveProfileId("");
+    }
+  }, [archiveProfileId, sessionScope]);
+  useEffect(() => {
+    if (shareProfileId && !isTemplateProfileInScope(shareProfileId, sessionScope)) {
+      setShareProfileId("");
+    }
+  }, [shareProfileId, sessionScope]);
 
   const shareReportMutation = useMutation({
     mutationFn: () => {
@@ -550,8 +596,19 @@ export function HistoryPage() {
         title="Historial"
         description="Localiza documentos y reábrelos en Facturar para revisarlos o editarlos."
       />
+      <p className="text-informative">
+        Tenant: <span className="font-medium text-foreground">{sessionScope.tenantId || "-"}</span> · Emisores visibles:{" "}
+        <span className="font-medium text-foreground">{sessionScope.visibleTemplateProfileIds.length}</span>
+      </p>
+      {!sessionScope.hasEmitterScope ? (
+        <Card>
+          <CardContent className="pt-6 text-sm text-informative">
+            Tu sesión no tiene emisores asignados para operar en Historial. Contacta con un administrador.
+          </CardContent>
+        </Card>
+      ) : null}
 
-      <section className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
+      {sessionScope.hasEmitterScope ? <section className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
         <Card>
           <CardHeader>
             <CardTitle>Listado de documentos</CardTitle>
@@ -629,7 +686,7 @@ export function HistoryPage() {
                   aria-label="Filtrar por emisor"
                 >
                   <option value="">Todos</option>
-                  {profileOptions.map((p) => (
+                  {scopedProfileOptions.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.label || p.id}
                     </option>
@@ -676,7 +733,7 @@ export function HistoryPage() {
                   aria-label="Emisor para enlace compartido"
                 >
                   <option value="">Elige emisor…</option>
-                  {profileOptions.map((p) => (
+                  {scopedProfileOptions.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.label || p.id}
                     </option>
@@ -685,7 +742,7 @@ export function HistoryPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={shareReportMutation.isPending || !profileOptions.length}
+                  disabled={shareReportMutation.isPending || !scopedProfileOptions.length}
                   onClick={() => shareReportMutation.mutate()}
                 >
                   {shareReportMutation.isPending ? "Generando…" : "Generar enlace"}
@@ -919,14 +976,19 @@ export function HistoryPage() {
                   onChange={(event) => setArchiveProfileId(event.target.value)}
                 >
                   <option value="">Selecciona emisor</option>
-                  {profileOptions.map((profile) => (
+                  {scopedProfileOptions.map((profile) => (
                     <option key={profile.id} value={profile.id}>
                       {profile.label || profile.id}
                     </option>
                   ))}
                 </select>
               </div>
-              <Button type="button" variant="outline" onClick={() => archiveYearMutation.mutate()} disabled={archiveYearMutation.isPending}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => archiveYearMutation.mutate()}
+                disabled={archiveYearMutation.isPending || !isAdmin}
+              >
                 {archiveYearMutation.isPending ? "Archivando..." : "Archivar ejercicio"}
               </Button>
             </div>
@@ -1023,7 +1085,7 @@ export function HistoryPage() {
                     type="button"
                     variant="outline"
                     onClick={() => archiveDocumentMutation.mutate(selectedRecordId)}
-                    disabled={archiveDocumentMutation.isPending}
+                    disabled={archiveDocumentMutation.isPending || !isAdmin}
                   >
                     {archiveDocumentMutation.isPending ? "Archivando..." : "Archivar documento"}
                   </Button>
@@ -1071,9 +1133,9 @@ export function HistoryPage() {
             )}
           </CardContent>
         </Card>
-      </section>
+      </section> : null}
 
-      <Card>
+      {sessionScope.hasEmitterScope ? <Card>
         <CardHeader>
           <CardTitle>Papelera documentos</CardTitle>
           <CardDescription>
@@ -1122,7 +1184,7 @@ export function HistoryPage() {
             </p>
           ) : null}
         </CardContent>
-      </Card>
+      </Card> : null}
 
       <dialog
         ref={gmailBatchDialogRef}

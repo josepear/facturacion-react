@@ -4,6 +4,7 @@ export type SessionUser = {
   email: string;
   role: string;
   tenantId?: string;
+  allowedTemplateProfileIds?: string[];
 };
 
 export type SessionResponse =

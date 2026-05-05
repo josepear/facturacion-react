@@ -17,6 +17,7 @@ import { accountingQuarterSelectFromIssueDate } from "@/domain/accounting/quarte
 import type { CalculatedTotals, InvoiceDocument } from "@/domain/document/types";
 import { fetchClients } from "@/infrastructure/api/clientsApi";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { fetchDocumentDetail, fetchRuntimeConfig, saveDocument } from "@/infrastructure/api/documentsApi";
 import {
   openOfficialDocumentInNewTab,
@@ -131,6 +132,10 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     queryKey: ["history-invoices"],
     queryFn: fetchHistoryInvoices,
   });
+  const sessionScope = useMemo(
+    () => resolveSessionScope(sessionQuery.data, configQuery.data?.templateProfiles ?? []),
+    [sessionQuery.data, configQuery.data?.templateProfiles],
+  );
 
   useEffect(() => {
     if (String(selectedClientOptionId || "").trim()) {
@@ -292,6 +297,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const historyOptions = useMemo(
     () =>
       (historyQuery.data ?? [])
+        .filter((item) => isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope))
         .slice()
         .sort((left, right) => String(right.savedAt || right.issueDate).localeCompare(String(left.savedAt || left.issueDate)))
         .slice(0, 100)
@@ -311,7 +317,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
             label: `${numberLabel} · ${clientLabel} · ${dateLabel}${typeLabel ? ` · ${typeLabel}` : ""}${totalLabel ? ` · ${totalLabel} €` : ""}`,
           };
         }),
-    [historyQuery.data],
+    [historyQuery.data, sessionScope],
   );
 
   /** Facturas/presupuestos guardados cuyo cliente coincide con el del borrador (sin filtros manuales). */
@@ -323,6 +329,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     return (historyQuery.data ?? [])
       .filter(
         (item) =>
+          isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope) &&
           (item.type === "factura" || item.type === "presupuesto") &&
           sameClientName(String(item.clientName || ""), name),
       )
@@ -350,7 +357,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
           label: `${numberLabel} · ${clientLabel} · ${dateLabel}${typeLabel ? ` · ${typeLabel}` : ""}${totalLabel ? ` · ${totalLabel} €` : ""}`,
         };
       });
-  }, [historyQuery.data, watched.client?.name]);
+  }, [historyQuery.data, watched.client?.name, sessionScope]);
 
   useEffect(() => {
     const sel = String(selectedHistoryRecordId || "").trim();
@@ -469,8 +476,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         id: profile.id,
         label: profile.label || profile.id,
         colorKey: profile.colorKey,
-      })),
-    [configQuery.data?.templateProfiles],
+      })).filter((profile) => isTemplateProfileInScope(profile.id, sessionScope)),
+    [configQuery.data?.templateProfiles, sessionScope],
   );
 
   const activeTemplateProfileId = String(configQuery.data?.activeTemplateProfileId || "").trim();
@@ -481,6 +488,22 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     () => (configQuery.data?.templateProfiles ?? []).find((profile) => profile.id === effectiveTemplateProfileId) || null,
     [configQuery.data?.templateProfiles, effectiveTemplateProfileId],
   );
+  useEffect(() => {
+    if (!sessionScope.hasEmitterScope) {
+      form.setValue("templateProfileId", "", { shouldDirty: false, shouldValidate: true });
+      return;
+    }
+    const current = String(form.getValues("templateProfileId") || "").trim();
+    if (current && !isTemplateProfileInScope(current, sessionScope)) {
+      const fallback = profileOptions[0]?.id || "";
+      form.setValue("templateProfileId", fallback, { shouldDirty: false, shouldValidate: true });
+      return;
+    }
+    const singleProfileId = profileOptions.length === 1 ? profileOptions[0]?.id : "";
+    if (!current && singleProfileId) {
+      form.setValue("templateProfileId", singleProfileId, { shouldDirty: false, shouldValidate: true });
+    }
+  }, [form, profileOptions, sessionScope]);
 
   const clientOptions = useMemo(
     () =>
@@ -505,6 +528,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     return (historyQuery.data ?? [])
       .filter(
         (item) =>
+          isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope) &&
           String(item.templateProfileId || "").trim() === profileIdForReload &&
           (item.type === "factura" || item.type === "presupuesto"),
       )
@@ -524,7 +548,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
           label: `${numberLabel} · ${clientLabel} · ${dateLabel}${typeLabel ? ` · ${typeLabel}` : ""}${totalLabel ? ` · ${totalLabel} €` : ""}`,
         };
       });
-  }, [historyQuery.data, profileIdForReload]);
+  }, [historyQuery.data, profileIdForReload, sessionScope]);
 
   const ensureDefaults = () => {
     const current = form.getValues();
@@ -731,6 +755,12 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     },
     onSuccess: ({ recordId, document }) => {
       const mapped = applyTotals(mapLegacyDocumentToForm(document));
+      const mappedProfileId = String(mapped.templateProfileId || "").trim();
+      if (!isTemplateProfileInScope(mappedProfileId, sessionScope)) {
+        setNumberAvailabilityText("No tienes acceso al emisor de ese documento.");
+        setNumberAvailabilityTone("error");
+        return;
+      }
       setServerRecordId(recordId);
       setOfficialHtmlPreviewVersion((v) => v + 1);
       setOfficialOutputError(null);
@@ -758,7 +788,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     }
     bootstrappedRecordIdRef.current = safeInitial;
     loadMutation.mutate(safeInitial);
-  }, [initialRecordId, loadMutation]);
+  }, [initialRecordId, loadMutation, sessionScope]);
 
   useEffect(() => {
     const safeProfileId = String(initialTemplateProfileId || "").trim();
@@ -989,5 +1019,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     loadingConfig: configQuery.isLoading,
     liveDocument,
     isDirty: form.formState.isDirty,
+    sessionScope,
   };
 }

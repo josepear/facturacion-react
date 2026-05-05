@@ -4,6 +4,7 @@ import { Link, useBlocker, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { FacturarLegacyHtmlPane } from "@/features/invoices/components/FacturarLegacyHtmlPane";
@@ -19,6 +20,7 @@ import {
   facturarClientHistoryRowsSummary,
 } from "@/features/invoices/lib/facturarClientHistoryCopy";
 import { PageHeader } from "@/features/shared/components/PageHeader";
+import { isTemplateProfileInScope } from "@/features/shared/lib/sessionScope";
 import { CLOSE, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { ACCOUNTING_STATUS_OPTIONS } from "@/features/shared/lib/accountingStatusOptions";
@@ -125,6 +127,7 @@ export function FacturarPage() {
     hasLastSetup,
     repeatLastSetup,
     isDirty,
+    sessionScope,
   } = useFacturarForm(initialRecordId, initialTemplateProfileId);
 
   const autoOpenModuleId = useMemo(
@@ -343,7 +346,16 @@ export function FacturarPage() {
     if (!workflowChecklist.fiscal.complete) pending += 1;
     return pending;
   }, [workflowChecklist]);
-  const saveButtonDisabled = isSubmitting || saveMutation.isPending || loadingConfig || !workflowChecklist.save.complete;
+  const templateProfileIdForSave = String(templateProfileIdWatched || "").trim();
+  const saveAllowedByEmitterScope =
+    sessionScope.isAdmin
+    || (templateProfileIdForSave.length > 0 && isTemplateProfileInScope(templateProfileIdForSave, sessionScope));
+  const saveButtonDisabled =
+    isSubmitting
+    || saveMutation.isPending
+    || loadingConfig
+    || !workflowChecklist.save.complete
+    || !saveAllowedByEmitterScope;
 
   useLayoutEffect(() => {
     const container = workflowRailContainerRef.current;
@@ -478,6 +490,23 @@ export function FacturarPage() {
     };
   }, [shouldBlockNavigation]);
 
+  if (!sessionScope.hasEmitterScope) {
+    return (
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
+        <PageHeader
+          className="space-y-2"
+          title="Facturar"
+          description="Crea o edita documentos; también puedes reabrirlos desde Historial."
+        />
+        <Card>
+          <CardContent className="pt-6 text-sm text-informative">
+            Tu sesión no tiene emisores asignados para operar en Facturar. Contacta con un administrador.
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
       <PageHeader
@@ -485,13 +514,17 @@ export function FacturarPage() {
         title="Facturar"
         description="Crea o edita documentos; también puedes reabrirlos desde Historial."
       />
+      <p className="text-informative">
+        Tenant: <span className="font-medium text-foreground">{sessionScope.tenantId || "-"}</span> · Emisores visibles:{" "}
+        <span className="font-medium text-foreground">{sessionScope.visibleTemplateProfileIds.length}</span>
+      </p>
 
       <form
         className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
         onSubmit={submit}
       >
         <div ref={workflowRailContainerRef} className="flex min-w-0 items-start gap-3 md:gap-4">
-          <div className="step-indicator-custom sticky top-4 hidden w-14 shrink-0 self-start md:block lg:w-16">
+          <div className="step-indicator-custom hidden w-14 shrink-0 self-start md:block lg:w-16">
             {(() => {
               const firstCenter = workflowRailCenters.emitter;
               const lastCenter = workflowRailCenters.save;
@@ -1126,6 +1159,12 @@ export function FacturarPage() {
                   {!workflowChecklist.save.complete ? (
                     <p className="text-pretty text-sm text-amber-700 sm:max-w-xl sm:text-right">
                       Completa los módulos obligatorios pendientes ({requiredWorkflowPendingCount}) para habilitar el guardado.
+                    </p>
+                  ) : !saveAllowedByEmitterScope ? (
+                    <p className="text-pretty text-sm text-amber-700 sm:max-w-xl sm:text-right">
+                      {templateProfileIdForSave
+                        ? "El emisor seleccionado no está en tu alcance. Elige un emisor permitido para tu usuario."
+                        : "Selecciona un emisor permitido para tu usuario antes de guardar."}
                     </p>
                   ) : null}
                   <p className="text-pretty text-sm text-informative sm:max-w-xl sm:text-right">

@@ -25,6 +25,7 @@ import { PageHeader } from "@/features/shared/components/PageHeader";
 import { CLOSE, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { ExpensePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
 import { resolveCalendarQuarter } from "@/features/shared/lib/quarterVisual";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
@@ -446,6 +447,14 @@ export function ExpensesPage() {
 
   const availableYears = expensesQuery.data?.years ?? [];
   const profileOptions = configQuery.data?.templateProfiles ?? [];
+  const sessionScope = useMemo(
+    () => resolveSessionScope(sessionQuery.data, profileOptions),
+    [sessionQuery.data, profileOptions],
+  );
+  const scopedProfileOptions = useMemo(
+    () => profileOptions.filter((profile) => isTemplateProfileInScope(profile.id, sessionScope)),
+    [profileOptions, sessionScope],
+  );
   const activeProfileLabel = profileOptions.find((p) => p.id === activeProfileId)?.label || activeProfileId;
   const isAdmin =
     Boolean(sessionQuery.data?.authenticated) &&
@@ -458,7 +467,9 @@ export function ExpensesPage() {
   const profileControlToken = useMemo(() => mapReactExpenseProfileFilterToControl(profileFilter), [profileFilter]);
 
   const workbookFilteredExpenses = useMemo(() => {
-    const items = expensesQuery.data?.items ?? [];
+    const items = (expensesQuery.data?.items ?? []).filter((item) =>
+      isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope),
+    );
     const ded: "all" | "yes" | "no" = deductibleFilter;
     const filtered = filterControlExpensesWorkbook(items, {
       filterYear: yearFilter,
@@ -468,15 +479,17 @@ export function ExpensesPage() {
       selectedProfile: profileControlToken,
     });
     return sortExpenseWorkbookDefault(filtered);
-  }, [deductibleFilter, expensesQuery.data?.items, profileControlToken, quarterFilter, searchTerm, yearFilter]);
+  }, [deductibleFilter, expensesQuery.data?.items, profileControlToken, quarterFilter, searchTerm, yearFilter, sessionScope]);
 
   const exerciseScopeExpenses = useMemo(() => {
-    const items = expensesQuery.data?.items ?? [];
+    const items = (expensesQuery.data?.items ?? []).filter((item) =>
+      isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope),
+    );
     return filterExerciseScopeExpensesWorkbook(items, {
       filterYear: yearFilter,
       selectedProfile: profileControlToken,
     });
-  }, [expensesQuery.data?.items, profileControlToken, yearFilter]);
+  }, [expensesQuery.data?.items, profileControlToken, yearFilter, sessionScope]);
 
   const expenseMonthGroups = useMemo(() => groupExpensesByMonth(workbookFilteredExpenses), [workbookFilteredExpenses]);
 
@@ -793,7 +806,11 @@ export function ExpensesPage() {
     if (!initialRecordId || selectedRecordId || !expensesQuery.data?.items?.length) {
       return;
     }
-    const target = expensesQuery.data.items.find((item) => String(item.recordId || "").trim() === initialRecordId);
+    const target = expensesQuery.data.items.find(
+      (item) =>
+        String(item.recordId || "").trim() === initialRecordId &&
+        isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope),
+    );
     if (!target) {
       return;
     }
@@ -806,7 +823,25 @@ export function ExpensesPage() {
     return () => {
       globalThis.clearTimeout(timeoutId);
     };
-  }, [expensesQuery.data?.items, initialRecordId, selectedRecordId]);
+  }, [expensesQuery.data?.items, initialRecordId, selectedRecordId, sessionScope]);
+  useEffect(() => {
+    const safeSelected = String(selectedRecordId || "").trim();
+    if (!safeSelected) {
+      return;
+    }
+    const selected = (expensesQuery.data?.items ?? []).find((item) => String(item.recordId || "").trim() === safeSelected);
+    if (!selected) {
+      return;
+    }
+    if (!isTemplateProfileInScope(String(selected.templateProfileId || "").trim(), sessionScope)) {
+      setSelectedRecordId("");
+      setRecordIdSearchParam("");
+      didHydrateDefaultTemplateProfile.current = false;
+      setDraft(createEmptyExpense(activeProfileId));
+      setStatusMessage("Sin acceso al emisor del gasto seleccionado.");
+      setStatusTone("error");
+    }
+  }, [activeProfileId, expensesQuery.data?.items, selectedRecordId, sessionScope]);
 
   /**
    * Alta sin `recordId`: una vez que llega `/api/config`, si el borrador sigue sin `templateProfileId`,
@@ -867,6 +902,41 @@ export function ExpensesPage() {
       setSearchParams(next, { replace: true });
     }
   }, [deductibleFilter, profileFilter, quarterFilter, searchParams, searchTerm, setSearchParams, yearFilter]);
+  useEffect(() => {
+    const scopedSpecial = profileFilter === "all" || profileFilter === "__default__" || profileFilter === "__unassigned__";
+    if (scopedSpecial) {
+      return;
+    }
+    if (profileFilter && !isTemplateProfileInScope(profileFilter, sessionScope)) {
+      setProfileFilter("all");
+    }
+  }, [profileFilter, sessionScope]);
+  useEffect(() => {
+    if (archiveProfileId && !isTemplateProfileInScope(archiveProfileId, sessionScope)) {
+      setArchiveProfileId("");
+    }
+  }, [archiveProfileId, sessionScope]);
+  useEffect(() => {
+    if (importProfileId && !isTemplateProfileInScope(importProfileId, sessionScope)) {
+      setImportProfileId("");
+    }
+  }, [importProfileId, sessionScope]);
+
+  if (!sessionScope.hasEmitterScope) {
+    return (
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
+        <PageHeader
+          title="Gastos"
+          description="Módulo real conectado a `/api/expenses` con ciclo de vida y control por emisor."
+        />
+        <Card>
+          <CardContent className="pt-6 text-sm text-informative">
+            Tu sesión no tiene emisores asignados para operar en Gastos. Contacta con un administrador.
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
@@ -874,6 +944,10 @@ export function ExpensesPage() {
         title="Gastos"
         description="Módulo real conectado a `/api/expenses` con ciclo de vida y control por emisor."
       />
+      <p className="text-informative">
+        Tenant: <span className="font-medium text-foreground">{sessionScope.tenantId || "-"}</span> · Emisores visibles:{" "}
+        <span className="font-medium text-foreground">{sessionScope.visibleTemplateProfileIds.length}</span>
+      </p>
 
       <div className={`grid gap-6 lg:items-start ${isAdmin ? "lg:grid-cols-2" : ""}`}>
         {isAdmin ? (
@@ -895,7 +969,7 @@ export function ExpensesPage() {
                   className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
                 >
                   <option value="">— Selecciona emisor —</option>
-                  {profileOptions.map((p) => (
+                  {scopedProfileOptions.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.label || p.id}
                     </option>
@@ -992,7 +1066,7 @@ export function ExpensesPage() {
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <label className="grid gap-1 text-sm">
-                <span className="font-medium text-foreground">Usuario o emisor</span>
+                <span className="font-medium text-foreground">Emisor</span>
                 <select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={profileFilter}
@@ -1002,7 +1076,7 @@ export function ExpensesPage() {
                   <option value="all">Todos los emisores</option>
                   <option value="__default__">Emisor por defecto</option>
                   <option value="__unassigned__">Sin emisor asignado</option>
-                  {profileOptions.map((profile) => (
+                  {scopedProfileOptions.map((profile) => (
                     <option key={profile.id} value={profile.id}>
                       {profile.label || profile.id}
                     </option>
@@ -1110,7 +1184,7 @@ export function ExpensesPage() {
                       onChange={(event) => setArchiveProfileId(event.target.value)}
                     >
                       <option value="">Selecciona emisor</option>
-                      {profileOptions.map((profile) => (
+                      {scopedProfileOptions.map((profile) => (
                         <option key={profile.id} value={profile.id}>
                           {profile.label || profile.id}
                         </option>

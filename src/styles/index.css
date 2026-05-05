@@ -41,13 +41,6 @@ body {
     line-height: 1 !important;
   }
 
-  @media (min-width: 1024px) {
-    .step-indicator-custom button {
-      width: 56px !important;
-      height: 56px !important;
-    }
-  }
-
   .step-indicator-custom button[data-step-state="active"] {
     background-color: #e8f0fe !important;
     color: #1a73e8 !important;
