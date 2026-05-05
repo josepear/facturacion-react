@@ -16,6 +16,7 @@ const {
   useSessionQueryMock,
   adminSessionQueryResult,
   editorSessionQueryResult,
+  restrictedEditorSessionQueryResult,
 } = vi.hoisted(() => {
   const admin = {
     data: {
@@ -45,6 +46,22 @@ const {
     useSessionQueryMock: vi.fn(() => admin),
     adminSessionQueryResult: admin,
     editorSessionQueryResult: editor,
+    restrictedEditorSessionQueryResult: {
+      data: {
+        authenticated: true as const,
+        user: {
+          id: "u3",
+          name: "Editor",
+          email: "ed2@test",
+          role: "editor",
+          tenantId: "default",
+          allowedTemplateProfileIds: ["perfil-1"],
+        },
+      },
+      isLoading: false,
+      error: null,
+      isSuccess: true,
+    },
   };
 });
 
@@ -187,7 +204,19 @@ describe("SettingsPage regression", () => {
     expect(editedProfile?.defaults?.paymentMethod).toBe("Bizum");
   });
 
-  it("lets editors save emitter changes but not create new emitters", async () => {
+  it("does not show members section for editor", async () => {
+    useSessionQueryMock.mockReturnValue(editorSessionQueryResult);
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-1",
+      templateProfiles: [{ id: "perfil-1", label: "Perfil 1", defaults: { paymentMethod: "Transferencia" } }],
+    });
+
+    render(<SettingsPage />, { wrapper: createPageWrapper() });
+    await screen.findByText(/Listado de emisores configurados/);
+    expect(screen.queryByText("Miembros del sistema")).toBeNull();
+  });
+
+  it("hides emitter management actions for editor and does not call save API", async () => {
     useSessionQueryMock.mockReturnValue(editorSessionQueryResult);
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
@@ -197,26 +226,43 @@ describe("SettingsPage regression", () => {
 
     render(<SettingsPage />, { wrapper: createPageWrapper() });
     await screen.findByText(/Listado de emisores configurados/);
-    await userEvent.click(within(screen.getByTestId("emitter-row-perfil-1")).getByRole("button", { name: "Editar" }));
 
-    expect(screen.queryByText("Modo solo lectura")).toBeNull();
-    expect(screen.getByText(/Rol editor/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Guardar datos del emisor" }).hasAttribute("disabled")).toBe(false);
-    expect(screen.getByRole("button", { name: "Nuevo emisor" }).hasAttribute("disabled")).toBe(true);
+    expect(screen.queryByRole("button", { name: "Nuevo emisor" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Editar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Borrar" })).toBeNull();
+    expect(screen.getByTestId("emitter-row-perfil-1")).toBeTruthy();
+    expect(saveTemplateProfilesConfigMock).not.toHaveBeenCalled();
+  });
 
-    const advancedDetails = screen.getByText("Avanzado del usuario").closest("details");
-    expect(advancedDetails).toBeTruthy();
-    await userEvent.click(screen.getByText("Avanzado del usuario"));
-    const paymentInput = within(advancedDetails as HTMLElement).getByPlaceholderText("Transferencia bancaria");
-    await userEvent.clear(paymentInput);
-    await userEvent.type(paymentInput, "Tarjeta");
-    await userEvent.click(screen.getByRole("button", { name: "Guardar datos del emisor" }));
-
-    await waitFor(() => {
-      expect(saveTemplateProfilesConfigMock).toHaveBeenCalledTimes(1);
+  it("lists all emitters for restricted editor but hides management actions on every row", async () => {
+    useSessionQueryMock.mockReturnValue(restrictedEditorSessionQueryResult);
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-1",
+      templateProfiles: [
+        {
+          id: "perfil-1",
+          label: "Perfil 1",
+          defaults: { paymentMethod: "Transferencia" },
+        },
+        {
+          id: "perfil-2",
+          label: "Perfil 2",
+          defaults: { paymentMethod: "Tarjeta" },
+        },
+      ],
     });
-    const payload = saveTemplateProfilesConfigMock.mock.calls[0]?.[0];
-    expect(payload.templateProfiles[0]?.defaults?.paymentMethod).toBe("Tarjeta");
+    saveTemplateProfilesConfigMock.mockImplementation(async (payload) => payload);
+
+    render(<SettingsPage />, { wrapper: createPageWrapper() });
+    await screen.findByText(/Listado de emisores configurados/);
+
+    expect(screen.getByTestId("emitter-row-perfil-1")).toBeTruthy();
+    expect(screen.getByTestId("emitter-row-perfil-2")).toBeTruthy();
+
+    expect(within(screen.getByTestId("emitter-row-perfil-1")).queryByRole("button", { name: "Editar" })).toBeNull();
+    expect(within(screen.getByTestId("emitter-row-perfil-2")).queryByRole("button", { name: "Editar" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Borrar" })).toBeNull();
+    expect(saveTemplateProfilesConfigMock).not.toHaveBeenCalled();
   });
 
   it("explains auth failure on /api/config separately from read-only role", async () => {
