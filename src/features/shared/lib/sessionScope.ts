@@ -15,10 +15,22 @@ export function resolveSessionScope(
   session: SessionResponse | undefined,
   templateProfiles: readonly TemplateProfileLike[],
 ): SessionScope {
-  const role = session?.authenticated ? String(session.user.role || "").trim().toLowerCase() : "";
-  const tenantId = session?.authenticated ? String(session.user.tenantId || "").trim() : "";
-  const isAdmin = role === "admin";
   const allProfileIds = templateProfiles.map((profile) => String(profile.id || "").trim()).filter(Boolean);
+
+  if (!session?.authenticated) {
+    return {
+      role: "",
+      tenantId: "",
+      isAdmin: false,
+      visibleTemplateProfileIds: [],
+      hasEmitterScope: false,
+      allowsAllEmitters: false,
+    };
+  }
+
+  const role = String(session.user.role || "").trim().toLowerCase();
+  const tenantId = String(session.user.tenantId || "").trim();
+  const isAdmin = role === "admin";
   if (isAdmin) {
     return {
       role,
@@ -41,12 +53,16 @@ export function resolveSessionScope(
     ? allProfileIds
     : allProfileIds.filter((id) => allowedSet.has(id));
 
+  /** Mientras no hay `templateProfiles` en cliente, no podemos cruzar IDs; si el backend ya asignó emisores, no bloquear Facturar. */
+  const hasEmitterScope =
+    visibleTemplateProfileIds.length > 0 || (allowedIds.length > 0 && allProfileIds.length === 0);
+
   return {
     role,
     tenantId,
     isAdmin: false,
     visibleTemplateProfileIds,
-    hasEmitterScope: visibleTemplateProfileIds.length > 0,
+    hasEmitterScope,
     allowsAllEmitters,
   };
 }
@@ -54,7 +70,7 @@ export function resolveSessionScope(
 export function isTemplateProfileInScope(templateProfileId: string, scope: SessionScope): boolean {
   const safeId = String(templateProfileId || "").trim();
   if (!safeId) {
-    return true;
+    return scope.isAdmin || scope.allowsAllEmitters;
   }
-  return scope.allowsAllEmitters || scope.visibleTemplateProfileIds.includes(safeId);
+  return scope.visibleTemplateProfileIds.includes(safeId);
 }

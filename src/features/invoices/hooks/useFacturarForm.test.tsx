@@ -31,6 +31,14 @@ vi.mock("@/infrastructure/api/documentsApi", () => ({
   saveDocument: saveDocumentMock,
 }));
 
+vi.mock("@/infrastructure/api/httpClient", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/infrastructure/api/httpClient")>();
+  return {
+    ...actual,
+    getAuthToken: () => "vitest-token",
+  };
+});
+
 vi.mock("@/infrastructure/api/sessionApi", () => ({
   fetchSession: fetchSessionMock,
 }));
@@ -173,6 +181,76 @@ describe("useFacturarForm regression", () => {
     await waitFor(() => {
       expect(result.current.form.getValues("client.name")).toBe("Cliente Recargado");
     });
+  });
+
+  it("editor restringido puede guardar con emisor permitido", async () => {
+    const document = createEmptyDocument();
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: {
+        id: "e1",
+        name: "Editor",
+        email: "e@test",
+        role: "editor",
+        tenantId: "default",
+        allowedTemplateProfileIds: ["perfil-main"],
+      },
+    });
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-main",
+      templateProfiles: [
+        {
+          id: "perfil-main",
+          label: "Perfil Main",
+          defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
+          business: { bankAccount: "ES00..." },
+          design: { layout: "pear" },
+        },
+        {
+          id: "perfil-otro",
+          label: "Otro",
+          defaults: {},
+          design: { layout: "pear" },
+        },
+      ],
+    });
+    fetchClientsMock.mockResolvedValue([]);
+    fetchHistoryInvoicesMock.mockResolvedValue([]);
+    saveDocumentMock.mockImplementation(async (doc: typeof document) => ({ recordId: "docs/2026/doc-ed.json", document: doc }));
+    getNextNumberMock.mockResolvedValue("1");
+    validateNumberAvailabilityMock.mockResolvedValue({ available: true });
+
+    const { result } = renderHook(() => useFacturarForm(), { wrapper: createHookWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.sessionScope.visibleTemplateProfileIds).toEqual(["perfil-main"]);
+    });
+
+    act(() => {
+      result.current.form.setValue("templateProfileId", "perfil-main", { shouldValidate: true });
+      result.current.form.setValue("templateLayout", "pear", { shouldValidate: true });
+      result.current.form.setValue("type", "factura", { shouldValidate: true });
+      result.current.form.setValue("number", "1", { shouldValidate: true });
+      result.current.form.setValue("issueDate", "2026-05-05", { shouldValidate: true });
+      result.current.form.setValue("accounting.status", "ENVIADA", { shouldValidate: true });
+      result.current.form.setValue("client.name", "Cliente Ed", { shouldValidate: true });
+      result.current.form.setValue("items.0.description", "Servicio", { shouldValidate: true });
+      result.current.form.setValue("items.0.quantity", 1, { shouldValidate: true });
+      result.current.form.setValue("items.0.unitPrice", 100, { shouldValidate: true });
+      result.current.form.setValue("taxRate", 7, { shouldValidate: true });
+      result.current.applyWithholdingMode("sin_irpf");
+    });
+
+    await waitFor(() => {
+      expect(result.current.workflowChecklist.save.complete).toBe(true);
+    });
+
+    saveDocumentMock.mockClear();
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(saveDocumentMock).toHaveBeenCalledTimes(1);
   });
 });
 

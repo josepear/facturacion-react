@@ -20,6 +20,7 @@ import {
   facturarClientHistoryRowsSummary,
 } from "@/features/invoices/lib/facturarClientHistoryCopy";
 import { PageHeader } from "@/features/shared/components/PageHeader";
+import { isTemplateProfileInScope } from "@/features/shared/lib/sessionScope";
 import { CLOSE, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { ACCOUNTING_STATUS_OPTIONS } from "@/features/shared/lib/accountingStatusOptions";
@@ -345,7 +346,16 @@ export function FacturarPage() {
     if (!workflowChecklist.fiscal.complete) pending += 1;
     return pending;
   }, [workflowChecklist]);
-  const saveButtonDisabled = isSubmitting || saveMutation.isPending || loadingConfig || !workflowChecklist.save.complete;
+  const templateProfileIdForSave = String(templateProfileIdWatched || "").trim();
+  const saveAllowedByEmitterScope =
+    sessionScope.isAdmin
+    || (templateProfileIdForSave.length > 0 && isTemplateProfileInScope(templateProfileIdForSave, sessionScope));
+  const saveButtonDisabled =
+    isSubmitting
+    || saveMutation.isPending
+    || loadingConfig
+    || !workflowChecklist.save.complete
+    || !saveAllowedByEmitterScope;
 
   useLayoutEffect(() => {
     const container = workflowRailContainerRef.current;
@@ -1149,6 +1159,12 @@ export function FacturarPage() {
                   {!workflowChecklist.save.complete ? (
                     <p className="text-pretty text-sm text-amber-700 sm:max-w-xl sm:text-right">
                       Completa los módulos obligatorios pendientes ({requiredWorkflowPendingCount}) para habilitar el guardado.
+                    </p>
+                  ) : !saveAllowedByEmitterScope ? (
+                    <p className="text-pretty text-sm text-amber-700 sm:max-w-xl sm:text-right">
+                      {templateProfileIdForSave
+                        ? "El emisor seleccionado no está en tu alcance. Elige un emisor permitido para tu usuario."
+                        : "Selecciona un emisor permitido para tu usuario antes de guardar."}
                     </p>
                   ) : null}
                   <p className="text-pretty text-sm text-informative sm:max-w-xl sm:text-right">
