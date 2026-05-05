@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/features/auth/AuthContext";
 import { SESSION_QUERY_KEY } from "@/features/auth/sessionQueryKey";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
-import { ApiError, getAuthToken } from "@/infrastructure/api/httpClient";
+import { exchangeGoogleOAuthSession, getGoogleOAuthStartUrl } from "@/infrastructure/api/authApi";
+import { openGoogleLoginPopupAndWait } from "@/infrastructure/auth/googleLoginPopup";
+import { ApiError, getAuthToken, setAuthToken } from "@/infrastructure/api/httpClient";
 
 function safeNextParam(raw: string | null): string {
   const value = String(raw || "").trim();
@@ -22,11 +24,14 @@ function safeNextParam(raw: string | null): string {
 function LoginFormOnly() {
   const { authVersion, login, loginError, clearLoginError, isLoginPending } = useAuth();
   void authVersion;
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const next = safeNextParam(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [oauthError, setOauthError] = useState<string | null>(null);
+  const [isOAuthPending, setIsOAuthPending] = useState(false);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -36,6 +41,49 @@ function LoginFormOnly() {
       navigate(next || "/facturar", { replace: true });
     } catch {
       // loginError ya fijado en AuthProvider
+    }
+  };
+
+  const onGoogleLogin = async () => {
+    clearLoginError();
+    setOauthError(null);
+    setIsOAuthPending(true);
+    try {
+      const { url } = await getGoogleOAuthStartUrl(next || "/react");
+      const popupResult = await openGoogleLoginPopupAndWait(url);
+      if (popupResult.type === "cancelled") {
+        setOauthError("Inicio con Google cancelado.");
+        return;
+      }
+      if (popupResult.type === "provider_error") {
+        setOauthError("No se pudo validar con Google.");
+        return;
+      }
+      const { token } = await exchangeGoogleOAuthSession({
+        code: popupResult.code,
+        state: popupResult.state,
+      });
+      setAuthToken(token);
+      void queryClient.invalidateQueries({ queryKey: [...SESSION_QUERY_KEY] });
+      navigate(next || "/facturar", { replace: true });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          setOauthError("No se pudo validar con Google.");
+          return;
+        }
+        if (error.status === 403) {
+          setOauthError("Tu cuenta Google no está autorizada en este sistema.");
+          return;
+        }
+        if (error.status === 409) {
+          setOauthError("La sesión OAuth caducó o ya fue usada. Inténtalo de nuevo.");
+          return;
+        }
+      }
+      setOauthError("No se pudo iniciar sesión con Google.");
+    } finally {
+      setIsOAuthPending(false);
     }
   };
 
@@ -70,9 +118,13 @@ function LoginFormOnly() {
           </Field>
 
           {loginError ? <p className="text-sm text-red-600">{loginError}</p> : null}
+          {oauthError ? <p className="text-sm text-red-600">{oauthError}</p> : null}
 
           <Button type="submit" className="w-full" disabled={isLoginPending}>
             {isLoginPending ? "Entrando…" : "Entrar"}
+          </Button>
+          <Button type="button" variant="outline" className="w-full" disabled={isOAuthPending} onClick={onGoogleLogin}>
+            {isOAuthPending ? "Conectando con Google…" : "Entrar con Google"}
           </Button>
         </form>
       </div>
