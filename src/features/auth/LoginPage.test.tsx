@@ -43,6 +43,7 @@ vi.mock("react-router-dom", async () => {
 });
 
 vi.mock("@/features/auth/AuthContext", () => ({
+  AUTH_LOGOUT_EVENT: "facturacion-auth-logout",
   useAuth: () => useAuthMock(),
 }));
 
@@ -129,7 +130,7 @@ describe("LoginPage OAuth Google", () => {
     render(<LoginPage />);
     await userEvent.click(screen.getByRole("button", { name: "Entrar con Google" }));
 
-    expect(await screen.findByText("Tu cuenta Google no está autorizada en este sistema.")).toBeTruthy();
+    expect(await screen.findByText("Tu cuenta Google no está autorizada.")).toBeTruthy();
     expect(setAuthTokenMock).not.toHaveBeenCalled();
   });
 
@@ -170,5 +171,66 @@ describe("LoginPage OAuth Google", () => {
     searchState.query = "next=/gastos";
     render(<LoginPage />);
     expect(screen.getByTestId("navigate").getAttribute("data-to")).toBe("/gastos");
+  });
+
+  it("prevents double exchange on fast double click", async () => {
+    let resolveStart!: (value: { url: string }) => void;
+    const startPromise = new Promise<{ url: string }>((resolve) => {
+      resolveStart = resolve;
+    });
+    getGoogleOAuthStartUrlMock.mockReturnValue(startPromise);
+    openGoogleLoginPopupAndWaitMock.mockResolvedValue({ type: "success_exchange_token", exchangeToken: "exchange-token-once" });
+    exchangeGoogleOAuthSessionMock.mockResolvedValue({ token: "internal-token-once" });
+
+    render(<LoginPage />);
+    const googleButton = screen.getByRole("button", { name: "Entrar con Google" });
+    await userEvent.click(googleButton);
+    await userEvent.click(googleButton);
+    resolveStart({ url: "https://accounts.google.com/mock" });
+
+    await waitFor(() => {
+      expect(getGoogleOAuthStartUrlMock).toHaveBeenCalledTimes(1);
+      expect(openGoogleLoginPopupAndWaitMock).toHaveBeenCalledTimes(1);
+      expect(exchangeGoogleOAuthSessionMock).toHaveBeenCalledTimes(1);
+    });
+    expect(exchangeGoogleOAuthSessionMock).toHaveBeenCalledWith({ exchangeToken: "exchange-token-once" });
+  });
+
+  it("prevents duplicate exchange when popup result arrives late", async () => {
+    let resolvePopup: ((value: { type: "success_exchange_token"; exchangeToken: string }) => void) | undefined;
+    openGoogleLoginPopupAndWaitMock.mockImplementation(
+      () =>
+        new Promise<{ type: "success_exchange_token"; exchangeToken: string }>((resolve) => {
+          resolvePopup = resolve;
+        }),
+    );
+    exchangeGoogleOAuthSessionMock.mockResolvedValue({ token: "internal-token-late" });
+
+    render(<LoginPage />);
+    const googleButton = screen.getByRole("button", { name: "Entrar con Google" });
+    await userEvent.click(googleButton);
+    await userEvent.click(googleButton);
+
+    expect(exchangeGoogleOAuthSessionMock).not.toHaveBeenCalled();
+    if (resolvePopup) {
+      resolvePopup({ type: "success_exchange_token", exchangeToken: "exchange-token-late" });
+    }
+
+    await waitFor(() => {
+      expect(openGoogleLoginPopupAndWaitMock).toHaveBeenCalledTimes(1);
+      expect(exchangeGoogleOAuthSessionMock).toHaveBeenCalledTimes(1);
+    });
+    expect(exchangeGoogleOAuthSessionMock).toHaveBeenCalledWith({ exchangeToken: "exchange-token-late" });
+  });
+
+  it("consumes logged_out query flag once and cleans URL state", async () => {
+    searchState.query = "logged_out=1&next=/historial";
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
+    render(<LoginPage />);
+
+    await waitFor(() => {
+      expect(replaceStateSpy).toHaveBeenCalledTimes(1);
+    });
   });
 });

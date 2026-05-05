@@ -60,10 +60,10 @@ describe("AppShell logout navigation policy", () => {
     vi.unstubAllGlobals();
   });
 
-  it("logout clears session and navigates to /login", async () => {
+  it("logout delegates hard reset to auth context", async () => {
     render(<AppShell />);
     await userEvent.click(screen.getByLabelText("Cerrar sesión"));
     expect(logoutMock).toHaveBeenCalledTimes(1);
-    expect(navigateMock).toHaveBeenCalledWith("/login", { replace: true });
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 });

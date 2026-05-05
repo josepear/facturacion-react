@@ -150,7 +150,6 @@ export function AppShell() {
 
   const handleLogout = () => {
     logout();
-    navigate("/login", { replace: true });
   };
 
   const shellTitle = useMemo(() => {

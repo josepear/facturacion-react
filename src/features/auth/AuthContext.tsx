@@ -5,6 +5,8 @@ import { SESSION_QUERY_KEY } from "@/features/auth/sessionQueryKey";
 import { loginWithPassword } from "@/infrastructure/api/authApi";
 import { AUTH_STORAGE_EVENT, clearAuthToken, setAuthToken } from "@/infrastructure/api/httpClient";
 
+export const AUTH_LOGOUT_EVENT = "facturacion-auth-logout";
+
 type AuthContextValue = {
   /** Se incrementa al iniciar/cerrar sesión para que los consumidores vuelvan a leer el token y React Query refresque. */
   authVersion: number;
@@ -54,6 +56,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setLoginError(null);
     clearAuthToken();
     queryClient.clear();
+    globalThis.dispatchEvent(new Event(AUTH_LOGOUT_EVENT));
+    globalThis.location.assign("/react/login?logged_out=1");
   }, [queryClient]);
 
   const clearLoginError = useCallback(() => setLoginError(null), []);

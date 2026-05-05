@@ -1,4 +1,4 @@
-export const GOOGLE_LOGIN_POPUP_NAME = "facturacion_google_login";
+export const GOOGLE_LOGIN_POPUP_NAME_PREFIX = "facturacion_google_login_";
 export const GOOGLE_LOGIN_POPUP_FEATURES = "width=520,height=700";
 
 export type GooglePopupResult =
@@ -16,7 +16,8 @@ export async function openGoogleLoginPopupAndWait(
   authUrl: string,
   options: PopupWaitOptions = {},
 ): Promise<GooglePopupResult> {
-  const popup = window.open(authUrl, GOOGLE_LOGIN_POPUP_NAME, GOOGLE_LOGIN_POPUP_FEATURES);
+  const popupName = `${GOOGLE_LOGIN_POPUP_NAME_PREFIX}${Date.now()}`;
+  const popup = window.open(authUrl, popupName, GOOGLE_LOGIN_POPUP_FEATURES);
   if (!popup) {
     throw new Error("El navegador bloqueó la ventana emergente. Permite ventanas para este sitio.");
   }
@@ -25,6 +26,12 @@ export async function openGoogleLoginPopupAndWait(
   return new Promise<GooglePopupResult>((resolve, reject) => {
     let done = false;
     const startedAt = Date.now();
+    let initialHref = "";
+    try {
+      initialHref = String(popup.location.href || "");
+    } catch {
+      initialHref = "";
+    }
     const finish = (cb: () => void) => {
       if (done) {
         return;
@@ -61,6 +68,10 @@ export async function openGoogleLoginPopupAndWait(
         return;
       }
       if (url.pathname !== "/api/oauth/google/callback") {
+        return;
+      }
+      // Ignore stale callback pages already open in a reused popup window.
+      if (initialHref && href === initialHref) {
         return;
       }
       const code = String(url.searchParams.get("code") || "").trim();
@@ -103,10 +114,8 @@ export async function openGoogleLoginPopupAndWait(
         return;
       }
 
-      finish(() => {
-        popup.close();
-        reject(new Error("No se recibió respuesta OAuth válida."));
-      });
+      // Callback loaded but payload may still be rendering; keep polling.
+      return;
     }, pollMs);
   });
 }

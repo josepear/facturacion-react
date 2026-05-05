@@ -1,12 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useLayoutEffect, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
 import { GoogleIcon } from "@/components/icons/GoogleIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/features/auth/AuthContext";
+import { AUTH_LOGOUT_EVENT, useAuth } from "@/features/auth/AuthContext";
 import { SESSION_QUERY_KEY } from "@/features/auth/sessionQueryKey";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { exchangeGoogleOAuthSession, getGoogleOAuthStartUrl } from "@/infrastructure/api/authApi";
@@ -34,6 +34,37 @@ function LoginFormOnly() {
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [isOAuthPending, setIsOAuthPending] = useState(false);
   const oauthPendingRef = useRef(false);
+  const oauthAttemptIdRef = useRef(0);
+  const oauthActiveAttemptRef = useRef<number | null>(null);
+  const oauthExchangeAttemptRef = useRef<number | null>(null);
+  const oauthTerminalAttemptRef = useRef<number | null>(null);
+  const resetOAuthState = useCallback(() => {
+    oauthPendingRef.current = false;
+    oauthAttemptIdRef.current = 0;
+    oauthActiveAttemptRef.current = null;
+    oauthExchangeAttemptRef.current = null;
+    oauthTerminalAttemptRef.current = null;
+    setIsOAuthPending(false);
+    setOauthError(null);
+  }, []);
+
+  useEffect(() => {
+    const handleLogoutReset = () => resetOAuthState();
+    globalThis.addEventListener(AUTH_LOGOUT_EVENT, handleLogoutReset);
+    return () => globalThis.removeEventListener(AUTH_LOGOUT_EVENT, handleLogoutReset);
+  }, [resetOAuthState]);
+
+  useEffect(() => {
+    if (searchParams.get("logged_out") !== "1") {
+      return;
+    }
+    resetOAuthState();
+    const cleaned = new URLSearchParams(searchParams);
+    cleaned.delete("logged_out");
+    const nextQuery = cleaned.toString();
+    const nextUrl = `${globalThis.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${globalThis.location.hash || ""}`;
+    globalThis.history.replaceState(globalThis.history.state, "", nextUrl);
+  }, [searchParams, resetOAuthState]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -50,46 +81,80 @@ function LoginFormOnly() {
     if (oauthPendingRef.current) {
       return;
     }
+    const attemptId = oauthAttemptIdRef.current + 1;
+    oauthAttemptIdRef.current = attemptId;
+    oauthActiveAttemptRef.current = attemptId;
+    oauthExchangeAttemptRef.current = null;
+    oauthTerminalAttemptRef.current = null;
     oauthPendingRef.current = true;
     clearLoginError();
     setOauthError(null);
     setIsOAuthPending(true);
     try {
       const { url } = await getGoogleOAuthStartUrl(next || "/react");
+      if (oauthActiveAttemptRef.current !== attemptId || oauthTerminalAttemptRef.current === attemptId) {
+        return;
+      }
       const popupResult = await openGoogleLoginPopupAndWait(url);
+      if (oauthActiveAttemptRef.current !== attemptId || oauthTerminalAttemptRef.current === attemptId) {
+        return;
+      }
       if (popupResult.type === "cancelled") {
+        oauthTerminalAttemptRef.current = attemptId;
+        oauthActiveAttemptRef.current = null;
         setOauthError("Inicio con Google cancelado.");
         return;
       }
       if (popupResult.type === "provider_error") {
+        oauthTerminalAttemptRef.current = attemptId;
+        oauthActiveAttemptRef.current = null;
         setOauthError("No se pudo validar con Google.");
         return;
       }
+      if (oauthExchangeAttemptRef.current === attemptId) {
+        return;
+      }
+      oauthExchangeAttemptRef.current = attemptId;
       const { token } = popupResult.type === "success_exchange_token"
         ? await exchangeGoogleOAuthSession({ exchangeToken: popupResult.exchangeToken })
         : await exchangeGoogleOAuthSession({ code: popupResult.code, state: popupResult.state });
+      if (oauthActiveAttemptRef.current !== attemptId || oauthTerminalAttemptRef.current === attemptId) {
+        return;
+      }
+      oauthTerminalAttemptRef.current = attemptId;
+      oauthActiveAttemptRef.current = null;
       setAuthToken(token);
       void queryClient.invalidateQueries({ queryKey: [...SESSION_QUERY_KEY] });
       navigate(next || "/facturar", { replace: true });
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.status === 401) {
+          oauthTerminalAttemptRef.current = attemptId;
+          oauthActiveAttemptRef.current = null;
           setOauthError("No se pudo validar con Google.");
           return;
         }
         if (error.status === 403) {
-          setOauthError("Tu cuenta Google no está autorizada en este sistema.");
+          oauthTerminalAttemptRef.current = attemptId;
+          oauthActiveAttemptRef.current = null;
+          setOauthError("Tu cuenta Google no está autorizada.");
           return;
         }
         if (error.status === 409) {
+          oauthTerminalAttemptRef.current = attemptId;
+          oauthActiveAttemptRef.current = null;
           setOauthError("La sesión OAuth caducó o ya fue usada. Inténtalo de nuevo.");
           return;
         }
       }
+      oauthTerminalAttemptRef.current = attemptId;
+      oauthActiveAttemptRef.current = null;
       setOauthError("No se pudo iniciar sesión con Google.");
     } finally {
-      oauthPendingRef.current = false;
-      setIsOAuthPending(false);
+      if (oauthActiveAttemptRef.current === attemptId || oauthTerminalAttemptRef.current === attemptId) {
+        oauthPendingRef.current = false;
+        setIsOAuthPending(false);
+      }
     }
   };
 
