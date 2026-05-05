@@ -4,6 +4,7 @@ import { Link, useBlocker, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { FacturarLegacyHtmlPane } from "@/features/invoices/components/FacturarLegacyHtmlPane";
@@ -125,6 +126,7 @@ export function FacturarPage() {
     hasLastSetup,
     repeatLastSetup,
     isDirty,
+    sessionScope,
   } = useFacturarForm(initialRecordId, initialTemplateProfileId);
 
   const autoOpenModuleId = useMemo(
@@ -478,6 +480,23 @@ export function FacturarPage() {
     };
   }, [shouldBlockNavigation]);
 
+  if (!sessionScope.hasEmitterScope) {
+    return (
+      <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
+        <PageHeader
+          className="space-y-2"
+          title="Facturar"
+          description="Crea o edita documentos; también puedes reabrirlos desde Historial."
+        />
+        <Card>
+          <CardContent className="pt-6 text-sm text-informative">
+            Tu sesión no tiene emisores asignados para operar en Facturar. Contacta con un administrador.
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
       <PageHeader
@@ -485,6 +504,10 @@ export function FacturarPage() {
         title="Facturar"
         description="Crea o edita documentos; también puedes reabrirlos desde Historial."
       />
+      <p className="text-informative">
+        Tenant: <span className="font-medium text-foreground">{sessionScope.tenantId || "-"}</span> · Emisores visibles:{" "}
+        <span className="font-medium text-foreground">{sessionScope.visibleTemplateProfileIds.length}</span>
+      </p>
 
       <form
         className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"

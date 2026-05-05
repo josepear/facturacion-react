@@ -8,8 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import type { ClientRecord } from "@/domain/document/types";
 import { PageHeader } from "@/features/shared/components/PageHeader";
+import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { archiveClient, fetchClients, saveClient } from "@/infrastructure/api/clientsApi";
+import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
 import { normalizeTaxIdKey, normalizeTextKey } from "@/lib/clientMatching";
 import { cn } from "@/lib/utils";
 
@@ -53,6 +56,16 @@ export function ClientsPage() {
     queryKey: ["clients"],
     queryFn: fetchClients,
   });
+  const configQuery = useQuery({
+    queryKey: ["runtime-config"],
+    queryFn: fetchRuntimeConfig,
+  });
+  const sessionQuery = useSessionQuery();
+  const sessionScope = useMemo(
+    () => resolveSessionScope(sessionQuery.data, configQuery.data?.templateProfiles ?? []),
+    [sessionQuery.data, configQuery.data?.templateProfiles],
+  );
+  const isAdmin = sessionScope.isAdmin;
 
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [sortBy, setSortBy] = useState<"name" | "taxCountryCode" | "recent">("name");
@@ -243,6 +256,10 @@ export function ClientsPage() {
         title="Clientes"
         description="Módulo real conectado al contrato legacy de clientes, coherente con Facturar."
       />
+      <p className="text-informative">
+        Tenant: <span className="font-medium text-foreground">{sessionScope.tenantId || "-"}</span> · Rol:{" "}
+        <span className="font-medium text-foreground">{sessionScope.role || "-"}</span>
+      </p>
 
       <section className="grid gap-6 lg:grid-cols-[1fr_1.35fr]">
         <Card>
@@ -448,7 +465,7 @@ export function ClientsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={archiveMutation.isPending}
+                  disabled={archiveMutation.isPending || !isAdmin}
                   onClick={() => {
                     const confirmed = globalThis.confirm("Este cliente se moverá a papelera. ¿Continuar?");
                     if (!confirmed) {
