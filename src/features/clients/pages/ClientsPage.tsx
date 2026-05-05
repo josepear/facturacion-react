@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import type { ClientRecord } from "@/domain/document/types";
 import { PageHeader } from "@/features/shared/components/PageHeader";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
-import { resolveSessionScope } from "@/features/shared/lib/sessionScope";
+import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { archiveClient, fetchClients, saveClient } from "@/infrastructure/api/clientsApi";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 
 function createEmptyClient(): ClientRecord {
   return {
+    templateProfileId: "",
     name: "",
     taxId: "",
     address: "",
@@ -33,6 +34,7 @@ function createEmptyClient(): ClientRecord {
 function normalizeClientDraft(client: ClientRecord): ClientRecord {
   return {
     ...client,
+    templateProfileId: String(client.templateProfileId ?? "").trim(),
     name: String(client.name || "").trim(),
     taxId: String(client.taxId || "").trim(),
     address: String(client.address || "").trim(),
@@ -87,6 +89,31 @@ export function ClientsPage() {
   };
 
   const allClients = useMemo(() => clientsQuery.data ?? [], [clientsQuery.data]);
+
+  const sessionRole = sessionScope.role;
+  const canMutateClients =
+    sessionScope.hasEmitterScope && (sessionRole === "admin" || sessionRole === "editor");
+  const activeTemplateProfileId = String(configQuery.data?.activeTemplateProfileId || "").trim();
+  const selectedClient = useMemo(() => {
+    const id = String(selectedRecordId || "").trim();
+    if (!id) {
+      return null;
+    }
+    return allClients.find((c) => String(c.recordId || "").trim() === id) ?? null;
+  }, [allClients, selectedRecordId]);
+  const emitterForPermissions = String(draft.templateProfileId || selectedClient?.templateProfileId || "").trim();
+  const canCreateNewClient =
+    canMutateClients
+    && (isAdmin || sessionScope.allowsAllEmitters || isTemplateProfileInScope(activeTemplateProfileId, sessionScope));
+  const canSaveCurrentClient =
+    canMutateClients
+    && (selectedRecordId
+      ? isAdmin || isTemplateProfileInScope(emitterForPermissions, sessionScope)
+      : canCreateNewClient);
+  const canArchiveSelectedClient =
+    canMutateClients
+    && Boolean(selectedRecordId)
+    && (isAdmin || isTemplateProfileInScope(emitterForPermissions, sessionScope));
 
   const countryOptions = useMemo(() => {
     const values = new Set(
@@ -163,11 +190,16 @@ export function ClientsPage() {
   const hasActiveFilters = hasSearchFilter || Boolean(String(filterCountry || "").trim());
 
   useEffect(() => {
-    if (!initialRecordId || selectedRecordId || !allClients.length) {
+    if (!initialRecordId || selectedRecordId || clientsQuery.isLoading) {
+      return;
+    }
+    if (!allClients.length) {
       return;
     }
     const target = allClients.find((client) => String(client.recordId || "").trim() === initialRecordId);
     if (!target) {
+      setStatusMessage("Ese cliente no está en tu alcance, no existe o aún no se ha cargado el listado.");
+      setStatusTone("error");
       return;
     }
     const timeoutId = globalThis.setTimeout(() => {
@@ -179,7 +211,7 @@ export function ClientsPage() {
     return () => {
       globalThis.clearTimeout(timeoutId);
     };
-  }, [allClients, initialRecordId, selectedRecordId]);
+  }, [allClients, clientsQuery.isLoading, initialRecordId, selectedRecordId]);
 
   useEffect(() => {
     const next = new URLSearchParams(searchParams);
@@ -260,6 +292,22 @@ export function ClientsPage() {
         Tenant: <span className="font-medium text-foreground">{sessionScope.tenantId || "-"}</span> · Rol:{" "}
         <span className="font-medium text-foreground">{sessionScope.role || "-"}</span>
       </p>
+      {!sessionScope.hasEmitterScope ? (
+        <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-informative">
+          Tu sesión no tiene emisores asignados para operar en Clientes. Contacta con un administrador.
+        </p>
+      ) : null}
+      {!isAdmin && sessionScope.hasEmitterScope && !sessionScope.allowsAllEmitters ? (
+        <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-informative">
+          Solo ves y editas clientes de tus emisores permitidos. Los clientes sin emisor en datos solo los gestiona un
+          administrador.
+        </p>
+      ) : null}
+      {sessionRole === "viewer" ? (
+        <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-informative">
+          Rol solo lectura: puedes consultar el listado que devuelve el servidor, sin guardar ni archivar.
+        </p>
+      ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[1fr_1.35fr]">
         <Card>
@@ -317,6 +365,8 @@ export function ClientsPage() {
             <Button
               type="button"
               variant="outline"
+              disabled={!canCreateNewClient}
+              title={!canCreateNewClient ? "Sin permiso para dar de alta clientes con esta sesión." : undefined}
               onClick={() => {
                 setSelectedRecordId("");
                 setDraft(createEmptyClient());
@@ -443,7 +493,11 @@ export function ClientsPage() {
             </Field>
 
             <div className="sm:col-span-2 flex flex-wrap gap-2">
-              <Button type="button" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              <Button
+                type="button"
+                onClick={() => saveMutation.mutate()}
+                disabled={saveMutation.isPending || !canSaveCurrentClient}
+              >
                 {saveMutation.isPending ? savePending() : `${SAVE} cliente`}
               </Button>
               {selectedRecordId ? (
@@ -465,7 +519,12 @@ export function ClientsPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={archiveMutation.isPending || !isAdmin}
+                  disabled={archiveMutation.isPending || !canArchiveSelectedClient}
+                  title={
+                    !canArchiveSelectedClient
+                      ? "Sin permiso para archivar este cliente (emisores fuera de alcance o solo lectura)."
+                      : undefined
+                  }
                   onClick={() => {
                     const confirmed = globalThis.confirm("Este cliente se moverá a papelera. ¿Continuar?");
                     if (!confirmed) {

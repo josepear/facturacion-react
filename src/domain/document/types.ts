@@ -135,6 +135,8 @@ export type ConfigResponse = {
 
 export type ClientRecord = {
   recordId?: string;
+  /** Emisor (plantilla) al que pertenece el cliente; vacío = legacy hasta normalizar (solo admin en API). */
+  templateProfileId?: string;
   name: string;
   taxId?: string;
   email?: string;
