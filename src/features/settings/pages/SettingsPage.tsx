@@ -33,7 +33,7 @@ import { CANCEL, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { cn, toNumber } from "@/lib/utils";
 
 /** UI de miembros del sistema oculta temporalmente (emisores como foco único). */
-const SHOW_SYSTEM_MEMBERS_UI = false;
+const SHOW_SYSTEM_MEMBERS_UI = true;
 
 function safeValue(value: unknown): string {
   const normalized = String(value ?? "").trim();
@@ -196,6 +196,11 @@ export function SettingsPage() {
   const [newBaseLabel, setNewBaseLabel] = useState("");
   const [newBaseLayout, setNewBaseLayout] = useState<TemplateLayoutValue>("pear");
   const [gmailOAuthSectionError, setGmailOAuthSectionError] = useState("");
+  const emitterDialogRef = useRef<HTMLDialogElement>(null);
+  const lastEmitterDialogTriggerRef = useRef<HTMLElement | null>(null);
+  const emitterPrimaryFieldRef = useRef<HTMLInputElement | null>(null);
+  const emitterNewProfileFieldRef = useRef<HTMLInputElement | null>(null);
+  const [isEmitterDialogOpen, setIsEmitterDialogOpen] = useState(false);
 
   const serverProfiles = useMemo(
     () => configQuery.data?.templateProfiles ?? [],
@@ -334,6 +339,38 @@ export function SettingsPage() {
     }
   }, [newBaseOpen]);
 
+  useEffect(() => {
+    const el = emitterDialogRef.current;
+    if (!el) {
+      return;
+    }
+    if (isEmitterDialogOpen) {
+      if (!el.open) {
+        if (typeof el.showModal === "function") {
+          el.showModal();
+        } else {
+          el.setAttribute("open", "");
+        }
+      }
+      globalThis.setTimeout(() => {
+        if (isCreatingProfile) {
+          emitterNewProfileFieldRef.current?.focus();
+          return;
+        }
+        emitterPrimaryFieldRef.current?.focus();
+      }, 0);
+      return;
+    }
+    if (el.open) {
+      if (typeof el.close === "function") {
+        el.close();
+      } else {
+        el.removeAttribute("open");
+      }
+    }
+    lastEmitterDialogTriggerRef.current?.focus();
+  }, [isEmitterDialogOpen, isCreatingProfile]);
+
   const saveConfigMutation = useMutation({
     mutationFn: async () => {
       const safeActiveProfileId = String(effectiveActiveProfileId || "").trim();
@@ -388,6 +425,7 @@ export function SettingsPage() {
       setStatusMessage("Datos del emisor guardados.");
       setStatusTone("success");
       setInvoiceTagSuggestions([]);
+      setIsEmitterDialogOpen(false);
     },
     onError: (error) => {
       setStatusMessage(getErrorMessageFromUnknown(error));
@@ -488,6 +526,7 @@ export function SettingsPage() {
     setNewProfileSourceId(source.id);
     setNewProfileLabelDraft(suggestedLabel);
     setIsCreatingProfile(true);
+    setIsEmitterDialogOpen(true);
     setStatusMessage("Indica el nombre del nuevo emisor y confirma para crearlo en memoria.");
     setStatusTone("neutral");
   };
@@ -496,6 +535,11 @@ export function SettingsPage() {
     setIsCreatingProfile(false);
     setNewProfileLabelDraft("");
     setNewProfileSourceId("");
+  };
+
+  const closeEmitterDialog = () => {
+    cancelNewTemplateProfile();
+    setIsEmitterDialogOpen(false);
   };
 
   const confirmNewTemplateProfile = () => {
@@ -653,7 +697,10 @@ export function SettingsPage() {
                 variant="outline"
                 className="shrink-0"
                 disabled={!isAdmin || isCreatingProfile}
-                onClick={startNewTemplateProfile}
+                onClick={(event) => {
+                  lastEmitterDialogTriggerRef.current = event.currentTarget;
+                  startNewTemplateProfile();
+                }}
               >
                 Nuevo emisor
               </Button>
@@ -701,7 +748,11 @@ export function SettingsPage() {
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => syncLauncherSelection(profile.id)}
+                                  onClick={(event) => {
+                                    lastEmitterDialogTriggerRef.current = event.currentTarget;
+                                    syncLauncherSelection(profile.id);
+                                    setIsEmitterDialogOpen(true);
+                                  }}
                                 >
                                   Editar
                                 </Button>
@@ -878,8 +929,19 @@ export function SettingsPage() {
             </div>
           </details>
 
-          <Card>
-            <CardHeader>
+          <dialog
+            ref={emitterDialogRef}
+            onClose={closeEmitterDialog}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.stopPropagation();
+                closeEmitterDialog();
+              }
+            }}
+            className="z-[60] w-[min(100vw-1rem,1080px)] max-h-[min(100vh-1.5rem,920px)] overflow-y-auto rounded-lg border border-border bg-background p-4 text-foreground shadow-lg sm:p-6"
+            aria-label={isCreatingProfile ? "Nuevo emisor" : "Editar emisor"}
+          >
+            <CardHeader className="px-0 pt-0">
               <p className="text-informative font-medium uppercase tracking-wide">Formulario</p>
               <CardTitle className="flex flex-wrap items-center gap-2 text-xl">
                 {editingProfile ? (
@@ -896,8 +958,13 @@ export function SettingsPage() {
                 Elige el emisor en el listado superior. Elige la plantilla PDF y completa los datos; guarda con «{SAVE} datos del
                 emisor». El ajuste fino de módulos PDF sigue en la app legacy (pestaña Plantilla).
               </CardDescription>
+              <div className="pt-2">
+                <Button type="button" variant="outline" onClick={closeEmitterDialog}>
+                  {CANCEL}
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="grid gap-4">
+            <CardContent className="grid gap-4 px-0 pb-0">
               {hasUnsavedLocalChanges ? (
                 <div
                   role="status"
@@ -1025,6 +1092,7 @@ export function SettingsPage() {
                   {isCreatingProfile ? (
                     <div className="grid gap-2 rounded-md border border-dashed p-3 sm:grid-cols-[1fr_auto_auto]">
                       <Input
+                        ref={emitterNewProfileFieldRef}
                         aria-label="Nombre del nuevo emisor"
                         placeholder="Nombre del nuevo emisor"
                         value={newProfileLabelDraft}
@@ -1047,6 +1115,7 @@ export function SettingsPage() {
                     <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                       <Field label="Nombre visible">
                         <Input
+                          ref={emitterPrimaryFieldRef}
                           placeholder="Ejemplo: Pear&co."
                           value={editingDraft.label}
                           onChange={(event) => updateDraft({ label: event.target.value })}
@@ -1334,7 +1403,7 @@ export function SettingsPage() {
                 </p>
               ) : null}
             </CardContent>
-          </Card>
+          </dialog>
 
           {isAdmin ? (
             <Card>

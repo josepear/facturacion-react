@@ -127,7 +127,7 @@ describe("SettingsPage regression", () => {
     useSessionQueryMock.mockReturnValue(adminSessionQueryResult);
   });
 
-  it("hides system members UI while focusing on emitters list", async () => {
+  it("shows system members UI alongside emitters list", async () => {
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
       templateProfiles: [{ id: "perfil-1", label: "Perfil 1", defaults: { paymentMethod: "Transferencia" } }],
@@ -136,7 +136,7 @@ describe("SettingsPage regression", () => {
     render(<SettingsPage />, { wrapper: createPageWrapper() });
 
     await screen.findByText(/Listado de emisores configurados/);
-    expect(screen.queryByText("Miembros del sistema")).toBeNull();
+    expect(screen.getByText("Miembros del sistema")).toBeTruthy();
   });
 
   it("loads and saves active profile/defaults for admin", async () => {
@@ -197,6 +197,7 @@ describe("SettingsPage regression", () => {
 
     render(<SettingsPage />, { wrapper: createPageWrapper() });
     await screen.findByText(/Listado de emisores configurados/);
+    await userEvent.click(within(screen.getByTestId("emitter-row-perfil-1")).getByRole("button", { name: "Editar" }));
 
     expect(screen.queryByText("Modo solo lectura")).toBeNull();
     expect(screen.getByText(/Rol editor/)).toBeTruthy();
@@ -326,6 +327,7 @@ describe("SettingsPage regression", () => {
 
     render(<SettingsPage />, { wrapper: createPageWrapper() });
     await screen.findByText(/Listado de emisores configurados/);
+    await userEvent.click(within(screen.getByTestId("emitter-row-perfil-1")).getByRole("button", { name: "Editar" }));
 
     const advancedDetails = screen.getByText("Avanzado del usuario").closest("details");
     expect(advancedDetails).toBeTruthy();
