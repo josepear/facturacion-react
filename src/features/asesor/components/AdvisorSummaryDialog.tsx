@@ -42,6 +42,8 @@ type Props = {
   historyItems: HistoryInvoice[];
   expenseItems: ExpenseRecord[];
   profileOptions: ProfileOption[];
+  /** Administración: permite «Todos los emisores» en el desplegable; editores acotados reciben `false`. */
+  includeAllProfilesOption?: boolean;
   /** Año sugerido al abrir (`""` = todos). */
   pageFilterYear: string;
   /** Emisor sugerido al abrir (`""` = todos). */
@@ -73,6 +75,7 @@ export function AdvisorSummaryDialog({
   historyItems,
   expenseItems,
   profileOptions,
+  includeAllProfilesOption = true,
   pageFilterYear,
   pageFilterProfile,
   availableYears,
@@ -221,7 +224,12 @@ export function AdvisorSummaryDialog({
     const allowedYear = nextYear && (nextYear === "all" || availableYears.includes(nextYear)) ? nextYear : "all";
     setYear(allowedYear);
     setQuarter("all");
-    setProfileId(ADVISOR_PROFILE_ALL);
+    if (includeAllProfilesOption) {
+      setProfileId(ADVISOR_PROFILE_ALL);
+    } else {
+      const first = String(profileOptions[0]?.id || "").trim();
+      setProfileId(first || ADVISOR_PROFILE_ALL);
+    }
     setScope("both");
     setInvoiceStatus("all");
     setShareUrl("");
@@ -255,7 +263,13 @@ export function AdvisorSummaryDialog({
       }
       setYear(initialYear);
       const pid = String(pageFilterProfile || "").trim();
-      setProfileId(pid && profileOptions.some((p) => p.id === pid) ? pid : ADVISOR_PROFILE_ALL);
+      const fromPage = pid && profileOptions.some((p) => p.id === pid) ? pid : "";
+      if (includeAllProfilesOption) {
+        setProfileId(fromPage || ADVISOR_PROFILE_ALL);
+      } else {
+        const first = String(profileOptions[0]?.id || "").trim();
+        setProfileId(fromPage || first || ADVISOR_PROFILE_ALL);
+      }
       setQuarter("all");
       setScope("both");
       setInvoiceStatus("all");
@@ -265,7 +279,7 @@ export function AdvisorSummaryDialog({
         el.showModal();
       }
     }
-  }, [open, pageFilterYear, pageFilterProfile, availableYears, profileOptions]);
+  }, [open, pageFilterYear, pageFilterProfile, availableYears, profileOptions, includeAllProfilesOption]);
 
   const handleDialogClose = () => {
     setShareUrl("");
@@ -317,7 +331,7 @@ export function AdvisorSummaryDialog({
     <dialog
       ref={dialogRef}
       className={cn(
-        "fixed inset-0 z-50 m-auto h-fit max-h-[min(92dvh,56rem)] w-[min(100%,calc(100vw-1rem))] max-w-[min(100%,88rem)]",
+        "fixed inset-0 z-50 m-auto h-fit max-h-[min(90dvh,calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem),56rem)] w-[min(100%,calc(100vw-1rem))] max-w-[min(100%,88rem)] overflow-y-auto overscroll-contain",
         "border-0 bg-transparent p-0 shadow-none backdrop:bg-black/55",
       )}
       aria-labelledby="advisor-summary-dialog-title"
@@ -395,7 +409,9 @@ export function AdvisorSummaryDialog({
                 onChange={(e) => setProfileId(e.target.value)}
                 aria-label="Emisor resumen asesor"
               >
-                <option value={ADVISOR_PROFILE_ALL}>Todos los emisores</option>
+                {includeAllProfilesOption ? (
+                  <option value={ADVISOR_PROFILE_ALL}>Todos los emisores</option>
+                ) : null}
                 {profileOptions.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.label || p.id}

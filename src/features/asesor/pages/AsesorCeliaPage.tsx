@@ -1,11 +1,13 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ExpenseRecord } from "@/domain/expenses/types";
 import { formatAdvisorCompactDate, sortExpenseWorkbookDefault } from "@/features/data/lib/advisorShareFilters";
+import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { fetchRuntimeConfig } from "@/infrastructure/api/documentsApi";
 import { runAccountingExportDownload } from "@/infrastructure/api/exportReportsApi";
 import { fetchExpenses } from "@/infrastructure/api/expensesApi";
@@ -79,6 +81,8 @@ export function AsesorCeliaPage() {
   const [exportYear, setExportYear] = useState(() => String(new Date().getFullYear()));
   const [exportProfile, setExportProfile] = useState("");
 
+  const sessionQuery = useSessionQuery();
+
   const configQuery = useQuery({
     queryKey: ["runtime-config"],
     queryFn: fetchRuntimeConfig,
@@ -99,13 +103,61 @@ export function AsesorCeliaPage() {
 
   const profileOptions = useMemo(() => configQuery.data?.templateProfiles ?? [], [configQuery.data?.templateProfiles]);
 
+  const sessionScope = useMemo(
+    () => resolveSessionScope(sessionQuery.data, profileOptions),
+    [sessionQuery.data, profileOptions],
+  );
+
+  const scopedProfileOptions = useMemo(
+    () => profileOptions.filter((p) => isTemplateProfileInScope(p.id, sessionScope)),
+    [profileOptions, sessionScope],
+  );
+
+  const isAdmin = sessionScope.isAdmin;
+
+  const historyItemsRaw = historyQuery.data ?? [];
+  const expenseItemsRaw = expensesQuery.data?.items ?? [];
+
+  const historyItemsScoped = useMemo(
+    () =>
+      historyItemsRaw.filter((i) => {
+        const pid = String(i.templateProfileId || "").trim();
+        if (!pid) {
+          return sessionScope.isAdmin;
+        }
+        return isTemplateProfileInScope(pid, sessionScope);
+      }),
+    [historyItemsRaw, sessionScope],
+  );
+
+  const expenseItemsScoped = useMemo(
+    () =>
+      expenseItemsRaw.filter((e) => {
+        const pid = String(e.templateProfileId || "").trim();
+        if (!pid) {
+          return sessionScope.isAdmin;
+        }
+        return isTemplateProfileInScope(pid, sessionScope);
+      }),
+    [expenseItemsRaw, sessionScope],
+  );
+
   const availableYears = useMemo(() => {
-    const historyItems = historyQuery.data ?? [];
-    const expenseItems = expensesQuery.data?.items ?? [];
-    const invoiceYears = historyItems.map((i) => String(i.issueDate || "").slice(0, 4));
-    const expenseYears = expenseItems.map((e) => String(e.issueDate || "").slice(0, 4));
+    const invoiceYears = historyItemsScoped.map((i) => String(i.issueDate || "").slice(0, 4));
+    const expenseYears = expenseItemsScoped.map((e) => String(e.issueDate || "").slice(0, 4));
     return Array.from(new Set([...invoiceYears, ...expenseYears].filter(Boolean))).sort().reverse();
-  }, [historyQuery.data, expensesQuery.data?.items]);
+  }, [historyItemsScoped, expenseItemsScoped]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      return;
+    }
+    const pid = String(exportProfile || "").trim();
+    if (!pid || pid === "__unassigned__" || !isTemplateProfileInScope(pid, sessionScope)) {
+      const next = String(scopedProfileOptions[0]?.id || "").trim();
+      setExportProfile(next);
+    }
+  }, [isAdmin, exportProfile, sessionScope, scopedProfileOptions]);
 
   const accountingExportMutation = useMutation({
     mutationFn: () => {
@@ -123,14 +175,18 @@ export function AsesorCeliaPage() {
   });
 
   const celiaScopeExpenses = useMemo(
-    () => filterExpensesForCeliaScope(expensesQuery.data?.items ?? [], exportYear, exportProfile),
-    [expensesQuery.data?.items, exportProfile, exportYear],
+    () => filterExpensesForCeliaScope(expenseItemsScoped, exportYear, exportProfile),
+    [expenseItemsScoped, exportProfile, exportYear],
   );
 
   const gastosFilteredHref = useMemo(
     () => buildGastosWorkbenchSearch(exportYear, exportProfile),
     [exportProfile, exportYear],
   );
+
+  const exportBlocked =
+    !sessionScope.hasEmitterScope ||
+    (!isAdmin && !String(exportProfile || "").trim());
 
   return (
     <div className="flex flex-col gap-6">
@@ -142,6 +198,11 @@ export function AsesorCeliaPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
+          {!sessionScope.hasEmitterScope ? (
+            <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-informative">
+              Tu sesión no tiene emisores asignados para exportar aquí. Contacta con un administrador.
+            </p>
+          ) : null}
           <div className="grid gap-2 sm:grid-cols-2">
             <label className="grid gap-1 text-sm">
               <span className="font-medium text-foreground">Ejercicio (AAAA)</span>
@@ -168,11 +229,16 @@ export function AsesorCeliaPage() {
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={exportProfile}
                 onChange={(e) => setExportProfile(e.target.value)}
+                disabled={!sessionScope.hasEmitterScope}
                 aria-label="Emisor para Excel Celia"
               >
-                <option value="">Todos los emisores</option>
-                <option value="__unassigned__">Sin emisor asignado</option>
-                {profileOptions.map((p) => (
+                {isAdmin ? (
+                  <>
+                    <option value="">Todos los emisores</option>
+                    <option value="__unassigned__">Sin emisor asignado</option>
+                  </>
+                ) : null}
+                {(isAdmin ? profileOptions : scopedProfileOptions).map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.label || p.id}
                   </option>
@@ -182,7 +248,7 @@ export function AsesorCeliaPage() {
           </div>
           <Button
             type="button"
-            disabled={accountingExportMutation.isPending}
+            disabled={accountingExportMutation.isPending || exportBlocked}
             onClick={() => accountingExportMutation.mutate()}
           >
             {accountingExportMutation.isPending ? "Generando…" : "Exportar Excel Celia"}

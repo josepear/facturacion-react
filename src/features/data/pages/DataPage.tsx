@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import {
   InvoicePreviewListTrigger,
 } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
 import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
 import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
@@ -51,12 +52,46 @@ export function DataPage() {
 
   const profileOptions = useMemo(() => configQuery.data?.templateProfiles ?? [], [configQuery.data?.templateProfiles]);
 
+  const sessionScope = useMemo(
+    () => resolveSessionScope(sessionQuery.data, profileOptions),
+    [sessionQuery.data, profileOptions],
+  );
+
+  const scopedProfileOptions = useMemo(
+    () => profileOptions.filter((p) => isTemplateProfileInScope(p.id, sessionScope)),
+    [profileOptions, sessionScope],
+  );
+
   const isAdmin =
     Boolean(sessionQuery.data?.authenticated) &&
     String(sessionQuery.data?.user?.role || "").trim().toLowerCase() === "admin";
 
-  const historyItems = historyQuery.data ?? [];
-  const expenseItems = expensesQuery.data?.items ?? [];
+  const historyItemsRaw = historyQuery.data ?? [];
+  const expenseItemsRaw = expensesQuery.data?.items ?? [];
+
+  const historyItems = useMemo(
+    () =>
+      historyItemsRaw.filter((i) => {
+        const pid = String(i.templateProfileId || "").trim();
+        if (!pid) {
+          return sessionScope.isAdmin;
+        }
+        return isTemplateProfileInScope(pid, sessionScope);
+      }),
+    [historyItemsRaw, sessionScope],
+  );
+
+  const expenseItems = useMemo(
+    () =>
+      expenseItemsRaw.filter((e) => {
+        const pid = String(e.templateProfileId || "").trim();
+        if (!pid) {
+          return sessionScope.isAdmin;
+        }
+        return isTemplateProfileInScope(pid, sessionScope);
+      }),
+    [expenseItemsRaw, sessionScope],
+  );
 
   const availableYears = useMemo(() => {
     const invoiceYears = historyItems.map((i) => String(i.issueDate || "").slice(0, 4));
@@ -98,12 +133,27 @@ export function DataPage() {
 
   const hasActiveFilters = Boolean(filterYear || filterProfile);
 
+  useEffect(() => {
+    if (!filterProfile) {
+      return;
+    }
+    if (!isTemplateProfileInScope(filterProfile, sessionScope)) {
+      setFilterProfile("");
+    }
+  }, [filterProfile, sessionScope]);
+
   return (
-    <main className="mx-auto grid w-full max-w-7xl gap-6 p-4">
+    <main className="app-page-shell-grid">
       <PageHeader
         title="Datos"
         description="Resumen financiero y listados de facturas y gastos con los mismos filtros."
       />
+
+      {!sessionScope.hasEmitterScope ? (
+        <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-informative">
+          Tu sesión no tiene emisores asignados para ver datos aquí. Contacta con un administrador.
+        </p>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
@@ -167,9 +217,10 @@ export function DataPage() {
               className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={filterProfile}
               onChange={(e) => setFilterProfile(e.target.value)}
+              disabled={!sessionScope.hasEmitterScope}
             >
-              <option value="">Todos los emisores</option>
-              {profileOptions.map((p) => (
+              <option value="">{sessionScope.isAdmin ? "Todos los emisores" : "Todos tus emisores"}</option>
+              {(sessionScope.isAdmin ? profileOptions : scopedProfileOptions).map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label || p.id}
                 </option>
