@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { Field } from "@/components/forms/field";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,9 @@ export function MembersSection({
   });
 
   const [editingUser, setEditingUser] = useState<(UpsertUserInput & { isNew: boolean }) | null>(null);
+  const userDialogRef = useRef<HTMLDialogElement | null>(null);
+  const firstFieldRef = useRef<HTMLInputElement | null>(null);
+  const lastDialogTriggerRef = useRef<HTMLElement | null>(null);
   const [memberStatus, setMemberStatus] = useState("");
   const [memberStatusTone, setMemberStatusTone] = useState<"neutral" | "success" | "error">("neutral");
   const usersQueryError = usersQuery.error;
@@ -134,6 +137,26 @@ export function MembersSection({
     setMemberStatus("");
   };
 
+  useEffect(() => {
+    const dialog = userDialogRef.current;
+    if (!dialog) {
+      return;
+    }
+    if (editingUser) {
+      if (!dialog.open) {
+        dialog.showModal();
+      }
+      globalThis.setTimeout(() => {
+        firstFieldRef.current?.focus();
+      }, 0);
+      return;
+    }
+    if (dialog.open) {
+      dialog.close();
+    }
+    lastDialogTriggerRef.current?.focus();
+  }, [editingUser]);
+
   const toggleAllowedProfile = (profileId: string) => {
     if (!editingUser) {
       return;
@@ -173,6 +196,17 @@ export function MembersSection({
   };
 
   const items = usersQuery.data?.items ?? [];
+
+  const closeUserDialog = () => {
+    setEditingUser(null);
+  };
+
+  const handleDialogEsc = (event: KeyboardEvent<HTMLDialogElement>) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      closeUserDialog();
+    }
+  };
 
   return (
     <Card>
@@ -242,7 +276,6 @@ export function MembersSection({
         ) : (
           <div className="grid gap-2">
             {items.map((user) => {
-              const isEditing = editingUser !== null && !editingUser.isNew && editingUser.id === user.id;
               return (
                 <div key={user.id} className="grid gap-0">
                   <div className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
@@ -254,11 +287,14 @@ export function MembersSection({
                       <div className="flex shrink-0 gap-1">
                         <Button
                           type="button"
-                          variant={isEditing ? "outline" : "ghost"}
+                          variant="ghost"
                           size="sm"
-                          onClick={() => isEditing ? setEditingUser(null) : handleEdit(user)}
+                          onClick={(event) => {
+                            lastDialogTriggerRef.current = event.currentTarget;
+                            handleEdit(user);
+                          }}
                         >
-                          {isEditing ? CANCEL : "Editar"}
+                          Editar
                         </Button>
                         <Button
                           type="button"
@@ -274,76 +310,6 @@ export function MembersSection({
                     )}
                   </div>
 
-                  {isEditing && editingUser && (
-                    <div className="grid gap-3 rounded-b-md border border-t-0 border-dashed px-4 py-4">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Field label="Email">
-                          <Input
-                            type="email"
-                            value={editingUser.email}
-                            onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
-                            autoComplete="off"
-                          />
-                        </Field>
-                        <Field label="Nombre">
-                          <Input
-                            value={editingUser.name}
-                            onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
-                          />
-                        </Field>
-                        <Field label="Nueva contraseña (vacío = sin cambio)">
-                          <Input
-                            type="password"
-                            value={editingUser.password ?? ""}
-                            onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
-                            autoComplete="new-password"
-                          />
-                        </Field>
-                        <Field label="Rol">
-                          <select
-                            aria-label="Rol del miembro"
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            value={editingUser.role}
-                            onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
-                          >
-                            {ROLE_OPTIONS.map((opt) => (
-                              <option key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                      </div>
-                      {profiles.length > 0 && (
-                        <Field label="Emisores permitidos (vacío = todos)">
-                          <div className="flex flex-wrap gap-2 pt-1">
-                            {profiles.map((profile) => {
-                              const checked = editingUser.allowedTemplateProfileIds.includes(profile.id);
-                              return (
-                                <label key={profile.id} className="flex cursor-pointer items-center gap-1.5 text-sm">
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() => toggleAllowedProfile(profile.id)}
-                                    className="h-4 w-4 rounded border-input"
-                                  />
-                                  <ProfileBadge label={profile.label || profile.id} colorKey={profile.colorKey} />
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </Field>
-                      )}
-                      <div className="flex gap-2">
-                        <Button type="button" onClick={handleSubmit} disabled={upsertMutation.isPending}>
-                          {upsertMutation.isPending ? savePending() : SAVE}
-                        </Button>
-                        <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>
-                          {CANCEL}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -354,81 +320,17 @@ export function MembersSection({
         )}
 
         {canManageMembers && !editingUser && (
-          <Button type="button" variant="outline" onClick={handleNew} className="self-start">
-            Nuevo miembro
+          <Button
+            type="button"
+            variant="outline"
+            onClick={(event) => {
+              lastDialogTriggerRef.current = event.currentTarget;
+              handleNew();
+            }}
+            className="self-start"
+          >
+            Nuevo usuario
           </Button>
-        )}
-
-        {editingUser?.isNew && (
-          <div className="grid gap-3 rounded-md border border-dashed p-4">
-            <p className="text-sm font-medium">Nuevo miembro</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Email">
-                <Input
-                  type="email"
-                  value={editingUser.email}
-                  onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
-                  autoComplete="off"
-                />
-              </Field>
-              <Field label="Nombre">
-                <Input
-                  value={editingUser.name}
-                  onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
-                />
-              </Field>
-              <Field label="Contraseña">
-                <Input
-                  type="password"
-                  value={editingUser.password ?? ""}
-                  onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
-                  autoComplete="new-password"
-                />
-              </Field>
-              <Field label="Rol">
-                <select
-                  aria-label="Rol del miembro"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={editingUser.role}
-                  onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
-                >
-                  {ROLE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-            {profiles.length > 0 && (
-              <Field label="Emisores permitidos (vacío = todos)">
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {profiles.map((profile) => {
-                    const checked = editingUser.allowedTemplateProfileIds.includes(profile.id);
-                    return (
-                      <label key={profile.id} className="flex cursor-pointer items-center gap-1.5 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleAllowedProfile(profile.id)}
-                          className="h-4 w-4 rounded border-input"
-                        />
-                        <ProfileBadge label={profile.label || profile.id} colorKey={profile.colorKey} />
-                      </label>
-                    );
-                  })}
-                </div>
-              </Field>
-            )}
-            <div className="flex gap-2">
-              <Button type="button" onClick={handleSubmit} disabled={upsertMutation.isPending}>
-                {upsertMutation.isPending ? savePending() : `${SAVE} miembro`}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>
-                {CANCEL}
-              </Button>
-            </div>
-          </div>
         )}
 
         {memberStatus && (
@@ -444,6 +346,95 @@ export function MembersSection({
             {memberStatus}
           </p>
         )}
+
+        <dialog
+          ref={userDialogRef}
+          onClose={closeUserDialog}
+          onKeyDown={handleDialogEsc}
+          className="z-[60] w-[min(100vw-2rem,680px)] rounded-lg border border-border bg-background p-6 text-foreground shadow-lg"
+          aria-label={editingUser?.isNew ? "Nuevo usuario" : "Editar usuario"}
+        >
+          {editingUser ? (
+            <div className="grid gap-4">
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="text-base font-semibold">{editingUser.isNew ? "Nuevo usuario" : "Editar usuario"}</h2>
+                <Button type="button" variant="ghost" size="sm" onClick={closeUserDialog} aria-label="Cerrar">
+                  ✕
+                </Button>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Nombre">
+                  <Input
+                    ref={firstFieldRef}
+                    value={editingUser.name}
+                    onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
+                  />
+                </Field>
+                <Field label="Email">
+                  <Input
+                    type="email"
+                    value={editingUser.email}
+                    onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+                    autoComplete="off"
+                  />
+                </Field>
+                <Field label={editingUser.isNew ? "Contraseña" : "Nueva contraseña (vacío = sin cambio)"}>
+                  <Input
+                    type="password"
+                    value={editingUser.password ?? ""}
+                    onChange={(e) => setEditingUser({ ...editingUser, password: e.target.value })}
+                    autoComplete="new-password"
+                  />
+                </Field>
+                <Field label="Rol">
+                  <select
+                    aria-label="Rol del usuario"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={editingUser.role}
+                    onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+                  >
+                    {ROLE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+
+              {profiles.length > 0 ? (
+                <Field label="Emisores permitidos (vacío = todos)">
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {profiles.map((profile) => {
+                      const checked = editingUser.allowedTemplateProfileIds.includes(profile.id);
+                      return (
+                        <label key={profile.id} className="flex cursor-pointer items-center gap-1.5 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleAllowedProfile(profile.id)}
+                            className="h-4 w-4 rounded border-input"
+                          />
+                          <ProfileBadge label={profile.label || profile.id} colorKey={profile.colorKey} />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </Field>
+              ) : null}
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeUserDialog}>
+                  {CANCEL}
+                </Button>
+                <Button type="button" onClick={handleSubmit} disabled={upsertMutation.isPending}>
+                  {upsertMutation.isPending ? savePending() : SAVE}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </dialog>
       </CardContent>
     </Card>
   );

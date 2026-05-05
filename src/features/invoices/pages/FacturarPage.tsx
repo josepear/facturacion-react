@@ -1,5 +1,5 @@
 import { Calendar } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useBlocker, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
@@ -43,6 +43,7 @@ const facturarIssuerValueBadgeClass =
 const FACTURAR_ACCORDION_MODULE_ORDER = ["emitter", "document", "client", "concepts", "fiscal", "history"] as const;
 type FacturarAccordionModuleId = (typeof FACTURAR_ACCORDION_MODULE_ORDER)[number];
 type FacturarWorkflowScrollTargetId = FacturarAccordionModuleId | "save";
+type FacturarWorkflowRailModuleId = FacturarWorkflowScrollTargetId;
 
 type FacturarWorkflowChecklist = {
   emitter: { complete: boolean };
@@ -53,6 +54,16 @@ type FacturarWorkflowChecklist = {
   fiscal: { complete: boolean };
   save: { complete: boolean };
 };
+
+const FACTURAR_WORKFLOW_VERTICAL_STEPS: Array<{ id: FacturarWorkflowRailModuleId; label: string }> = [
+  { id: "emitter", label: "Emisor" },
+  { id: "document", label: "Datos" },
+  { id: "client", label: "Cliente" },
+  { id: "concepts", label: "Conceptos" },
+  { id: "fiscal", label: "Fiscalidad" },
+  { id: "history", label: "Histórico" },
+  { id: "save", label: "Guardar" },
+] as const;
 
 /** Primer módulo incompleto del acordeón; si todo está listo para guardar, el scroll apunta al bloque Guardar. */
 function autoOpenFacturarWorkflowTarget(checklist: FacturarWorkflowChecklist): FacturarWorkflowScrollTargetId {
@@ -281,6 +292,16 @@ export function FacturarPage() {
   const [gmailSentMessage, setGmailSentMessage] = useState("");
   const [gmailAuthError, setGmailAuthError] = useState("");
   const gmailDialogRef = useRef<HTMLDialogElement>(null);
+  const workflowRailContainerRef = useRef<HTMLDivElement | null>(null);
+  const [workflowRailCenters, setWorkflowRailCenters] = useState<Record<FacturarWorkflowRailModuleId, number>>({
+    emitter: 0,
+    document: 0,
+    client: 0,
+    concepts: 0,
+    fiscal: 0,
+    history: 0,
+    save: 0,
+  });
 
   const gmailStatusQuery = useQuery({
     queryKey: ["gmail-status", templateProfileIdForGmail],
@@ -323,6 +344,65 @@ export function FacturarPage() {
     return pending;
   }, [workflowChecklist]);
   const saveButtonDisabled = isSubmitting || saveMutation.isPending || loadingConfig || !workflowChecklist.save.complete;
+
+  useLayoutEffect(() => {
+    const container = workflowRailContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const measureCenters = () => {
+      const containerRect = container.getBoundingClientRect();
+      const next: Record<FacturarWorkflowRailModuleId, number> = {
+        emitter: 0,
+        document: 0,
+        client: 0,
+        concepts: 0,
+        fiscal: 0,
+        history: 0,
+        save: 0,
+      };
+      for (const step of FACTURAR_WORKFLOW_VERTICAL_STEPS) {
+        const section = container.querySelector<HTMLElement>(`[data-workflow-module="${step.id}"]`);
+        if (!section) {
+          continue;
+        }
+        const header = section.querySelector<HTMLElement>(":scope > button, :scope > div:first-child");
+        const source = header ?? section;
+        const rect = source.getBoundingClientRect();
+        next[step.id] = rect.top - containerRect.top + rect.height / 2;
+      }
+      setWorkflowRailCenters((prev) => {
+        for (const step of FACTURAR_WORKFLOW_VERTICAL_STEPS) {
+          if (Math.abs((prev[step.id] || 0) - next[step.id]) > 0.5) {
+            return next;
+          }
+        }
+        return prev;
+      });
+    };
+
+    measureCenters();
+    const resizeObserver = new ResizeObserver(() => {
+      measureCenters();
+    });
+    resizeObserver.observe(container);
+    for (const step of FACTURAR_WORKFLOW_VERTICAL_STEPS) {
+      const section = container.querySelector<HTMLElement>(`[data-workflow-module="${step.id}"]`);
+      if (section) {
+        resizeObserver.observe(section);
+      }
+      const header = section?.querySelector<HTMLElement>(":scope > button, :scope > div:first-child");
+      if (header) {
+        resizeObserver.observe(header);
+      }
+    }
+    globalThis.addEventListener("resize", measureCenters);
+    return () => {
+      resizeObserver.disconnect();
+      globalThis.removeEventListener("resize", measureCenters);
+    };
+  }, [moduleUiMode, pinConceptsInWorkflowAuto, workflowChecklist, autoOpenModuleId, workflowLayoutResetVersion]);
 
   const gmailSendMutation = useMutation({
     mutationFn: () =>
@@ -410,8 +490,61 @@ export function FacturarPage() {
         className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
         onSubmit={submit}
       >
-        <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm divide-y divide-border">
-          <WorkflowModule
+        <div ref={workflowRailContainerRef} className="flex min-w-0 items-start gap-3 md:gap-4">
+          <div className="step-indicator-custom sticky top-4 hidden w-14 shrink-0 self-start md:block lg:w-16">
+            {(() => {
+              const firstCenter = workflowRailCenters.emitter;
+              const lastCenter = workflowRailCenters.save;
+              const lineTop = Math.min(firstCenter, lastCenter);
+              const lineHeight = Math.max(0, Math.abs(lastCenter - firstCenter));
+              return (
+                <div className="relative min-h-full">
+                  <span
+                    className="step-indicator-line pointer-events-none"
+                    style={{ top: `${lineTop}px`, height: `${lineHeight}px` }}
+                    aria-hidden
+                  />
+                  <ol className="relative" aria-label="Pasos del flujo de Facturar">
+                    {FACTURAR_WORKFLOW_VERTICAL_STEPS.map((step, index) => {
+                      const status = workflowChecklist[step.id];
+                      const isActive = autoScrollTargetId === step.id;
+                      const centerY = workflowRailCenters[step.id];
+                      return (
+                        <li key={step.id} className="absolute left-1/2 -translate-x-1/2" style={{ top: `${centerY}px` }}>
+                          <button
+                            type="button"
+                            className={cn(
+                              "inline-flex -translate-y-1/2 transition-colors",
+                            )}
+                            data-step-state={status.complete ? "complete" : isActive ? "active" : "pending"}
+                            title={`${index + 1}. ${step.label}`}
+                            aria-label={`Ir al módulo ${index + 1}: ${step.label}`}
+                            onClick={() => {
+                              if (step.id === "save") {
+                                setModuleUiMode("none");
+                              } else {
+                                setModuleUiMode(step.id);
+                              }
+                              setPinConceptsInWorkflowAuto(false);
+                              const el = workflowRailContainerRef.current?.querySelector<HTMLElement>(
+                                `[data-workflow-module="${step.id}"]`,
+                              );
+                              el?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+                            }}
+                          >
+                            {index + 1}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="min-w-0 flex-1 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm divide-y divide-border">
+            <WorkflowModule
             title="Emisor"
             stateLabel={workflowChecklist.emitter.complete ? "Completo" : "Pendiente"}
             stateTone={workflowChecklist.emitter.complete ? "ok" : "pending"}
@@ -972,8 +1105,8 @@ export function FacturarPage() {
             </div>
           </WorkflowModule>
 
-          <div className="pt-5">
-            <WorkflowModule
+            <div className="pt-5">
+              <WorkflowModule
               title={SAVE}
               stateLabel={workflowChecklist.save.complete ? "Completo" : "Pendiente"}
               stateTone={workflowChecklist.save.complete ? "ok" : "pending"}
@@ -1104,7 +1237,8 @@ export function FacturarPage() {
                 )}
                 </div>
               </div>
-            </WorkflowModule>
+              </WorkflowModule>
+            </div>
           </div>
         </div>
 
