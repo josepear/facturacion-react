@@ -806,7 +806,11 @@ export function ExpensesPage() {
     if (!initialRecordId || selectedRecordId || !expensesQuery.data?.items?.length) {
       return;
     }
-    const target = expensesQuery.data.items.find((item) => String(item.recordId || "").trim() === initialRecordId);
+    const target = expensesQuery.data.items.find(
+      (item) =>
+        String(item.recordId || "").trim() === initialRecordId &&
+        isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope),
+    );
     if (!target) {
       return;
     }
@@ -819,7 +823,25 @@ export function ExpensesPage() {
     return () => {
       globalThis.clearTimeout(timeoutId);
     };
-  }, [expensesQuery.data?.items, initialRecordId, selectedRecordId]);
+  }, [expensesQuery.data?.items, initialRecordId, selectedRecordId, sessionScope]);
+  useEffect(() => {
+    const safeSelected = String(selectedRecordId || "").trim();
+    if (!safeSelected) {
+      return;
+    }
+    const selected = (expensesQuery.data?.items ?? []).find((item) => String(item.recordId || "").trim() === safeSelected);
+    if (!selected) {
+      return;
+    }
+    if (!isTemplateProfileInScope(String(selected.templateProfileId || "").trim(), sessionScope)) {
+      setSelectedRecordId("");
+      setRecordIdSearchParam("");
+      didHydrateDefaultTemplateProfile.current = false;
+      setDraft(createEmptyExpense(activeProfileId));
+      setStatusMessage("Sin acceso al emisor del gasto seleccionado.");
+      setStatusTone("error");
+    }
+  }, [activeProfileId, expensesQuery.data?.items, selectedRecordId, sessionScope]);
 
   /**
    * Alta sin `recordId`: una vez que llega `/api/config`, si el borrador sigue sin `templateProfileId`,

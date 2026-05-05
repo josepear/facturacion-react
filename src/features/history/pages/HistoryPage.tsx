@@ -127,8 +127,29 @@ export function HistoryPage() {
   const detailQuery = useQuery({
     queryKey: ["document-detail", selectedRecordId],
     queryFn: () => fetchDocumentDetail(selectedRecordId),
-    enabled: Boolean(selectedRecordId),
+    enabled: Boolean(
+      selectedRecordId &&
+      (historyQuery.data ?? []).some(
+        (item) =>
+          String(item.recordId || "").trim() === String(selectedRecordId || "").trim() &&
+          isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope),
+      ),
+    ),
   });
+  useEffect(() => {
+    const safeSelected = String(selectedRecordId || "").trim();
+    if (!safeSelected) {
+      return;
+    }
+    const inScope = (historyQuery.data ?? []).some(
+      (item) =>
+        String(item.recordId || "").trim() === safeSelected &&
+        isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope),
+    );
+    if (!inScope) {
+      selectRecord("");
+    }
+  }, [historyQuery.data, selectedRecordId, sessionScope]);
 
   const toggleRecordSelection = (recordId: string, docType: string) => {
     if (docType !== "factura") {

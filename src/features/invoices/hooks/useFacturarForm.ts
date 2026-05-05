@@ -755,6 +755,12 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     },
     onSuccess: ({ recordId, document }) => {
       const mapped = applyTotals(mapLegacyDocumentToForm(document));
+      const mappedProfileId = String(mapped.templateProfileId || "").trim();
+      if (!isTemplateProfileInScope(mappedProfileId, sessionScope)) {
+        setNumberAvailabilityText("No tienes acceso al emisor de ese documento.");
+        setNumberAvailabilityTone("error");
+        return;
+      }
       setServerRecordId(recordId);
       setOfficialHtmlPreviewVersion((v) => v + 1);
       setOfficialOutputError(null);
@@ -782,7 +788,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     }
     bootstrappedRecordIdRef.current = safeInitial;
     loadMutation.mutate(safeInitial);
-  }, [initialRecordId, loadMutation]);
+  }, [initialRecordId, loadMutation, sessionScope]);
 
   useEffect(() => {
     const safeProfileId = String(initialTemplateProfileId || "").trim();
