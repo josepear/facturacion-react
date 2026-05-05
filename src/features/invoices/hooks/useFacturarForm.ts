@@ -366,37 +366,49 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const workflowChecklist = useMemo(() => {
     const hasTemplateProfile = Boolean(String(watched.templateProfileId || "").trim());
     const hasTemplateLayout = Boolean(String(watched.templateLayout || "").trim());
-    const hasPaymentMethod = Boolean(String(watched.paymentMethod || "").trim());
-    const hasBankAccount = Boolean(String(watched.bankAccount || "").trim());
-    const emitterComplete = hasTemplateProfile && hasTemplateLayout && hasPaymentMethod && hasBankAccount;
+    const emitterComplete = hasTemplateProfile && hasTemplateLayout;
 
     const documentTypeReady = watched.type === "factura" || watched.type === "presupuesto";
-    const accountingStatusReady =
-      watched.accounting?.status === "ENVIADA" ||
-      watched.accounting?.status === "COBRADA" ||
-      watched.accounting?.status === "CANCELADA";
 
     const documentComplete =
       documentTypeReady &&
-      accountingStatusReady &&
       Boolean(String(watched.number || "").trim()) &&
       Boolean(String(watched.issueDate || "").trim());
 
     const hasClientName = Boolean(String(watched.client?.name || "").trim());
-    const clientComplete = hasClientName && clientModuleConfirmed;
+    const clientComplete = hasClientName;
 
-    const hasConceptItems = (watched.items ?? []).some((item) => String(item.concept || "").trim() || String(item.description || "").trim());
-    const conceptsComplete = hasConceptItems;
+    const hasValidConceptLine = (watched.items ?? []).some((item) => {
+      const description = String(item.description || item.concept || "").trim();
+      const quantity = Number(item.quantity ?? 0);
+      const unitPrice = Number(item.unitPrice ?? 0);
+      const lineAmount = quantity * unitPrice;
+      return Boolean(
+        description &&
+        Number.isFinite(quantity) &&
+        Number.isFinite(unitPrice) &&
+        quantity > 0 &&
+        unitPrice >= 0 &&
+        Number.isFinite(lineAmount) &&
+        lineAmount > 0,
+      );
+    });
+    const conceptsComplete = hasValidConceptLine;
 
-    const fiscalComplete = taxValidation.isReady;
+    const taxRateNumber = Number(watched.taxRate ?? 0);
+    const taxRateValid = Number.isFinite(taxRateNumber) && taxRateNumber >= 0;
+    const totalsCalculated = [totals.subtotal, totals.taxAmount, totals.withholdingAmount, totals.total].every((value) =>
+      Number.isFinite(value),
+    );
+    const fiscalComplete = taxRateValid && totalsCalculated;
     const saveComplete = emitterComplete && documentComplete && clientComplete && conceptsComplete && fiscalComplete;
 
     return {
       emitter: {
         complete: emitterComplete,
         tip: emitterComplete
-          ? "Emisor, plantilla, pago y cuenta listos."
-          : "Elige emisor, plantilla/layout (obligatorio), y revisa forma de pago y cuenta.",
+          ? "Emisor y plantilla/layout listos."
+          : "Elige emisor y plantilla/layout.",
       },
       document: {
         complete: documentComplete,
@@ -404,40 +416,29 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
           ? "Datos base de documento completos."
           : !documentTypeReady
             ? "Elige tipo de documento (factura o presupuesto)."
-            : !accountingStatusReady
-              ? "Elige estado contable."
-              : "Faltan número o fecha de emisión.",
+            : "Faltan número o fecha de emisión.",
       },
       client: {
         complete: clientComplete,
-        tip: !hasClientName
-          ? "Añade al menos nombre o razón social."
-          : !clientModuleConfirmed
-            ? "Revisa los datos del cliente y pulsa Seleccionar junto a País (código)."
-            : "Cliente listo para facturar.",
+        tip: clientComplete ? "Cliente listo para facturar." : "Añade nombre o razón social del cliente.",
       },
       concepts: {
         complete: conceptsComplete,
-        tip:
-          watched.totalsBasis === "gross"
-            ? (conceptsComplete
-                ? "Modo bruto: totales calculados automáticamente desde las líneas."
-                : "En bruto, añade al menos una línea con concepto o descripción.")
-            : (conceptsComplete ? "Conceptos listos por líneas." : "Añade al menos una línea con concepto o descripción."),
+        tip: conceptsComplete
+          ? "Conceptos listos (hay al menos una línea con descripción e importe válido)."
+          : "Añade al menos una línea con descripción e importe válido.",
       },
       fiscal: {
         complete: fiscalComplete,
-        tip: taxValidation.tip,
+        tip: fiscalComplete ? "Fiscalidad lista." : "Indica un IGIC válido y revisa totales calculados.",
       },
       history: {
         complete: true,
         tip: !hasClientName
           ? FACTURAR_CLIENT_HISTORY_NEED_NAME
-          : !clientModuleConfirmed
-            ? FACTURAR_CLIENT_HISTORY_NEED_CONFIRM
-            : clientHistoryOptions.length > 0
-              ? facturarClientHistoryCountTip(clientHistoryOptions.length)
-              : FACTURAR_CLIENT_HISTORY_EMPTY_LIST,
+          : clientHistoryOptions.length > 0
+            ? facturarClientHistoryCountTip(clientHistoryOptions.length)
+            : FACTURAR_CLIENT_HISTORY_EMPTY_LIST,
       },
       save: {
         complete: saveComplete,
@@ -447,19 +448,19 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   }, [
     taxValidation.isReady,
     taxValidation.tip,
-    watched.accounting?.status,
     watched.type,
     watched.client?.name,
-    clientModuleConfirmed,
     watched.issueDate,
     watched.items,
     watched.number,
-    watched.paymentMethod,
-    watched.bankAccount,
+    watched.taxRate,
     watched.templateProfileId,
     watched.templateLayout,
-    watched.totalsBasis,
     clientHistoryOptions.length,
+    totals.subtotal,
+    totals.taxAmount,
+    totals.withholdingAmount,
+    totals.total,
   ]);
 
   const profileOptions = useMemo(
@@ -671,18 +672,28 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
   const saveMutation = useMutation({
     mutationFn: async (values: InvoiceDocument) => {
-      if (!fiscalIrpfChoiceAcknowledgedRef.current) {
-        throw new Error("En Fiscalidad elige retención IRPF o marca SIN IRPF.");
-      }
       const normalized = applyTotals(mapFormToLegacyDocument(values));
       if (!normalized.client.name.trim()) {
         throw new Error("Cliente obligatorio.");
       }
-      if (!clientModuleConfirmedRef.current) {
-        throw new Error("En Cliente pulsa Seleccionar junto a País (código).");
-      }
-      if (!normalized.items.some((item) => item.concept.trim() || item.description.trim())) {
-        throw new Error("Añade al menos una línea con concepto o descripción.");
+      if (
+        !normalized.items.some((item) => {
+          const description = String(item.description || item.concept || "").trim();
+          const quantity = Number(item.quantity ?? 0);
+          const unitPrice = Number(item.unitPrice ?? 0);
+          const lineAmount = quantity * unitPrice;
+          return Boolean(
+            description &&
+            Number.isFinite(quantity) &&
+            Number.isFinite(unitPrice) &&
+            quantity > 0 &&
+            unitPrice >= 0 &&
+            Number.isFinite(lineAmount) &&
+            lineAmount > 0,
+          );
+        })
+      ) {
+        throw new Error("Añade al menos una línea con descripción e importe válido.");
       }
       if (!totalsAreConsistent(normalized, calculateTotals(normalized))) {
         throw new Error("Los totales no son coherentes. Revisa líneas e impuestos.");

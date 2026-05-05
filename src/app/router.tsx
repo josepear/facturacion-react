@@ -16,7 +16,6 @@ const ClientsPage = lazy(() => import("@/features/clients/pages/ClientsPage").th
 const HistoryPage = lazy(() => import("@/features/history/pages/HistoryPage").then((m) => ({ default: m.HistoryPage })));
 const ExpensesPage = lazy(() => import("@/features/expenses/pages/ExpensesPage").then((m) => ({ default: m.ExpensesPage })));
 const SettingsPage = lazy(() => import("@/features/settings/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
-const NotFoundPage = lazy(() => import("@/pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage })));
 
 function IndexRedirectToFacturar() {
   const { search } = useLocation();
@@ -83,7 +82,7 @@ export const router = createBrowserRouter(
         },
         {
           path: "*",
-          element: <NotFoundPage />,
+          element: <Navigate to="/facturar" replace />,
         },
       ],
     },

@@ -38,6 +38,7 @@ vi.mock("react-router-dom", async () => {
     ...actual,
     useNavigate: () => navigateMock,
     useSearchParams: () => [new URLSearchParams(searchState.query), vi.fn()],
+    Navigate: ({ to }: { to: string }) => <div data-testid="navigate" data-to={to} />,
   };
 });
 
@@ -46,7 +47,13 @@ vi.mock("@/features/auth/AuthContext", () => ({
 }));
 
 vi.mock("@/features/shared/hooks/useSessionQuery", () => ({
-  useSessionQuery: vi.fn(),
+  useSessionQuery: vi.fn(() => ({
+    data: null,
+    isSuccess: false,
+    isError: false,
+    isLoading: false,
+    error: null,
+  })),
   SESSION_QUERY_KEY: ["session"],
 }));
 
@@ -77,11 +84,10 @@ describe("LoginPage OAuth Google", () => {
     getGoogleOAuthStartUrlMock.mockResolvedValue({ url: "https://accounts.google.com/mock" });
   });
 
-  it("OAuth success stores token and navigates to next", async () => {
+  it("OAuth success with exchangeToken stores token and navigates to next", async () => {
     openGoogleLoginPopupAndWaitMock.mockResolvedValue({
-      type: "success",
-      code: "code-123",
-      state: "state-123",
+      type: "success_exchange_token",
+      exchangeToken: "exchange-token-123",
     });
     exchangeGoogleOAuthSessionMock.mockResolvedValue({ token: "internal-token-abc" });
 
@@ -92,15 +98,31 @@ describe("LoginPage OAuth Google", () => {
     await waitFor(() => {
       expect(setAuthTokenMock).toHaveBeenCalledWith("internal-token-abc");
     });
-    expect(exchangeGoogleOAuthSessionMock).toHaveBeenCalledWith({ code: "code-123", state: "state-123" });
+    expect(exchangeGoogleOAuthSessionMock).toHaveBeenCalledWith({ exchangeToken: "exchange-token-123" });
     expect(navigateMock).toHaveBeenCalledWith("/historial", { replace: true });
+  });
+
+  it("falls back to code/state when exchangeToken is not available", async () => {
+    openGoogleLoginPopupAndWaitMock.mockResolvedValue({
+      type: "success_code_state",
+      code: "code-123",
+      state: "state-123",
+    });
+    exchangeGoogleOAuthSessionMock.mockResolvedValue({ token: "internal-token-fallback" });
+
+    render(<LoginPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Entrar con Google" }));
+
+    await waitFor(() => {
+      expect(setAuthTokenMock).toHaveBeenCalledWith("internal-token-fallback");
+    });
+    expect(exchangeGoogleOAuthSessionMock).toHaveBeenCalledWith({ code: "code-123", state: "state-123" });
   });
 
   it("shows unauthorized message on 403", async () => {
     openGoogleLoginPopupAndWaitMock.mockResolvedValue({
-      type: "success",
-      code: "code-123",
-      state: "state-123",
+      type: "success_exchange_token",
+      exchangeToken: "exchange-token-123",
     });
     exchangeGoogleOAuthSessionMock.mockRejectedValue(new ApiError("forbidden", 403));
 
@@ -113,9 +135,8 @@ describe("LoginPage OAuth Google", () => {
 
   it("shows expired/reused message on 409", async () => {
     openGoogleLoginPopupAndWaitMock.mockResolvedValue({
-      type: "success",
-      code: "code-123",
-      state: "state-123",
+      type: "success_exchange_token",
+      exchangeToken: "exchange-token-123",
     });
     exchangeGoogleOAuthSessionMock.mockRejectedValue(new ApiError("conflict", 409));
 
@@ -135,5 +156,19 @@ describe("LoginPage OAuth Google", () => {
     expect(await screen.findByText("Inicio con Google cancelado.")).toBeTruthy();
     expect(exchangeGoogleOAuthSessionMock).not.toHaveBeenCalled();
     expect(setAuthTokenMock).not.toHaveBeenCalled();
+  });
+
+  it("with token in /login redirects to /facturar when next is missing", async () => {
+    getAuthTokenMock.mockReturnValue("token-123");
+    searchState.query = "";
+    render(<LoginPage />);
+    expect(screen.getByTestId("navigate").getAttribute("data-to")).toBe("/facturar");
+  });
+
+  it("with token in /login redirects to next when valid next exists", async () => {
+    getAuthTokenMock.mockReturnValue("token-123");
+    searchState.query = "next=/gastos";
+    render(<LoginPage />);
+    expect(screen.getByTestId("navigate").getAttribute("data-to")).toBe("/gastos");
   });
 });

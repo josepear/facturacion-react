@@ -1,8 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useLayoutEffect, useState } from "react";
+import { type FormEvent, useLayoutEffect, useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
+import { GoogleIcon } from "@/components/icons/GoogleIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/features/auth/AuthContext";
@@ -32,6 +33,7 @@ function LoginFormOnly() {
   const [password, setPassword] = useState("");
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [isOAuthPending, setIsOAuthPending] = useState(false);
+  const oauthPendingRef = useRef(false);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -45,6 +47,10 @@ function LoginFormOnly() {
   };
 
   const onGoogleLogin = async () => {
+    if (oauthPendingRef.current) {
+      return;
+    }
+    oauthPendingRef.current = true;
     clearLoginError();
     setOauthError(null);
     setIsOAuthPending(true);
@@ -59,10 +65,9 @@ function LoginFormOnly() {
         setOauthError("No se pudo validar con Google.");
         return;
       }
-      const { token } = await exchangeGoogleOAuthSession({
-        code: popupResult.code,
-        state: popupResult.state,
-      });
+      const { token } = popupResult.type === "success_exchange_token"
+        ? await exchangeGoogleOAuthSession({ exchangeToken: popupResult.exchangeToken })
+        : await exchangeGoogleOAuthSession({ code: popupResult.code, state: popupResult.state });
       setAuthToken(token);
       void queryClient.invalidateQueries({ queryKey: [...SESSION_QUERY_KEY] });
       navigate(next || "/facturar", { replace: true });
@@ -83,6 +88,7 @@ function LoginFormOnly() {
       }
       setOauthError("No se pudo iniciar sesión con Google.");
     } finally {
+      oauthPendingRef.current = false;
       setIsOAuthPending(false);
     }
   };
@@ -123,8 +129,15 @@ function LoginFormOnly() {
           <Button type="submit" className="w-full" disabled={isLoginPending}>
             {isLoginPending ? "Entrando…" : "Entrar"}
           </Button>
-          <Button type="button" variant="outline" className="w-full" disabled={isOAuthPending} onClick={onGoogleLogin}>
-            {isOAuthPending ? "Conectando con Google…" : "Entrar con Google"}
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-[44px] w-full justify-center gap-2 border-slate-300 bg-white text-slate-900 hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-blue-500"
+            disabled={isOAuthPending}
+            onClick={onGoogleLogin}
+          >
+            <GoogleIcon className="h-5 w-5 shrink-0" />
+            <span>{isOAuthPending ? "Conectando con Google…" : "Entrar con Google"}</span>
           </Button>
         </form>
       </div>

@@ -313,6 +313,16 @@ export function FacturarPage() {
     staleTime: 300_000,
   });
   const nextcloudUrl = String(nextcloudQuery.data?.url || "").trim();
+  const requiredWorkflowPendingCount = useMemo(() => {
+    let pending = 0;
+    if (!workflowChecklist.emitter.complete) pending += 1;
+    if (!workflowChecklist.document.complete) pending += 1;
+    if (!workflowChecklist.client.complete) pending += 1;
+    if (!workflowChecklist.concepts.complete) pending += 1;
+    if (!workflowChecklist.fiscal.complete) pending += 1;
+    return pending;
+  }, [workflowChecklist]);
+  const saveButtonDisabled = isSubmitting || saveMutation.isPending || loadingConfig || !workflowChecklist.save.complete;
 
   const gmailSendMutation = useMutation({
     mutationFn: () =>
@@ -857,8 +867,8 @@ export function FacturarPage() {
 
           <WorkflowModule
             title="Histórico"
-            stateLabel={workflowChecklist.client.complete ? "Disponible" : "Pendiente"}
-            stateTone={workflowChecklist.client.complete ? "ok" : "pending"}
+            stateLabel={workflowChecklist.history.complete ? "Completo" : "Pendiente"}
+            stateTone={workflowChecklist.history.complete ? "ok" : "pending"}
             help={workflowChecklist.history.tip}
             open={isModuleOpen("history")}
             onOpenChange={(next) => handleWorkflowModuleOpenChange("history", next)}
@@ -977,9 +987,14 @@ export function FacturarPage() {
             >
               <div className="flex w-full flex-col items-stretch gap-3 sm:items-end">
                 <div className="flex w-full max-w-full flex-col gap-3 sm:max-w-xl">
-                  <Button type="submit" disabled={isSubmitting || saveMutation.isPending || loadingConfig}>
+                  <Button type="submit" disabled={saveButtonDisabled}>
                     {saveMutation.isPending ? savePending() : `${SAVE} documento`}
                   </Button>
+                  {!workflowChecklist.save.complete ? (
+                    <p className="text-pretty text-sm text-amber-700 sm:max-w-xl sm:text-right">
+                      Completa los módulos obligatorios pendientes ({requiredWorkflowPendingCount}) para habilitar el guardado.
+                    </p>
+                  ) : null}
                   <p className="text-pretty text-sm text-informative sm:max-w-xl sm:text-right">
                     Revise la factura en la vista previa HTML antes de guardar (panel de previsualización del documento).
                   </p>

@@ -49,6 +49,60 @@ vi.mock("@/domain/numbering/usecases/getNextNumber", () => ({
 }));
 
 describe("useFacturarForm regression", () => {
+  it("workflow checklist follows MVP completion rules", async () => {
+    const document = createEmptyDocument();
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "User", email: "u@test", role: "admin", tenantId: "default" },
+    });
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-main",
+      templateProfiles: [
+        {
+          id: "perfil-main",
+          label: "Perfil Main",
+          defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
+          business: { bankAccount: "ES00..." },
+          design: { layout: "pear" },
+        },
+      ],
+    });
+    fetchClientsMock.mockResolvedValue([]);
+    fetchHistoryInvoicesMock.mockResolvedValue([]);
+    saveDocumentMock.mockImplementation(async (doc: typeof document) => ({ recordId: "docs/2026/doc-a.json", document: doc }));
+    fetchDocumentDetailMock.mockResolvedValue({ recordId: "docs/2026/doc-a.json", document });
+    getNextNumberMock.mockResolvedValue("1");
+    validateNumberAvailabilityMock.mockResolvedValue({ available: true });
+
+    const { result } = renderHook(() => useFacturarForm(), { wrapper: createHookWrapper() });
+    await waitFor(() => {
+      expect(result.current.profileOptions.length).toBeGreaterThan(0);
+    });
+
+    act(() => {
+      result.current.form.setValue("templateProfileId", "perfil-main", { shouldValidate: true });
+      result.current.form.setValue("templateLayout", "pear", { shouldValidate: true });
+      result.current.form.setValue("type", "factura", { shouldValidate: true });
+      result.current.form.setValue("number", "1", { shouldValidate: true });
+      result.current.form.setValue("issueDate", "2026-05-05", { shouldValidate: true });
+      result.current.form.setValue("client.name", "Cliente MVP", { shouldValidate: true });
+      result.current.form.setValue("items.0.description", "Servicio", { shouldValidate: true });
+      result.current.form.setValue("items.0.quantity", 1, { shouldValidate: true });
+      result.current.form.setValue("items.0.unitPrice", 100, { shouldValidate: true });
+      result.current.form.setValue("taxRate", 7, { shouldValidate: true });
+    });
+
+    await waitFor(() => {
+      expect(result.current.workflowChecklist.emitter.complete).toBe(true);
+      expect(result.current.workflowChecklist.document.complete).toBe(true);
+      expect(result.current.workflowChecklist.client.complete).toBe(true);
+      expect(result.current.workflowChecklist.concepts.complete).toBe(true);
+      expect(result.current.workflowChecklist.fiscal.complete).toBe(true);
+      expect(result.current.workflowChecklist.history.complete).toBe(true);
+      expect(result.current.workflowChecklist.save.complete).toBe(true);
+    });
+  });
+
   it("creates, calculates, saves and reloads a document", async () => {
     const document = createEmptyDocument();
     document.templateProfileId = "perfil-main";
