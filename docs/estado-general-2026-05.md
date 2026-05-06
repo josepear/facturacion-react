@@ -4,6 +4,14 @@ Documento maestro del repo **facturacion-react** (SPA Vite, Router, TanStack Que
 
 ---
 
+## 0. Matriz de permisos y regresiones
+
+- **Matriz viva (fuente de verdad)** vive en el repo servidor: `facturacion/docs/matriz-permisos-multitenant-v1.md` (en monorepo: `../docs/matriz-permisos-multitenant-v1.md` desde la raíz del padre).
+- **Cobertura UI**: el mapa en esa matriz enlaza `SettingsPage.test.tsx` (Miembros / emisores), `DataPage.test.tsx` (legacy sin emisor), `AsesorScopePages.test.tsx`, `useFacturarForm.test.tsx`, `HistoryPage.test.tsx` (archivo/papelera admin); ampliar el mapa allí si se añaden pantallas.
+- **Smoke post-deploy (~5 min)**: mismo checklist que backend en `facturacion/docs/estado-general-2026-05.md` sección *Smoke post-deploy (5 min)*, más: login en `/react/`, Historial sin botones de archivar activos para editor, Configuración sin bloque “Miembros” para editor.
+
+---
+
 ## 1. Resumen ejecutivo
 
 - SPA servida en produccion bajo `/react/` por el servidor Node del monorepo padre (assets publicos sin Bearer).
@@ -130,6 +138,18 @@ Merge conocido en historial: **PR #16** (`794bcc5` "Merge pull request #16 from 
 
 ---
 
+## Smoke post-deploy (5 min) — cliente
+
+1. Abrir `/react/` tras deploy, hard reload si hace falta.
+2. Login editor restringido: Historial → botones **Archivar documento** y **Archivar ejercicio** deben estar **deshabilitados**; papelera muestra aviso sin permiso de borrado.
+3. Configuración → no debe aparecer **Miembros del sistema**.
+4. Datos → contadores coherentes con emisores visibles (sin filas legacy huérfanas en editor).
+5. Facturar → guardar bloqueado sin emisor válido (checklist de flujo).
+
+Detalle API compartido: repo servidor `docs/estado-general-2026-05.md`.
+
+---
+
 ## Indice de documentos relacionados (este repo)
 
 - [Roadmap multitenant V1](./roadmap-multitenant-v1.md)
@@ -139,4 +159,4 @@ Merge conocido en historial: **PR #16** (`794bcc5` "Merge pull request #16 from 
 - [E2E Facturar runbook](./e2e-facturar-critical-flow-runbook.md)
 - [Facturar mejoras y paridad conceptos](./facturar-mejoras-y-paridad-conceptos.md)
 
-Informe equivalente (servidor y despliegue): en el repo **facturacion**, `docs/estado-general-2026-05.md`.
+Informe equivalente (servidor y despliegue): en el repo **facturacion**, `docs/estado-general-2026-05.md`. Matriz de permisos: `facturacion/docs/matriz-permisos-multitenant-v1.md`.

@@ -5,12 +5,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HistoryPage } from "@/features/history/pages/HistoryPage";
 import { createPageWrapper } from "@/test/test-utils";
 
+const sessionState = vi.hoisted(() => ({
+  user: {
+    id: "u1",
+    name: "Admin",
+    email: "a@test",
+    role: "admin",
+    tenantId: "default",
+  } as { id: string; name: string; email: string; role: string; tenantId: string; allowedTemplateProfileIds?: string[] },
+}));
+
 vi.mock("@/features/shared/hooks/useSessionQuery", () => ({
   SESSION_QUERY_KEY: ["session"],
   useSessionQuery: () => ({
     data: {
       authenticated: true as const,
-      user: { id: "u1", name: "Admin", email: "a@test", role: "admin", tenantId: "default" },
+      user: sessionState.user,
     },
     isLoading: false,
     error: null,
@@ -87,6 +97,13 @@ vi.mock("@/infrastructure/api/exportReportsApi", () => ({
 describe("HistoryPage regression", () => {
   beforeEach(() => {
     searchState.query = "";
+    sessionState.user = {
+      id: "u1",
+      name: "Admin",
+      email: "a@test",
+      role: "admin",
+      tenantId: "default",
+    };
   });
 
   it("lists, filters and opens selected document in Facturar", async () => {
@@ -170,6 +187,64 @@ describe("HistoryPage regression", () => {
     await waitFor(() => {
       expect(deleteTrashEntriesMock).toHaveBeenCalledWith(["_papelera/documentos/2026/facturas/f-1.json"]);
     });
+  });
+
+  it("editor: archivar documento/ejercicio deshabilitado (matriz M-HIST-ARCH)", async () => {
+    sessionState.user = {
+      id: "u2",
+      name: "Editor",
+      email: "ed@test",
+      role: "editor",
+      tenantId: "default",
+      allowedTemplateProfileIds: ["perfil-main"],
+    };
+    fetchHistoryInvoicesMock.mockResolvedValue([
+      {
+        recordId: "docs/a.json",
+        type: "factura",
+        typeLabel: "Factura",
+        number: "F-1",
+        clientName: "Acme",
+        issueDate: "2026-01-05",
+        total: 120,
+        savedAt: "2026-01-05T10:00:00Z",
+        templateProfileId: "perfil-main",
+      },
+    ]);
+    fetchDocumentDetailMock.mockResolvedValue({
+      recordId: "docs/a.json",
+      document: {
+        type: "factura",
+        templateProfileId: "perfil-main",
+        number: "F-1",
+        issueDate: "2026-01-05",
+        client: { name: "Acme" },
+        items: [{ concept: "S", quantity: 1, unitPrice: 100 }],
+        accounting: { status: "ENVIADA" },
+        computedTotals: { subtotal: 100, taxAmount: 7, withholdingAmount: 0, total: 107 },
+      },
+    });
+    fetchRuntimeConfigMock.mockResolvedValue({
+      templateProfiles: [{ id: "perfil-main", label: "Perfil Main" }],
+    });
+    fetchTrashMock.mockResolvedValue({
+      items: [],
+      groups: [],
+      summary: { total: 0, totalGroups: 0, byCategory: {}, byFileType: {} },
+    });
+
+    render(<HistoryPage />, { wrapper: createPageWrapper() });
+
+    await screen.findByText("F-1");
+    await userEvent.click(screen.getByText("F-1"));
+    await waitFor(() => {
+      expect(fetchDocumentDetailMock).toHaveBeenCalled();
+    });
+
+    const archiveDoc = screen.getByRole("button", { name: "Archivar documento" }) as HTMLButtonElement;
+    const archiveYear = screen.getByRole("button", { name: "Archivar ejercicio" }) as HTMLButtonElement;
+    expect(archiveDoc.disabled).toBe(true);
+    expect(archiveYear.disabled).toBe(true);
   });
 });
 
