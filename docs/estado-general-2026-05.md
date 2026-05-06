@@ -2,6 +2,20 @@
 
 Documento maestro del repo **facturacion-react** (SPA Vite, Router, TanStack Query). Complemento del informe equivalente en el repo servidor **facturacion**. Pensado para producto y operaciones; el detalle de codigo sigue en docs de paridad y roadmaps enlazados.
 
+## Estado actual
+
+- **Multitenant V1**: CLOSED (2026-05-06)
+- **Deploy runtime**: OK (servidor padre: `deploy-to-macmini.sh --local`; `GET https://facturacion.pearandco.es/api/health` → `ok: true`)
+- **Smoke final**: 10/10 OK (mismo criterio que en `facturacion/docs/estado-general-2026-05.md` — health + regresión authz en servidor + build SPA en pipeline de deploy; checklist UI dos sesiones en sección equivalente del doc servidor)
+- **Riesgos residuales**:
+  1. Stash local con cambios fuera del alcance del cierre V1: no hacer `stash pop` sin revisar conflictos con `main`.
+  2. E2E Playwright contra API real sigue siendo opcional; no sustituye al smoke corto en `/react/` con credenciales reales cuando se exija traza en navegador.
+  3. Paridad residual móvil/V1.1: ver `docs/roadmap-paridad.md`.
+- **Hashes de referencia (código V1 cerrado)**:
+  - Backend (repo padre / submódulo): `eed75e3`
+  - Frontend (este repo): `8f4deaa`
+- **Matriz de permisos** (fuente de verdad en servidor): `facturacion/docs/matriz-permisos-multitenant-v1.md` — en checkout monorepo: `../docs/matriz-permisos-multitenant-v1.md`
+
 ---
 
 ## 0. Matriz de permisos y regresiones
