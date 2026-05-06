@@ -16,6 +16,9 @@ const ClientsPage = lazy(() => import("@/features/clients/pages/ClientsPage").th
 const HistoryPage = lazy(() => import("@/features/history/pages/HistoryPage").then((m) => ({ default: m.HistoryPage })));
 const ExpensesPage = lazy(() => import("@/features/expenses/pages/ExpensesPage").then((m) => ({ default: m.ExpensesPage })));
 const SettingsPage = lazy(() => import("@/features/settings/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
+const CalculatorPage = lazy(() =>
+  import("@/features/utilities/calculator/CalculatorPage").then((m) => ({ default: m.CalculatorPage })),
+);
 
 function IndexRedirectToFacturar() {
   const { search } = useLocation();
@@ -79,6 +82,10 @@ export const router = createBrowserRouter(
         {
           path: "configuracion",
           element: <SettingsPage />,
+        },
+        {
+          path: "utilidades/calculadora",
+          element: <CalculatorPage />,
         },
         {
           path: "*",

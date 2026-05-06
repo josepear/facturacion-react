@@ -1,4 +1,5 @@
-:root {
+:root,
+:root[data-theme="default"] {
   --background: 0 0% 100%;
   --foreground: 224 71% 4%;
   --card: 0 0% 100%;
@@ -14,6 +15,10 @@
   --input: 0 0% 11.76%;
   --ring: 222 84% 5%;
   --radius: 0.625rem;
+  --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --shadow-sm-token: 0 1px 2px hsl(222 30% 20% / 0.08);
+  --shadow-md-token: 0 8px 18px hsl(222 30% 20% / 0.12);
+  --shadow-lg-token: 0 16px 34px hsl(222 30% 20% / 0.18);
   /* Texto informativo / ayuda: un poco menor que el cuerpo (1rem − 5px) */
   --text-informative-size: calc(1rem - 5px);
   /*
@@ -21,6 +26,28 @@
    * `src/features/shared/lib/quarterVisual.ts` + `QuarterBadge`.
    * Colores de emisor (badge + punto): `src/components/ui/ProfileBadge.tsx`.
    */
+}
+
+:root[data-theme="lab"],
+body[data-theme="lab"] {
+  --background: 217 33% 97%;
+  --foreground: 222 47% 14%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 14%;
+  --primary: 258 84% 57%;
+  --primary-foreground: 210 40% 98%;
+  --muted: 220 25% 94%;
+  --muted-foreground: 218 15% 42%;
+  --accent: 265 100% 96%;
+  --accent-foreground: 258 70% 34%;
+  --border: 217 24% 84%;
+  --input: 217 24% 84%;
+  --ring: 258 84% 57%;
+  --radius: 0.9rem;
+  --font-sans: "Plus Jakarta Sans", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --shadow-sm-token: 0 2px 8px hsl(258 62% 46% / 0.09);
+  --shadow-md-token: 0 12px 24px hsl(258 62% 46% / 0.13);
+  --shadow-lg-token: 0 20px 40px hsl(258 62% 46% / 0.2);
 }
 
 .dark {
@@ -37,4 +64,24 @@
   --border: 216 34% 17%;
   --input: 216 34% 17%;
   --ring: 212 97% 87%;
+}
+
+.dark[data-theme="lab"],
+body.dark[data-theme="lab"] {
+  --background: 230 24% 9%;
+  --foreground: 210 40% 96%;
+  --card: 230 25% 12%;
+  --card-foreground: 210 40% 96%;
+  --primary: 266 85% 70%;
+  --primary-foreground: 240 20% 10%;
+  --muted: 228 20% 16%;
+  --muted-foreground: 221 14% 72%;
+  --accent: 254 42% 24%;
+  --accent-foreground: 266 85% 90%;
+  --border: 227 18% 24%;
+  --input: 227 18% 24%;
+  --ring: 266 85% 70%;
+  --shadow-sm-token: 0 2px 10px hsl(266 85% 70% / 0.17);
+  --shadow-md-token: 0 12px 26px hsl(266 85% 70% / 0.22);
+  --shadow-lg-token: 0 24px 44px hsl(266 85% 70% / 0.3);
 }

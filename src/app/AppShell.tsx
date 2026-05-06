@@ -1,5 +1,19 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { BarChart2, FileSpreadsheet, LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
+import {
+  BarChart2,
+  Calculator,
+  FileSpreadsheet,
+  LayoutGrid,
+  LogOut,
+  Menu,
+  Moon,
+  ReceiptText,
+  Settings,
+  Sun,
+  Users,
+  WalletCards,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
@@ -13,18 +27,34 @@ type ShellNavItem = {
   to: string;
   label: string;
   icon: typeof LayoutGrid;
-  exact?: boolean;
+  /** `NavLink end`: activo solo en la ruta exacta (sin subrutas). */
+  end?: boolean;
 };
 
-const navItems: ShellNavItem[] = [
-  { to: "/facturar", label: "Facturar", icon: ReceiptText },
-  { to: "/historial", label: "Historial", icon: LayoutGrid },
-  { to: "/gastos", label: "Gastos", icon: WalletCards },
-  { to: "/datos", label: "Datos", icon: BarChart2 },
-  { to: "/asesor", label: "Asesor", icon: FileSpreadsheet },
-  { to: "/clientes", label: "Clientes", icon: Users },
-  { to: "/configuracion", label: "Emisores", icon: Settings },
+type ShellNavGroup = {
+  label?: string;
+  items: ShellNavItem[];
+};
+
+const shellNavGroups: ShellNavGroup[] = [
+  {
+    items: [
+      { to: "/facturar", label: "Facturar", icon: ReceiptText },
+      { to: "/historial", label: "Historial", icon: LayoutGrid },
+      { to: "/gastos", label: "Gastos", icon: WalletCards },
+      { to: "/datos", label: "Datos", icon: BarChart2 },
+      { to: "/asesor", label: "Asesor", icon: FileSpreadsheet },
+      { to: "/clientes", label: "Clientes", icon: Users },
+      { to: "/configuracion", label: "Emisores", icon: Settings },
+    ],
+  },
+  {
+    label: "Utilidades",
+    items: [{ to: "/utilidades/calculadora", label: "Calculadora", icon: Calculator, end: true }],
+  },
 ];
+
+const shellNavFlat = shellNavGroups.flatMap((g) => g.items);
 
 const FACTURACION_STORAGE_SCOPE_EVENT = "facturacion-storage-scope-changed";
 
@@ -32,13 +62,25 @@ type SidebarContentProps = {
   collapsed: boolean;
   isDark: boolean;
   toggle: () => void;
+  labTheme: "default" | "lab";
+  toggleLabTheme: () => void;
   sandbox: boolean;
   toggleSandbox: () => void;
   onNavigate?: () => void;
   onLogout?: () => void;
 };
 
-function SidebarContent({ collapsed, isDark, toggle, sandbox, toggleSandbox, onNavigate, onLogout }: SidebarContentProps) {
+function SidebarContent({
+  collapsed,
+  isDark,
+  toggle,
+  labTheme,
+  toggleLabTheme,
+  sandbox,
+  toggleSandbox,
+  onNavigate,
+  onLogout,
+}: SidebarContentProps) {
   return (
     <div className="flex h-full flex-col gap-4 p-3">
       <div className={cn("rounded-lg border bg-card px-3 py-3", collapsed ? "text-center" : "")}>
@@ -46,32 +88,60 @@ function SidebarContent({ collapsed, isDark, toggle, sandbox, toggleSandbox, onN
         {!collapsed ? <p className="mt-1 text-sm font-semibold">App React</p> : null}
       </div>
 
-      <nav className="grid gap-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={onNavigate}
-              end={item.exact}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  isActive ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-foreground",
-                  collapsed ? "justify-center px-2" : "",
-                )
-              }
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {!collapsed ? <span>{item.label}</span> : null}
-            </NavLink>
-          );
-        })}
-      </nav>
+      <div className="flex flex-col gap-3">
+        {shellNavGroups.map((group, groupIndex) => (
+          <div
+            key={group.label ?? `nav-group-${groupIndex}`}
+            className={cn(groupIndex > 0 ? "border-t border-border pt-3" : "")}
+          >
+            {group.label && !collapsed ? (
+              <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.label}</p>
+            ) : null}
+            <nav className="grid gap-1" aria-label={group.label ? `${group.label} · navegación` : "Navegación principal"}>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    onClick={onNavigate}
+                    end={item.end ?? false}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
+                        "hover:bg-accent hover:text-accent-foreground",
+                        isActive ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-foreground",
+                        collapsed ? "justify-center px-2" : "",
+                      )
+                    }
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {!collapsed ? <span>{item.label}</span> : null}
+                  </NavLink>
+                );
+              })}
+            </nav>
+          </div>
+        ))}
+      </div>
 
       <div className="mt-auto border-t pt-2">
+        {import.meta.env.DEV ? (
+          <Button
+            type="button"
+            variant={labTheme === "lab" ? "default" : "ghost"}
+            size="sm"
+            className={cn(
+              "w-full justify-start gap-2",
+              labTheme === "lab" ? "" : "text-muted-foreground",
+              collapsed ? "justify-center px-2" : "",
+            )}
+            onClick={toggleLabTheme}
+            title="Tema de laboratorio (solo desarrollo)"
+          >
+            {collapsed ? "L" : labTheme === "lab" ? "Tema LAB ON" : "Tema LAB OFF"}
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant={sandbox ? "default" : "ghost"}
@@ -135,11 +205,30 @@ function useSandbox() {
   return { sandbox, toggleSandbox: () => setSandbox((v) => !v) };
 }
 
+function useLabTheme() {
+  const [labTheme, setLabTheme] = useState<"default" | "lab">(
+    () => (localStorage.getItem("theme") === "lab" ? "lab" : "default"),
+  );
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (labTheme === "lab") {
+      root.setAttribute("data-theme", "lab");
+    } else {
+      root.removeAttribute("data-theme");
+    }
+    localStorage.setItem("theme", labTheme);
+  }, [labTheme]);
+
+  return { labTheme, toggleLabTheme: () => setLabTheme((v) => (v === "lab" ? "default" : "lab")) };
+}
+
 export function AppShell() {
   const { logout, authVersion } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { isDark, toggle } = useTheme();
+  const { labTheme, toggleLabTheme } = useLabTheme();
   const { sandbox, toggleSandbox } = useSandbox();
   const wizardDialogRef = useRef<HTMLDialogElement>(null);
   const [wizardVisible, setWizardVisible] = useState(false);
@@ -168,7 +257,12 @@ export function AppShell() {
     if (path === "/asesor") {
       return "Asesor";
     }
-    return navItems.find((item) => path.startsWith(item.to))?.label || "Facturación";
+    if (path.startsWith("/utilidades/calculadora")) {
+      return "Utilidades · Calculadora";
+    }
+    const byPrefix = [...shellNavFlat].sort((a, b) => b.to.length - a.to.length);
+    const hit = byPrefix.find((item) => path === item.to || path.startsWith(`${item.to}/`));
+    return hit?.label || "Facturación";
   }, [location.pathname]);
 
   useEffect(() => {
@@ -254,6 +348,8 @@ export function AppShell() {
               collapsed={false}
               isDark={isDark}
               toggle={toggle}
+              labTheme={labTheme}
+              toggleLabTheme={toggleLabTheme}
               sandbox={sandbox}
               toggleSandbox={toggleSandbox}
               onNavigate={() => setMobileOpen(false)}
@@ -286,6 +382,8 @@ export function AppShell() {
             collapsed={collapsed}
             isDark={isDark}
             toggle={toggle}
+            labTheme={labTheme}
+            toggleLabTheme={toggleLabTheme}
             sandbox={sandbox}
             toggleSandbox={toggleSandbox}
             onLogout={handleLogout}
