@@ -12,8 +12,8 @@ Documento maestro del repo **facturacion-react** (SPA Vite, Router, TanStack Que
   2. E2E Playwright contra API real sigue siendo opcional; no sustituye al smoke corto en `/react/` con credenciales reales cuando se exija traza en navegador.
   3. Paridad residual móvil/V1.1: ver `docs/roadmap-paridad.md`.
 - **Hashes de referencia (tip `main` tras cierre documental + submódulo)**:
-  - Backend (repo padre): ancla = commit en `facturacion` que apunta el submódulo a este SPA; ver `git rev-parse --short HEAD` en el padre tras `git pull`.
-  - Frontend (este repo): `ca15eee`
+  - Backend (repo padre `facturacion`): `git rev-parse HEAD` en la raíz del padre tras `git pull` (debe incluir el puntero de submódulo a esta SPA).
+  - Frontend (este repo): `git rev-parse HEAD` aquí tras `git pull` (ancla de la SPA).
 - **Matriz de permisos** (fuente de verdad en servidor): `facturacion/docs/matriz-permisos-multitenant-v1.md` — en checkout monorepo: `../docs/matriz-permisos-multitenant-v1.md`
 
 ---
