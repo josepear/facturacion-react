@@ -216,7 +216,7 @@ describe("SettingsPage regression", () => {
     expect(screen.queryByText("Miembros del sistema")).toBeNull();
   });
 
-  it("hides emitter management actions for editor and does not call save API", async () => {
+  it("editor: nuevo emisor deshabilitado; puede abrir fila; borrar deshabilitado; sin guardar API implicito", async () => {
     useSessionQueryMock.mockReturnValue(editorSessionQueryResult);
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
@@ -227,14 +227,16 @@ describe("SettingsPage regression", () => {
     render(<SettingsPage />, { wrapper: createPageWrapper() });
     await screen.findByText(/Listado de emisores configurados/);
 
-    expect(screen.queryByRole("button", { name: "Nuevo emisor" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Editar" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Borrar" })).toBeNull();
+    const nuevo = screen.getByRole("button", { name: "Nuevo emisor" }) as HTMLButtonElement;
+    expect(nuevo.disabled).toBe(true);
+    expect(within(screen.getByTestId("emitter-row-perfil-1")).getByRole("button", { name: "Editar" })).toBeTruthy();
+    const borrar = within(screen.getByTestId("emitter-row-perfil-1")).getByRole("button", { name: "Borrar" }) as HTMLButtonElement;
+    expect(borrar.disabled).toBe(true);
     expect(screen.getByTestId("emitter-row-perfil-1")).toBeTruthy();
     expect(saveTemplateProfilesConfigMock).not.toHaveBeenCalled();
   });
 
-  it("lists all emitters for restricted editor but hides management actions on every row", async () => {
+  it("editor restringido: solo filas en scope; nuevo deshabilitado; edicion de fila permitida", async () => {
     useSessionQueryMock.mockReturnValue(restrictedEditorSessionQueryResult);
     fetchRuntimeConfigMock.mockResolvedValue({
       activeTemplateProfileId: "perfil-1",
@@ -257,11 +259,10 @@ describe("SettingsPage regression", () => {
     await screen.findByText(/Listado de emisores configurados/);
 
     expect(screen.getByTestId("emitter-row-perfil-1")).toBeTruthy();
-    expect(screen.getByTestId("emitter-row-perfil-2")).toBeTruthy();
+    expect(screen.queryByTestId("emitter-row-perfil-2")).toBeNull();
 
-    expect(within(screen.getByTestId("emitter-row-perfil-1")).queryByRole("button", { name: "Editar" })).toBeNull();
-    expect(within(screen.getByTestId("emitter-row-perfil-2")).queryByRole("button", { name: "Editar" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Borrar" })).toBeNull();
+    expect((screen.getByRole("button", { name: "Nuevo emisor" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(within(screen.getByTestId("emitter-row-perfil-1")).getByRole("button", { name: "Editar" })).toBeTruthy();
     expect(saveTemplateProfilesConfigMock).not.toHaveBeenCalled();
   });
 
