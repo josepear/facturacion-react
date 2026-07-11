@@ -167,6 +167,16 @@ function visibleSummaryLine(viewMode: PublicShareViewMode, quarters: string[], s
   return parts.join(" · ");
 }
 
+function filteredTotalsLabel(viewMode: PublicShareViewMode): string {
+  if (viewMode === "expenses") {
+    return "Total gastos filtrados";
+  }
+  if (viewMode === "documents" || viewMode === "invoices" || viewMode === "quotes") {
+    return "Total documentos filtrados";
+  }
+  return "Total de los totales filtrados";
+}
+
 function quarterSectionSurfaceClass(quarter: string): string {
   const k = String(quarter || "").trim().toUpperCase();
   const by: Record<string, string> = {
@@ -312,6 +322,12 @@ export function SharedReportPublicPage() {
     return status === "CANCELADA" ? sum : sum + (Number(row.total) || 0);
   }, 0);
   const filteredExpensesTotal = filteredExpenses.reduce((sum, row) => sum + (Number(row.total) || 0), 0);
+  const filteredCombinedTotal =
+    viewMode === "expenses"
+      ? filteredExpensesTotal
+      : viewMode === "documents"
+        ? filteredInvoicesTotal
+        : filteredInvoicesTotal + filteredExpensesTotal;
   const margin =
     deriveExportScope(viewMode) === "both" && (filteredInvoiceCount > 0 || filteredExpenseCount > 0)
       ? filteredInvoicesVigente - filteredExpensesTotal
@@ -708,6 +724,36 @@ export function SharedReportPublicPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      {hasPickableRows ? (
+        <div className={`fixed right-4 z-40 w-[min(26rem,calc(100vw-2rem))] ${hasPickableRows ? "bottom-32" : "bottom-6"}`}>
+          <div className="rounded-2xl border border-primary/30 bg-background/95 px-4 py-3 shadow-[0_12px_32px_rgba(0,0,0,0.14)] backdrop-blur">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-informative">
+              {filteredTotalsLabel(viewMode)}
+            </p>
+            <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-primary">
+              {formatCurrency(filteredCombinedTotal)}
+            </p>
+            <p className="mt-1 text-xs text-informative">
+              Documentos: {formatCurrency(filteredInvoicesTotal)} · Gastos: {formatCurrency(filteredExpensesTotal)}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="fixed bottom-6 right-4 z-40 w-[min(26rem,calc(100vw-2rem))]">
+          <div className="rounded-2xl border border-primary/30 bg-background/95 px-4 py-3 shadow-[0_12px_32px_rgba(0,0,0,0.14)] backdrop-blur">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-informative">
+              {filteredTotalsLabel(viewMode)}
+            </p>
+            <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-primary">
+              {formatCurrency(filteredCombinedTotal)}
+            </p>
+            <p className="mt-1 text-xs text-informative">
+              Documentos: {formatCurrency(filteredInvoicesTotal)} · Gastos: {formatCurrency(filteredExpensesTotal)}
+            </p>
+          </div>
+        </div>
+      )}
 
       {hasPickableRows ? (
         <ShareReportPickSumDock
