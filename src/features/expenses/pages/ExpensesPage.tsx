@@ -37,6 +37,7 @@ import {
   importControlExpenses,
   saveExpense,
   saveExpenseOptions,
+  type ControlExpensesImportPreview,
 } from "@/infrastructure/api/expensesApi";
 import { ApiError, getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { deleteTrashEntries, fetchTrash } from "@/infrastructure/api/trashApi";
@@ -283,15 +284,15 @@ function ExpenseCatalogBulkSection({
 }
 
 function normalizeExpenseDraft(expense: ExpenseRecord): ExpenseRecord {
-  const subtotal = toNumber(expense.subtotal);
+  const subtotal = Math.abs(toNumber(expense.subtotal));
   const taxRate = toNumber(expense.taxRate);
   const withholdingRate = toNumber(expense.withholdingRate);
   // Preserve explicit amounts if already set; only auto-calculate when undefined
   const taxAmount = expense.taxAmount !== undefined
-    ? toNumber(expense.taxAmount)
+    ? Math.abs(toNumber(expense.taxAmount))
     : Number((subtotal * (taxRate / 100)).toFixed(2));
   const withholdingAmount = expense.withholdingAmount !== undefined
-    ? toNumber(expense.withholdingAmount)
+    ? Math.abs(toNumber(expense.withholdingAmount))
     : Number((subtotal * (withholdingRate / 100)).toFixed(2));
   const total = Number((subtotal + taxAmount - withholdingAmount).toFixed(2));
 
@@ -327,6 +328,35 @@ function normalizeExpenseDraft(expense: ExpenseRecord): ExpenseRecord {
     notes: String(expense.notes || "").trim(),
     templateProfileId: String(expense.templateProfileId || "").trim(),
   };
+}
+
+type ExpenseDraftNumberText = {
+  subtotal: string;
+  taxRate: string;
+  taxAmount: string;
+  withholdingRate: string;
+  withholdingAmount: string;
+  total: string;
+};
+
+function buildExpenseDraftNumberText(expense: ExpenseRecord): ExpenseDraftNumberText {
+  const normalized = normalizeExpenseDraft(expense);
+  return {
+    subtotal: String(Math.abs(Number(normalized.subtotal ?? 0))),
+    taxRate: String(Math.abs(Number(normalized.taxRate ?? 0))),
+    taxAmount: String(Math.abs(Number(normalized.taxAmount ?? 0))),
+    withholdingRate: String(Math.abs(Number(normalized.withholdingRate ?? 0))),
+    withholdingAmount: String(Math.abs(Number(normalized.withholdingAmount ?? 0))),
+    total: String(Math.abs(Number(normalized.total ?? 0))),
+  };
+}
+
+function sanitizeExpenseNumberInput(raw: string): string {
+  return String(raw || "").replace(/-/gu, "");
+}
+
+function expenseSubtotalFromManualTotal(total: number, taxAmount: number, withholdingAmount: number): number {
+  return Number(Math.max(0, total - taxAmount + withholdingAmount).toFixed(2));
 }
 
 function formatExpenseImportSkippedLines(skipped: unknown): string[] {
@@ -407,6 +437,8 @@ export function ExpensesPage() {
     text: string;
     tone: "neutral" | "success" | "error";
   } | null>(null);
+  const [expenseFormModalOpen, setExpenseFormModalOpen] = useState(false);
+  const expenseFormDialogRef = useRef<HTMLDialogElement>(null);
   const expenseLabelsDialogRef = useRef<HTMLDialogElement>(null);
   const newVendorInModalRef = useRef<HTMLInputElement>(null);
   const newCategoryInModalRef = useRef<HTMLInputElement>(null);
@@ -417,6 +449,11 @@ export function ExpensesPage() {
     created?: number;
     skipped?: string[];
     errors?: string[];
+  } | null>(null);
+  const [importPreviewRows, setImportPreviewRows] = useState<ControlExpensesImportPreview[]>([]);
+  const [importPreparedPayload, setImportPreparedPayload] = useState<{
+    templateProfileId: string;
+    files: { name: string; contentBase64: string }[];
   } | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
@@ -444,6 +481,9 @@ export function ExpensesPage() {
 
   const activeProfileId = String(configQuery.data?.activeTemplateProfileId || "").trim();
   const [draft, setDraft] = useState<ExpenseRecord>(() => createEmptyExpense(activeProfileId));
+  const [draftNumberText, setDraftNumberText] = useState<ExpenseDraftNumberText>(() =>
+    buildExpenseDraftNumberText(createEmptyExpense()),
+  );
 
   const availableYears = expensesQuery.data?.years ?? [];
   const profileOptions = configQuery.data?.templateProfiles ?? [];
@@ -540,7 +580,11 @@ export function ExpensesPage() {
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: ["expenses"] });
       setSelectedRecordId(saved.recordId);
-      setDraft(normalizeExpenseDraft(saved.expense));
+      {
+        const normalizedExpense = normalizeExpenseDraft(saved.expense);
+        setDraft(normalizedExpense);
+        setDraftNumberText(buildExpenseDraftNumberText(normalizedExpense));
+      }
       setStatusMessage(saved.mode === "updated" ? "Gasto actualizado." : "Gasto guardado.");
       setStatusTone("success");
     },
@@ -612,20 +656,25 @@ export function ExpensesPage() {
       files: { name: string; contentBase64: string }[];
       previewOnly?: boolean;
     }) => importControlExpenses(payload),
-    onSuccess: (data) => {
-      if (importFileRef.current) {
-        importFileRef.current.value = "";
-      }
-      setImportFileName("");
-
+    onSuccess: (data, variables) => {
+      const isPdfRequest = variables.files.some((file) => /\.pdf$/iu.test(String(file.name || "")));
       const firstPreview = Array.isArray(data.previews) ? data.previews[0] : undefined;
       const previewExpense = firstPreview?.expense;
-      const treatAsPdfPreview = Boolean(data.preview) || Boolean(previewExpense);
 
-      if (treatAsPdfPreview) {
+      if (isPdfRequest && (Boolean(data.preview) || Boolean(previewExpense))) {
+        if (importFileRef.current) {
+          importFileRef.current.value = "";
+        }
+        setImportFileName("");
+        setImportPreparedPayload(null);
+        setImportPreviewRows([]);
         if (previewExpense) {
           setImportResult(null);
-          setDraft(normalizeExpenseDraft(previewExpense));
+          {
+            const normalizedExpense = normalizeExpenseDraft(previewExpense);
+            setDraft(normalizedExpense);
+            setDraftNumberText(buildExpenseDraftNumberText(normalizedExpense));
+          }
           setSelectedRecordId("");
           setRecordIdSearchParam("");
           const label = String(firstPreview?.file || "PDF").trim() || "PDF";
@@ -633,6 +682,7 @@ export function ExpensesPage() {
             `«${label}» analizado: datos en el formulario como gasto nuevo. Revisa y pulsa «${SAVE} gasto».`,
           );
           setStatusTone("success");
+          setExpenseFormModalOpen(true);
           return;
         }
         setImportResult({
@@ -645,6 +695,37 @@ export function ExpensesPage() {
         return;
       }
 
+      if (!isPdfRequest && data.preview && Array.isArray(data.previews)) {
+        if (importFileRef.current) {
+          importFileRef.current.value = "";
+        }
+        setImportFileName("");
+        setImportResult({
+          created: 0,
+          skipped: formatExpenseImportSkippedLines(data.skipped),
+          errors: formatExpenseImportErrorLines(data.errors),
+        });
+        setImportPreviewRows(data.previews);
+        setImportPreparedPayload({
+          templateProfileId: variables.templateProfileId,
+          files: variables.files,
+        });
+        const duplicateCount = data.previews.filter((row) => row.duplicateExisting).length;
+        setStatusMessage(
+          duplicateCount > 0
+            ? `Vista previa lista: ${data.previews.length} fila(s), ${duplicateCount} posible(s) duplicado(s) marcados.`
+            : `Vista previa lista: ${data.previews.length} fila(s) preparadas antes de guardar.`,
+        );
+        setStatusTone(duplicateCount > 0 ? "neutral" : "success");
+        return;
+      }
+
+      if (importFileRef.current) {
+        importFileRef.current.value = "";
+      }
+      setImportFileName("");
+      setImportPreparedPayload(null);
+      setImportPreviewRows([]);
       const created = data.created ?? 0;
       setImportResult({
         created,
@@ -664,7 +745,7 @@ export function ExpensesPage() {
     },
   });
 
-  function handleImportExpenses() {
+  function handleImportExpenses(options?: { previewOnly?: boolean }) {
     const file = importFileRef.current?.files?.[0];
     if (!importProfileId) {
       setStatusMessage("Selecciona el emisor destino antes de importar.");
@@ -677,6 +758,7 @@ export function ExpensesPage() {
       return;
     }
     const isPdf = /\.pdf$/iu.test(file.name);
+    const previewOnly = typeof options?.previewOnly === "boolean" ? options.previewOnly : isPdf;
     const reader = new FileReader();
     reader.onload = (e) => {
       const contentBase64 = String(e.target?.result || "").split(",")[1] ?? "";
@@ -685,10 +767,13 @@ export function ExpensesPage() {
         setStatusTone("error");
         return;
       }
+      setImportResult(null);
+      setImportPreviewRows([]);
+      setImportPreparedPayload(null);
       importExpensesMutation.mutate({
         templateProfileId: importProfileId,
         files: [{ name: file.name, contentBase64 }],
-        previewOnly: isPdf,
+        previewOnly,
       });
     };
     reader.readAsDataURL(file);
@@ -802,6 +887,49 @@ export function ExpensesPage() {
 
   const computedDraft = useMemo(() => normalizeExpenseDraft(draft), [draft]);
 
+  const openNewExpenseModal = useCallback(() => {
+    setSelectedRecordId("");
+    setRecordIdSearchParam("");
+    didHydrateDefaultTemplateProfile.current = false;
+    {
+      const emptyExpense = createEmptyExpense(activeProfileId);
+      setDraft(emptyExpense);
+      setDraftNumberText(buildExpenseDraftNumberText(emptyExpense));
+    }
+    setStatusMessage("Nuevo gasto.");
+    setStatusTone("neutral");
+    setExpenseFormModalOpen(true);
+  }, [activeProfileId, searchParams, setSearchParams]);
+
+  const openEditExpenseModal = useCallback((item: ExpenseRecord, recordId: string) => {
+    if (!recordId) {
+      return;
+    }
+    setSelectedRecordId(recordId);
+    setRecordIdSearchParam(recordId);
+    {
+      const normalizedExpense = normalizeExpenseDraft(item);
+      setDraft(normalizedExpense);
+      setDraftNumberText(buildExpenseDraftNumberText(normalizedExpense));
+    }
+    setStatusMessage("Gasto cargado para edición.");
+    setStatusTone("neutral");
+    setExpenseFormModalOpen(true);
+  }, [searchParams, setSearchParams]);
+
+  const resetExpenseDraftToNew = useCallback(() => {
+    setSelectedRecordId("");
+    setRecordIdSearchParam("");
+    didHydrateDefaultTemplateProfile.current = false;
+    {
+      const emptyExpense = createEmptyExpense(activeProfileId);
+      setDraft(emptyExpense);
+      setDraftNumberText(buildExpenseDraftNumberText(emptyExpense));
+    }
+    setStatusMessage("Nuevo gasto.");
+    setStatusTone("neutral");
+  }, [activeProfileId, searchParams, setSearchParams]);
+
   useEffect(() => {
     if (!initialRecordId || selectedRecordId || !expensesQuery.data?.items?.length) {
       return;
@@ -816,9 +944,14 @@ export function ExpensesPage() {
     }
     const timeoutId = globalThis.setTimeout(() => {
       setSelectedRecordId(initialRecordId);
-      setDraft(normalizeExpenseDraft(target));
+      {
+        const normalizedExpense = normalizeExpenseDraft(target);
+        setDraft(normalizedExpense);
+        setDraftNumberText(buildExpenseDraftNumberText(normalizedExpense));
+      }
       setStatusMessage(`Gasto ${initialRecordId} cargado desde URL.`);
       setStatusTone("neutral");
+      setExpenseFormModalOpen(true);
     }, 0);
     return () => {
       globalThis.clearTimeout(timeoutId);
@@ -837,11 +970,30 @@ export function ExpensesPage() {
       setSelectedRecordId("");
       setRecordIdSearchParam("");
       didHydrateDefaultTemplateProfile.current = false;
-      setDraft(createEmptyExpense(activeProfileId));
+      {
+        const emptyExpense = createEmptyExpense(activeProfileId);
+        setDraft(emptyExpense);
+        setDraftNumberText(buildExpenseDraftNumberText(emptyExpense));
+      }
       setStatusMessage("Sin acceso al emisor del gasto seleccionado.");
       setStatusTone("error");
+      setExpenseFormModalOpen(false);
     }
   }, [activeProfileId, expensesQuery.data?.items, selectedRecordId, sessionScope]);
+
+  useEffect(() => {
+    const el = expenseFormDialogRef.current;
+    if (!el) {
+      return;
+    }
+    if (expenseFormModalOpen) {
+      if (!el.open) {
+        el.showModal();
+      }
+    } else if (el.open) {
+      el.close();
+    }
+  }, [expenseFormModalOpen]);
 
   /**
    * Alta sin `recordId`: una vez que llega `/api/config`, si el borrador sigue sin `templateProfileId`,
@@ -924,12 +1076,12 @@ export function ExpensesPage() {
 
   if (!sessionScope.hasEmitterScope) {
     return (
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
+      <main className="app-page-shell">
         <PageHeader
           title="Gastos"
           description="Módulo real conectado a `/api/expenses` con ciclo de vida y control por emisor."
         />
-        <Card>
+        <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20">
           <CardContent className="pt-6 text-sm text-informative">
             Tu sesión no tiene emisores asignados para operar en Gastos. Contacta con un administrador.
           </CardContent>
@@ -939,7 +1091,7 @@ export function ExpensesPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
+    <main className="app-page-shell">
       <PageHeader
         title="Gastos"
         description="Módulo real conectado a `/api/expenses` con ciclo de vida y control por emisor."
@@ -951,7 +1103,7 @@ export function ExpensesPage() {
 
       <div className={`grid gap-6 lg:items-start ${isAdmin ? "lg:grid-cols-2" : ""}`}>
         {isAdmin ? (
-          <Card>
+          <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
             <div className="grid gap-4 p-4">
               <h2 className="text-base font-semibold">Importar gastos</h2>
               <p className="text-informative">
@@ -988,23 +1140,85 @@ export function ExpensesPage() {
                 />
               </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleImportExpenses}
-                disabled={importExpensesMutation.isPending || !importProfileId}
-              >
-                {importExpensesMutation.isPending
-                  ? "Procesando..."
-                  : /\.pdf$/iu.test(importFileName)
-                    ? "Analizar PDF en formulario"
-                    : "Importar desde Excel"}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleImportExpenses({ previewOnly: true })}
+                  disabled={importExpensesMutation.isPending || !importProfileId}
+                >
+                  {importExpensesMutation.isPending
+                    ? "Procesando..."
+                    : /\.pdf$/iu.test(importFileName)
+                      ? "Analizar PDF en formulario"
+                      : "Vista previa Excel"}
+                </Button>
+                {!/\.pdf$/iu.test(importFileName) ? (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (!importPreparedPayload) {
+                        setStatusMessage("Haz primero la vista previa del Excel antes de confirmar.");
+                        setStatusTone("error");
+                        return;
+                      }
+                      setImportResult(null);
+                      importExpensesMutation.mutate({
+                        templateProfileId: importPreparedPayload.templateProfileId,
+                        files: importPreparedPayload.files,
+                        previewOnly: false,
+                      });
+                    }}
+                    disabled={importExpensesMutation.isPending || !importPreparedPayload}
+                  >
+                    {importExpensesMutation.isPending ? "Importando..." : "Confirmar importación"}
+                  </Button>
+                ) : null}
+              </div>
 
               {importExpensesMutation.isError ? (
                 <p className="text-sm text-red-600">
                   {(importExpensesMutation.error as Error)?.message || "Error al importar."}
                 </p>
+              ) : null}
+
+              {importPreviewRows.length > 0 ? (
+                <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50/60 p-3 text-sm">
+                  <p className="font-medium text-foreground">Vista previa antes de guardar</p>
+                  <p className="text-informative">
+                    Revisa fecha, trimestre, proveedor e importe. Las filas marcadas como posible duplicado conviene mirarlas antes de confirmar.
+                  </p>
+                  <div className="max-h-64 overflow-auto rounded-md border border-border bg-background">
+                    <table className={cn(workbookDataTableBase, "min-w-[42rem] text-xs") }>
+                      <thead>
+                        <tr className="border-b bg-muted/40 text-left text-informative">
+                          <th className="p-2 font-medium">Hoja</th>
+                          <th className="p-2 font-medium">Fila</th>
+                          <th className="p-2 font-medium">Fecha</th>
+                          <th className="p-2 font-medium">Trimestre</th>
+                          <th className="p-2 font-medium">Proveedor</th>
+                          <th className="p-2 font-medium">Concepto</th>
+                          <th className="p-2 text-right font-medium">Importe</th>
+                          <th className="p-2 font-medium">Aviso</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importPreviewRows.map((row, index) => (
+                          <tr key={`${row.sheet || row.file}-${row.row || index}-${row.expense.issueDate}-${row.expense.total}`} className="border-b border-border/60">
+                            <td className={workbookDataTdTight}>{row.sheet || row.file || "Excel"}</td>
+                            <td className={workbookDataTdTight}>{row.row || "-"}</td>
+                            <td className={workbookDataTdTight}>{row.expense.issueDate || "-"}</td>
+                            <td className={workbookDataTdTight}>{row.expense.quarter || "-"}</td>
+                            <td className={workbookDataTdVariable}>{row.expense.vendor || "-"}</td>
+                            <td className={workbookDataTdVariable}>{row.expense.expenseConcept || row.expense.category || "-"}</td>
+                            <td className={`${workbookDataTdTight} text-right tabular-nums`}>{formatCurrency(Number(row.expense.total || 0))}</td>
+                            <td className={workbookDataTdTight}>{row.duplicateExisting ? "Posible duplicado" : "OK"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               ) : null}
 
               {importResult ? (
@@ -1043,8 +1257,8 @@ export function ExpensesPage() {
         <ExpenseCatalogBulkSection canEdit={isAdmin} onOpenLabelsEditor={() => openExpenseLabelsModal("vendor")} />
       </div>
 
-      <section className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
-        <Card>
+      <section className="grid gap-6">
+        <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20">
           <CardHeader>
             <CardTitle>Gastos</CardTitle>
             <CardDescription>Vista del filtro actual; mismo criterio que la hoja de control (perfil, ejercicio, trimestre, deducible y búsqueda).</CardDescription>
@@ -1130,18 +1344,7 @@ export function ExpensesPage() {
             </div>
             <p className="text-sm text-informative">{expenseTableMetaLine}</p>
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setSelectedRecordId("");
-                  setRecordIdSearchParam("");
-                  didHydrateDefaultTemplateProfile.current = false;
-                  setDraft(createEmptyExpense(activeProfileId));
-                  setStatusMessage("Nuevo gasto.");
-                  setStatusTone("neutral");
-                }}
-              >
+              <Button type="button" variant="outline" onClick={openNewExpenseModal}>
                 Nuevo gasto
               </Button>
               {hasActiveFilters ? (
@@ -1254,16 +1457,7 @@ export function ExpensesPage() {
                             className={`cursor-pointer border-b border-border/50 hover:bg-accent/50 ${workbookQuarterRowToneClass(qNorm)} ${
                               isActive ? "bg-primary/10" : ""
                             }`}
-                            onClick={() => {
-                              if (!rid) {
-                                return;
-                              }
-                              setSelectedRecordId(rid);
-                              setRecordIdSearchParam(rid);
-                              setDraft(normalizeExpenseDraft(item));
-                              setStatusMessage("Gasto cargado para edición.");
-                              setStatusTone("neutral");
-                            }}
+                            onClick={() => openEditExpenseModal(item, rid)}
                           >
                             <td className="p-2 align-middle">
                               <QuarterBadge quarter={String(item.quarter || "")} issueDate={String(item.issueDate || "")} />
@@ -1306,16 +1500,7 @@ export function ExpensesPage() {
                                   size="sm"
                                   className="h-8 px-2"
                                   aria-label="Editar gasto"
-                                  onClick={() => {
-                                    if (!rid) {
-                                      return;
-                                    }
-                                    setSelectedRecordId(rid);
-                                    setRecordIdSearchParam(rid);
-                                    setDraft(normalizeExpenseDraft(item));
-                                    setStatusMessage("Gasto cargado para edición.");
-                                    setStatusTone("neutral");
-                                  }}
+                                  onClick={() => openEditExpenseModal(item, rid)}
                                 >
                                   Editar
                                 </Button>
@@ -1372,12 +1557,37 @@ export function ExpensesPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{selectedRecordId ? "Editar gasto" : "Alta de gasto"}</CardTitle>
-            <CardDescription>Edición mínima operativa sobre el contrato actual.</CardDescription>
+      </section>
+
+      <dialog
+        ref={expenseFormDialogRef}
+        className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-5xl -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-0 shadow-lg backdrop:bg-black/50"
+        aria-labelledby="expense-form-modal-heading"
+        onClose={() => setExpenseFormModalOpen(false)}
+      >
+        {expenseFormModalOpen ? (
+
+        <Card className="border-0 bg-sky-50 shadow-none dark:bg-sky-950/20">
+          <CardHeader className="border-b border-border/70">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-informative">Gastos</p>
+                <CardTitle id="expense-form-modal-heading">{selectedRecordId ? "Editar gasto" : "Alta de gasto"}</CardTitle>
+                <CardDescription>Edición mínima operativa sobre el contrato actual.</CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                aria-label={CLOSE}
+                onClick={() => setExpenseFormModalOpen(false)}
+              >
+                ×
+              </Button>
+            </div>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+          <CardContent className="grid max-h-[min(88vh,54rem)] gap-4 overflow-y-auto p-6 sm:grid-cols-2">
             {String(draft.year || "").trim() ? (
               <p className="sm:col-span-2 text-informative">
                 <span className="font-medium text-foreground">Ejercicio (registro):</span>{" "}
@@ -1684,64 +1894,108 @@ export function ExpensesPage() {
 
             <Field label="Base (subtotal)">
               <Input
-                type="number"
-                step="0.01"
-                value={String(draft.subtotal ?? 0)}
+                type="text"
+                inputMode="decimal"
+                value={draftNumberText.subtotal}
                 onChange={(event) => {
-                  const subtotal = toNumber(event.target.value);
+                  const raw = sanitizeExpenseNumberInput(event.target.value);
+                  const subtotal = toNumber(raw);
+                  const nextTaxAmount = Number((subtotal * (toNumber(draft.taxRate) / 100)).toFixed(2));
+                  const nextWithholdingAmount = Number((subtotal * (toNumber(draft.withholdingRate) / 100)).toFixed(2));
                   setDraft((prev) => ({
                     ...prev,
                     subtotal,
-                    taxAmount: Number((subtotal * (toNumber(prev.taxRate) / 100)).toFixed(2)),
-                    withholdingAmount: Number((subtotal * (toNumber(prev.withholdingRate) / 100)).toFixed(2)),
+                    taxAmount: nextTaxAmount,
+                    withholdingAmount: nextWithholdingAmount,
+                  }));
+                  setDraftNumberText((prev) => ({
+                    ...prev,
+                    subtotal: raw,
+                    taxAmount: String(nextTaxAmount),
+                    withholdingAmount: String(nextWithholdingAmount),
+                    total: String(Number((subtotal + nextTaxAmount - nextWithholdingAmount).toFixed(2))),
                   }));
                 }}
               />
             </Field>
             <Field label="IGIC %">
               <Input
-                type="number"
-                step="0.01"
-                value={String(draft.taxRate ?? 0)}
+                type="text"
+                inputMode="decimal"
+                value={draftNumberText.taxRate}
                 onChange={(event) => {
-                  const taxRate = toNumber(event.target.value);
+                  const raw = sanitizeExpenseNumberInput(event.target.value);
+                  const taxRate = toNumber(raw);
+                  const nextTaxAmount = Number((toNumber(draft.subtotal) * (taxRate / 100)).toFixed(2));
                   setDraft((prev) => ({
                     ...prev,
                     taxRate,
-                    taxAmount: Number((toNumber(prev.subtotal) * (taxRate / 100)).toFixed(2)),
+                    taxAmount: nextTaxAmount,
+                  }));
+                  setDraftNumberText((prev) => ({
+                    ...prev,
+                    taxRate: raw,
+                    taxAmount: String(nextTaxAmount),
+                    total: String(Number((toNumber(draft.subtotal) + nextTaxAmount - toNumber(draft.withholdingAmount)).toFixed(2))),
                   }));
                 }}
               />
             </Field>
             <Field label="Cuota IGIC (€)">
               <Input
-                type="number"
-                step="0.01"
-                value={String(draft.taxAmount ?? 0)}
-                onChange={(event) => setDraft((prev) => ({ ...prev, taxAmount: toNumber(event.target.value) }))}
+                type="text"
+                inputMode="decimal"
+                value={draftNumberText.taxAmount}
+                onChange={(event) => {
+                  const raw = sanitizeExpenseNumberInput(event.target.value);
+                  const taxAmount = toNumber(raw);
+                  setDraft((prev) => ({ ...prev, taxAmount }));
+                  setDraftNumberText((prev) => ({
+                    ...prev,
+                    taxAmount: raw,
+                    total: String(Number((toNumber(draft.subtotal) + taxAmount - toNumber(draft.withholdingAmount)).toFixed(2))),
+                  }));
+                }}
               />
             </Field>
             <Field label="IRPF %">
               <Input
-                type="number"
-                step="0.01"
-                value={String(draft.withholdingRate ?? 0)}
+                type="text"
+                inputMode="decimal"
+                value={draftNumberText.withholdingRate}
                 onChange={(event) => {
-                  const withholdingRate = toNumber(event.target.value);
+                  const raw = sanitizeExpenseNumberInput(event.target.value);
+                  const withholdingRate = toNumber(raw);
+                  const nextWithholdingAmount = Number((toNumber(draft.subtotal) * (withholdingRate / 100)).toFixed(2));
                   setDraft((prev) => ({
                     ...prev,
                     withholdingRate,
-                    withholdingAmount: Number((toNumber(prev.subtotal) * (withholdingRate / 100)).toFixed(2)),
+                    withholdingAmount: nextWithholdingAmount,
+                  }));
+                  setDraftNumberText((prev) => ({
+                    ...prev,
+                    withholdingRate: raw,
+                    withholdingAmount: String(nextWithholdingAmount),
+                    total: String(Number((toNumber(draft.subtotal) + toNumber(draft.taxAmount) - nextWithholdingAmount).toFixed(2))),
                   }));
                 }}
               />
             </Field>
             <Field label="Importe retención IRPF (€)">
               <Input
-                type="number"
-                step="0.01"
-                value={String(draft.withholdingAmount ?? 0)}
-                onChange={(event) => setDraft((prev) => ({ ...prev, withholdingAmount: toNumber(event.target.value) }))}
+                type="text"
+                inputMode="decimal"
+                value={draftNumberText.withholdingAmount}
+                onChange={(event) => {
+                  const raw = sanitizeExpenseNumberInput(event.target.value);
+                  const withholdingAmount = toNumber(raw);
+                  setDraft((prev) => ({ ...prev, withholdingAmount }));
+                  setDraftNumberText((prev) => ({
+                    ...prev,
+                    withholdingAmount: raw,
+                    total: String(Number((toNumber(draft.subtotal) + toNumber(draft.taxAmount) - withholdingAmount).toFixed(2))),
+                  }));
+                }}
               />
             </Field>
             <Field label="Deducible">
@@ -1758,8 +2012,33 @@ export function ExpensesPage() {
               <Input value={draft.notes || ""} onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))} />
             </Field>
 
+            <div className="sm:col-span-2">
+              <Field label="Total del gasto (€)">
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={draftNumberText.total}
+                  onChange={(event) => {
+                    const raw = sanitizeExpenseNumberInput(event.target.value);
+                    const total = toNumber(raw);
+                    const subtotal = expenseSubtotalFromManualTotal(
+                      total,
+                      toNumber(draft.taxAmount),
+                      toNumber(draft.withholdingAmount),
+                    );
+                    setDraft((prev) => ({ ...prev, subtotal }));
+                    setDraftNumberText((prev) => ({
+                      ...prev,
+                      total: raw,
+                      subtotal: String(subtotal),
+                    }));
+                  }}
+                />
+              </Field>
+            </div>
+
             <div className="sm:col-span-2 grid gap-2 rounded-md border p-3 text-sm">
-              <span className="font-medium">Total: {formatCurrency(computedDraft.total || 0)}</span>
+              <span className="font-medium">Resultado calculado: {formatCurrency(computedDraft.total || 0)}</span>
             </div>
 
             <div className="sm:col-span-2 flex flex-wrap gap-2">
@@ -1777,21 +2056,13 @@ export function ExpensesPage() {
                 </Button>
               ) : null}
               {selectedRecordId ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedRecordId("");
-                    setRecordIdSearchParam("");
-                    didHydrateDefaultTemplateProfile.current = false;
-                    setDraft(createEmptyExpense(activeProfileId));
-                    setStatusMessage("Nuevo gasto.");
-                    setStatusTone("neutral");
-                  }}
-                >
+                <Button type="button" variant="outline" onClick={resetExpenseDraftToNew}>
                   Crear nuevo
                 </Button>
               ) : null}
+              <Button type="button" variant="ghost" onClick={() => setExpenseFormModalOpen(false)}>
+                Cerrar
+              </Button>
             </div>
             {statusMessage ? (
               <p
@@ -1808,9 +2079,10 @@ export function ExpensesPage() {
             ) : null}
           </CardContent>
         </Card>
-      </section>
+        ) : null}
+      </dialog>
 
-      <Card>
+      <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
         <CardHeader>
           <CardTitle>Papelera gastos</CardTitle>
           <CardDescription>
@@ -2112,4 +2384,3 @@ export function ExpensesPage() {
     </main>
   );
 }
-

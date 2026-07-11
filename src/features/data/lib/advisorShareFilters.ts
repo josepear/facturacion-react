@@ -1,17 +1,20 @@
-import { normalizeQuarterValue } from "@/domain/accounting/quarter";
+import { formatQuarterShortLabel, normalizeQuarterValue } from "@/domain/accounting/quarter";
 import type { ExpenseRecord } from "@/domain/expenses/types";
 import type { HistoryInvoice } from "@/features/history/types/historyInvoice";
 
 export const ADVISOR_PROFILE_ALL = "__all__";
 export const ADVISOR_PROFILE_UNASSIGNED = "__unassigned__";
+export const ADVISOR_QUARTERS = ["T1", "T2", "T3", "T4"] as const;
 
 export type AdvisorShareScope = "both" | "invoices" | "expenses";
+export type AdvisorQuarter = (typeof ADVISOR_QUARTERS)[number];
 
 export type AdvisorInvoiceStatusFilter = "all" | "COBRADA" | "ENVIADA" | "CANCELADA" | "pending_any";
 
 export type AdvisorShareSpec = {
   year: string;
   quarter: string;
+  quarters?: string[];
   profile: string;
   scope: AdvisorShareScope;
   invoiceStatus: AdvisorInvoiceStatusFilter;
@@ -23,6 +26,41 @@ export type AdvisorShareSpec = {
 
 export function normAdvisorStatus(raw: string | undefined): string {
   return String(raw || "").trim().toUpperCase();
+}
+
+export function normalizeAdvisorQuarterSelection(raw: unknown): AdvisorQuarter[] {
+  const source = Array.isArray(raw) ? raw : [raw];
+  const normalized = source
+    .map((value) => normalizeQuarterValue(String(value || ""), ""))
+    .filter((value): value is AdvisorQuarter => (ADVISOR_QUARTERS as readonly string[]).includes(value));
+  return [...new Set(normalized)].sort() as AdvisorQuarter[];
+}
+
+export function matchesAdvisorQuarterSelection(itemQuarterRaw: string, selectedQuartersRaw: unknown): boolean {
+  const selectedQuarters = normalizeAdvisorQuarterSelection(selectedQuartersRaw);
+  if (!selectedQuarters.length) {
+    return true;
+  }
+  const itemQuarter = normalizeQuarterValue(String(itemQuarterRaw || ""), "");
+  return selectedQuarters.includes(itemQuarter as AdvisorQuarter);
+}
+
+export function formatAdvisorQuarterSelectionLabel(selectedQuartersRaw: unknown): string {
+  const selectedQuarters = normalizeAdvisorQuarterSelection(selectedQuartersRaw);
+  if (!selectedQuarters.length) {
+    return "Todo el año";
+  }
+  return selectedQuarters
+    .map((quarter) => formatQuarterShortLabel(quarter) || quarter)
+    .join(" + ");
+}
+
+export function formatAdvisorSectionQuarterToken(selectedQuartersRaw: unknown): string {
+  const selectedQuarters = normalizeAdvisorQuarterSelection(selectedQuartersRaw);
+  if (!selectedQuarters.length) {
+    return "TODO-AÑO";
+  }
+  return selectedQuarters.map((quarter) => quarter.replace(/^T/u, "Q")).join("+");
 }
 
 export function exerciseYearFromItem(item: { year?: string; issueDate?: string }): string {
@@ -60,6 +98,7 @@ function filterInvoicesBase(
   opts: {
     filterYear: string;
     filterQuarter: string;
+    filterQuarters?: string[];
     filterStatus: InvoiceFilterStatus;
     searchText: string;
     selectedProfile: string;
@@ -83,7 +122,10 @@ function filterInvoicesBase(
       String((item as { quarter?: string }).quarter || ""),
       String(item.issueDate || ""),
     );
-    const matchesQuarter = opts.filterQuarter === "all" || itemQuarter === opts.filterQuarter;
+    const matchesQuarter = matchesAdvisorQuarterSelection(
+      itemQuarter,
+      opts.filterQuarters?.length ? opts.filterQuarters : opts.filterQuarter === "all" ? [] : [opts.filterQuarter],
+    );
 
     const st = normAdvisorStatus(item.status);
     const matchesStatus =
@@ -115,7 +157,7 @@ function filterInvoicesBase(
 
 export function buildShareReportInvoiceListFromParams(
   items: HistoryInvoice[],
-  params: Pick<AdvisorShareSpec, "year" | "quarter" | "profile" | "invoiceStatus" | "client">,
+  params: Pick<AdvisorShareSpec, "year" | "quarter" | "quarters" | "profile" | "invoiceStatus" | "client">,
 ): HistoryInvoice[] {
   const filterStatus: InvoiceFilterStatus =
     params.invoiceStatus === "COBRADA" ? "paid" : params.invoiceStatus === "pending_any" ? "pending" : "all";
@@ -123,6 +165,7 @@ export function buildShareReportInvoiceListFromParams(
   let list = filterInvoicesBase(items, {
     filterYear: params.year,
     filterQuarter: params.quarter,
+    filterQuarters: params.quarters,
     filterStatus,
     searchText: "",
     selectedProfile: params.profile,
@@ -148,6 +191,7 @@ export function filterControlExpensesWorkbook(
   params: {
     filterYear: string;
     filterQuarter: string;
+    filterQuarters?: string[];
     filterDeductible: "all" | "yes" | "no";
     searchText: string;
     selectedProfile: string;
@@ -163,7 +207,10 @@ export function filterControlExpensesWorkbook(
     const exYear = exerciseYearFromItem(item);
     const matchesYear = params.filterYear === "all" || exYear === params.filterYear;
     const itemQuarter = normalizeQuarterValue(String(item.quarter || ""), String(item.issueDate || ""));
-    const matchesQuarter = params.filterQuarter === "all" || itemQuarter === params.filterQuarter;
+    const matchesQuarter = matchesAdvisorQuarterSelection(
+      itemQuarter,
+      params.filterQuarters?.length ? params.filterQuarters : params.filterQuarter === "all" ? [] : [params.filterQuarter],
+    );
     const matchesDeductible =
       params.filterDeductible === "all" ||
       (params.filterDeductible === "yes" ? Boolean(item.deductible) : !item.deductible);
@@ -248,7 +295,7 @@ export function sortExpenseWorkbookDefault(items: ExpenseRecord[]): ExpenseRecor
 
 export function buildShareReportExpenseListFromParams(
   items: ExpenseRecord[],
-  params: Pick<AdvisorShareSpec, "year" | "quarter" | "profile" | "expenseDeductible" | "vendor" | "category">,
+  params: Pick<AdvisorShareSpec, "year" | "quarter" | "quarters" | "profile" | "expenseDeductible" | "vendor" | "category">,
 ): ExpenseRecord[] {
   const ded: "all" | "yes" | "no" =
     params.expenseDeductible === "yes" ? "yes" : params.expenseDeductible === "no" ? "no" : "all";
@@ -256,6 +303,7 @@ export function buildShareReportExpenseListFromParams(
   let list = filterControlExpensesWorkbook(items, {
     filterYear: params.year,
     filterQuarter: params.quarter,
+    filterQuarters: params.quarters,
     filterDeductible: ded,
     searchText: "",
     selectedProfile: params.profile,
@@ -352,13 +400,17 @@ export function collectShareReportAlerts(
   return alerts;
 }
 
-export function formatAdvisorSectionTitle(prefix: string, yearRaw: string, quarterRaw: string): string {
+export function formatAdvisorSectionTitle(prefix: string, yearRaw: string, quarterRaw: string, quartersRaw: unknown = []): string {
   const year = yearRaw === "all" ? "TODOS" : String(yearRaw);
-  const quarter =
-    quarterRaw === "all" ? "TODO-AÑO" : (() => {
-      const m = String(quarterRaw).trim().toUpperCase().match(/^T([1-4])$/u);
-      return m ? `Q${m[1]}` : String(quarterRaw);
-    })();
+  const selectedQuarters = normalizeAdvisorQuarterSelection(quartersRaw);
+  const quarter = selectedQuarters.length
+    ? formatAdvisorSectionQuarterToken(selectedQuarters)
+    : quarterRaw === "all"
+      ? "TODO-AÑO"
+      : (() => {
+        const m = String(quarterRaw).trim().toUpperCase().match(/^T([1-4])$/u);
+        return m ? `Q${m[1]}` : String(quarterRaw);
+      })();
   return `${prefix}-${quarter}-${year}`;
 }
 

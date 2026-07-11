@@ -6,16 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { QuarterBadge } from "@/components/ui/QuarterBadge";
-import { formatQuarterShortLabel } from "@/domain/accounting/quarter";
 import type { ExpenseRecord } from "@/domain/expenses/types";
 import {
+  ADVISOR_QUARTERS,
   accountingStatusLabel,
   ADVISOR_PROFILE_ALL,
   buildShareReportExpenseListFromParams,
   buildShareReportInvoiceListFromParams,
   collectShareReportAlerts,
+  formatAdvisorQuarterSelectionLabel,
   formatAdvisorCompactDate,
   formatAdvisorSectionTitle,
+  normalizeAdvisorQuarterSelection,
   normAdvisorStatus,
   type AdvisorInvoiceStatusFilter,
   type AdvisorShareScope,
@@ -30,7 +32,7 @@ import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfil
 import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
 import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
 import type { HistoryInvoice } from "@/features/history/types/historyInvoice";
-import { buildShareReportViewerUrl, postShareReport } from "@/infrastructure/api/exportReportsApi";
+import { buildShareReportViewerUrl, downloadControlWorkbookExport, postShareReport } from "@/infrastructure/api/exportReportsApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -48,17 +50,21 @@ type Props = {
   pageFilterYear: string;
   /** Emisor sugerido al abrir (`""` = todos). */
   pageFilterProfile: string;
+  /** Trimestres sugeridos al abrir (vacío = todos). */
+  pageFilterQuarters?: string[];
+  /** Alcance sugerido al abrir. */
+  pageFilterScope?: AdvisorShareScope;
   availableYears: string[];
 };
 
 function scopeLabel(scope: AdvisorShareScope): string {
   if (scope === "invoices") {
-    return "Solo facturación";
+    return "Documentos";
   }
   if (scope === "expenses") {
     return "Solo gastos";
   }
-  return "Facturación y gastos";
+  return "Todo";
 }
 
 function profileLabelFromId(profileId: string, options: ProfileOption[]): string {
@@ -78,24 +84,28 @@ export function AdvisorSummaryDialog({
   includeAllProfilesOption = true,
   pageFilterYear,
   pageFilterProfile,
+  pageFilterQuarters = [],
+  pageFilterScope = "both",
   availableYears,
 }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const dialogWasOpenRef = useRef(false);
 
   const [year, setYear] = useState("all");
-  const [quarter, setQuarter] = useState("all");
+  const [selectedQuarters, setSelectedQuarters] = useState<string[]>([]);
   const [profileId, setProfileId] = useState(ADVISOR_PROFILE_ALL);
   const [scope, setScope] = useState<AdvisorShareScope>("both");
   const [invoiceStatus, setInvoiceStatus] = useState<AdvisorInvoiceStatusFilter>("all");
 
   const [shareUrl, setShareUrl] = useState("");
   const [urlStatus, setUrlStatus] = useState("");
+  const [excelStatus, setExcelStatus] = useState("");
 
   const spec = useMemo(
     () => ({
       year,
-      quarter,
+      quarter: selectedQuarters.length === 1 ? selectedQuarters[0]! : "all",
+      quarters: selectedQuarters,
       profile: profileId,
       scope,
       invoiceStatus,
@@ -104,7 +114,7 @@ export function AdvisorSummaryDialog({
       vendor: "all" as const,
       category: "all" as const,
     }),
-    [year, quarter, profileId, scope, invoiceStatus],
+    [year, selectedQuarters, profileId, scope, invoiceStatus],
   );
 
   const {
@@ -144,12 +154,12 @@ export function AdvisorSummaryDialog({
       });
 
       const yearLabel = spec.year === "all" ? "Todos los ejercicios" : spec.year;
-      const quarterLabel = spec.quarter === "all" ? "Todo el año" : formatQuarterShortLabel(spec.quarter) || spec.quarter;
+      const quarterLabel = formatAdvisorQuarterSelectionLabel(spec.quarters);
       const profileLabel = profileLabelFromId(spec.profile, profileOptions);
       const periodLineInner = `${yearLabel} · ${quarterLabel} · ${profileLabel} · ${scopeLabel(sc)} · ${sortedInv.length} facturas · ${sortedExp.length} gastos`;
 
-      const invTitleInner = formatAdvisorSectionTitle("FACTURACIÓN", spec.year, spec.quarter);
-      const expTitleInner = formatAdvisorSectionTitle("GASTOS", spec.year, spec.quarter);
+      const invTitleInner = formatAdvisorSectionTitle("FACTURACIÓN", spec.year, spec.quarter, spec.quarters);
+      const expTitleInner = formatAdvisorSectionTitle("GASTOS", spec.year, spec.quarter, spec.quarters);
 
       const invoiceTotalFilteredInner = sortedInv.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
       const expenseTotalFilteredInner = sortedExp.reduce((acc, item) => acc + (Number(item.total) || 0), 0);
@@ -189,6 +199,7 @@ export function AdvisorSummaryDialog({
         templateProfileId: profileId,
         year: spec.year,
         quarter: spec.quarter,
+        quarters: spec.quarters,
         scope: spec.scope,
         invoiceStatus: spec.invoiceStatus,
         client: spec.client,
@@ -217,23 +228,52 @@ export function AdvisorSummaryDialog({
     },
   });
 
+  const excelMutation = useMutation({
+    mutationFn: async () => {
+      if (!profileId || profileId === ADVISOR_PROFILE_ALL) {
+        throw new Error("Elige un emisor concreto (no «Todos los emisores») para generar el Excel.");
+      }
+      const yearToken = String(spec.year || "all").trim() || "all";
+      const quarterToken = spec.quarters.length === 1 ? spec.quarters[0]! : "all";
+      const includeInvoices = spec.scope !== "expenses";
+      const includeExpenses = spec.scope !== "invoices";
+      await downloadControlWorkbookExport({
+        invoiceYear: yearToken,
+        expenseYear: yearToken,
+        invoiceQuarter: quarterToken,
+        expenseQuarter: quarterToken,
+        invoiceQuarters: spec.quarters,
+        expenseQuarters: spec.quarters,
+        invoiceStatus: spec.invoiceStatus,
+        expenseDeductible: "all",
+        invoiceProfile: profileId,
+        expenseProfile: profileId,
+        includeInvoices,
+        includeExpenses,
+      });
+    },
+    onSuccess: () => {
+      setExcelStatus("Descarga iniciada. El Excel saldrá con los mismos filtros del resumen.");
+    },
+    onError: (error) => {
+      setExcelStatus(getErrorMessageFromUnknown(error));
+    },
+  });
+
   const resetWorkbenchFilters = () => {
     const preferredYear = String(new Date().getFullYear());
     const nextYear =
       availableYears.includes(preferredYear) ? preferredYear : (availableYears[0] || "all");
     const allowedYear = nextYear && (nextYear === "all" || availableYears.includes(nextYear)) ? nextYear : "all";
     setYear(allowedYear);
-    setQuarter("all");
-    if (includeAllProfilesOption) {
-      setProfileId(ADVISOR_PROFILE_ALL);
-    } else {
-      const first = String(profileOptions[0]?.id || "").trim();
-      setProfileId(first || ADVISOR_PROFILE_ALL);
-    }
+    setSelectedQuarters([]);
+    const first = String(profileOptions[0]?.id || "").trim();
+    setProfileId(first || ADVISOR_PROFILE_ALL);
     setScope("both");
     setInvoiceStatus("all");
     setShareUrl("");
     setUrlStatus("");
+    setExcelStatus("");
   };
 
   useEffect(() => {
@@ -264,26 +304,30 @@ export function AdvisorSummaryDialog({
       setYear(initialYear);
       const pid = String(pageFilterProfile || "").trim();
       const fromPage = pid && profileOptions.some((p) => p.id === pid) ? pid : "";
-      if (includeAllProfilesOption) {
-        setProfileId(fromPage || ADVISOR_PROFILE_ALL);
-      } else {
-        const first = String(profileOptions[0]?.id || "").trim();
-        setProfileId(fromPage || first || ADVISOR_PROFILE_ALL);
-      }
-      setQuarter("all");
-      setScope("both");
+      const first = String(profileOptions[0]?.id || "").trim();
+      setProfileId(fromPage || first || ADVISOR_PROFILE_ALL);
+      setSelectedQuarters(normalizeAdvisorQuarterSelection(pageFilterQuarters));
+      setScope(pageFilterScope || "both");
       setInvoiceStatus("all");
       setShareUrl("");
       setUrlStatus("");
+      setExcelStatus("");
       if (typeof el.showModal === "function") {
         el.showModal();
       }
     }
-  }, [open, pageFilterYear, pageFilterProfile, availableYears, profileOptions, includeAllProfilesOption]);
+  }, [open, pageFilterYear, pageFilterProfile, pageFilterQuarters, pageFilterScope, availableYears, profileOptions, includeAllProfilesOption]);
+
+  const toggleQuarterFilter = (quarter: string) => {
+    setSelectedQuarters((prev) =>
+      prev.includes(quarter) ? prev.filter((value) => value !== quarter) : [...prev, quarter].sort(),
+    );
+  };
 
   const handleDialogClose = () => {
     setShareUrl("");
     setUrlStatus("");
+    setExcelStatus("");
     onClose();
   };
 
@@ -327,6 +371,16 @@ export function AdvisorSummaryDialog({
     shareMutation.mutate();
   };
 
+  const handleWorkbookDownload = () => {
+    setExcelStatus("");
+    if (!profileId || profileId === ADVISOR_PROFILE_ALL) {
+      setExcelStatus("Elige un emisor concreto (no «Todos los emisores») para generar el Excel.");
+      return;
+    }
+    setExcelStatus("Preparando Excel…");
+    excelMutation.mutate();
+  };
+
   return (
     <dialog
       ref={dialogRef}
@@ -346,7 +400,7 @@ export function AdvisorSummaryDialog({
               Resumen asesor
             </h2>
             <p className="text-sm text-informative">
-              Elige emisor, ejercicio, trimestre y alcance. El listado replica la hoja de control (sin editar ni borrar).
+              Elige emisor, ejercicio, trimestres y alcance. El listado replica la hoja de control (sin editar ni borrar).
               Genera el enlace y envíaselo; quien lo abre ve la misma información en la app React, sin límite de cantidad.
             </p>
             <p className="text-xs text-informative sm:hidden">También puedes pulsar fuera o Escape para cerrar.</p>
@@ -387,21 +441,6 @@ export function AdvisorSummaryDialog({
               </select>
             </label>
             <label className="grid gap-1 text-sm">
-              <span className="font-medium text-foreground">Trimestre</span>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={quarter}
-                onChange={(e) => setQuarter(e.target.value)}
-                aria-label="Trimestre resumen asesor"
-              >
-                <option value="all">Todos</option>
-                <option value="T1">T1</option>
-                <option value="T2">T2</option>
-                <option value="T3">T3</option>
-                <option value="T4">T4</option>
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm">
               <span className="font-medium text-foreground">Usuario o emisor</span>
               <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -427,8 +466,8 @@ export function AdvisorSummaryDialog({
                 onChange={(e) => setScope(e.target.value as AdvisorShareScope)}
                 aria-label="Alcance facturación o gastos"
               >
-                <option value="both">Facturación y gastos</option>
-                <option value="invoices">Solo facturación</option>
+                <option value="both">Todo</option>
+                <option value="invoices">Documentos</option>
                 <option value="expenses">Solo gastos</option>
               </select>
             </label>
@@ -447,6 +486,39 @@ export function AdvisorSummaryDialog({
                 <option value="pending_any">No cobrada (incluye enviada y cancelada)</option>
               </select>
             </label>
+          </div>
+
+          <div className="grid gap-3 rounded-md border border-border/60 bg-muted/10 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-sm font-medium text-foreground">Trimestres</span>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={() => setSelectedQuarters([...ADVISOR_QUARTERS])}>
+                  Todos
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setSelectedQuarters([])}>
+                  Ninguno
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {ADVISOR_QUARTERS.map((quarter) => {
+                const active = selectedQuarters.includes(quarter);
+                return (
+                  <Button
+                    key={quarter}
+                    type="button"
+                    size="sm"
+                    variant={active ? "default" : "outline"}
+                    onClick={() => toggleQuarterFilter(quarter)}
+                  >
+                    {quarter.replace("T", "") + "T"}
+                  </Button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-informative">
+              Si no marcas ninguno, se muestran todos. Puedes combinar, por ejemplo, 1T y 4T a la vez.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -643,12 +715,20 @@ export function AdvisorSummaryDialog({
           </div>
 
           <p className="text-sm text-muted-foreground">
-            Para generar el enlace elige un emisor concreto (no «Todos los emisores»); el servidor exige un perfil válido.
+            Para generar el enlace o el Excel elige un emisor concreto (no «Todos los emisores»); el servidor exige un perfil válido.
           </p>
 
           <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:flex-wrap sm:items-center">
             <Button type="button" disabled={shareMutation.isPending} onClick={handleGenerate}>
               {shareMutation.isPending ? "Generando enlace…" : "Generar enlace"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={excelMutation.isPending}
+              onClick={handleWorkbookDownload}
+            >
+              {excelMutation.isPending ? "Generando Excel…" : "Descargar Excel"}
             </Button>
             <Input readOnly className="min-w-0 sm:min-w-[12rem] sm:flex-1" value={shareUrl} placeholder="URL pública (solo lectura)" aria-label="URL de vista compartida" />
             <Button type="button" variant="outline" onClick={() => void copyShareUrl()}>
@@ -656,6 +736,7 @@ export function AdvisorSummaryDialog({
             </Button>
           </div>
           {urlStatus ? <p className="text-sm text-informative">{urlStatus}</p> : null}
+          {excelStatus ? <p className="text-sm text-informative">{excelStatus}</p> : null}
         </div>
       </div>
     </dialog>

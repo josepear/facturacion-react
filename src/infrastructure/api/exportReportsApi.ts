@@ -74,12 +74,16 @@ export type ControlWorkbookExportBody = {
   expenseYear?: string;
   invoiceQuarter?: string;
   expenseQuarter?: string;
+  invoiceQuarters?: string[];
+  expenseQuarters?: string[];
   invoiceStatus?: string;
   expenseDeductible?: string;
   invoiceSearch?: string;
   expenseSearch?: string;
   invoiceProfile?: string;
   expenseProfile?: string;
+  includeInvoices?: boolean;
+  includeExpenses?: boolean;
 };
 
 function parseFilenameFromContentDisposition(header: string | null, fallback: string): string {
@@ -144,6 +148,14 @@ export async function downloadControlWorkbookExport(body: ControlWorkbookExportB
 
 export type ShareReportResponse = { ok: boolean; token?: string; shareViewUrl?: string };
 
+export type PublicShareWorkbookExportBody = {
+  token: string;
+  scope?: "both" | "invoices" | "expenses";
+  documentKind?: "all" | "facturas" | "presupuestos";
+  searchText?: string;
+  quarters?: string[];
+};
+
 /** Alineado con `normalizeShareReportToken` en `share-report-server.mjs`. */
 export function normalizeShareReportToken(raw: string): string {
   return String(raw || "")
@@ -174,6 +186,7 @@ export type PublicShareReportMeta = {
   templateProfileId?: string;
   year?: string;
   quarter?: string;
+  quarters?: string[];
   scope?: string;
   invoiceStatus?: string;
   client?: string;
@@ -193,21 +206,41 @@ export type PublicShareReportTotals = {
 
 export type PublicShareInvoiceRow = {
   issueDate?: string;
+  issueDateLabel?: string;
+  typeLabel?: string;
   number?: string;
   clientName?: string;
   status?: string;
   total?: number;
+  subtotal?: number;
+  taxAmount?: number;
+  withholdingAmount?: number;
+  taskLabel?: string;
+  reference?: string;
+  description?: string;
   templateProfileLabel?: string;
   templateProfileId?: string;
+  clientTaxId?: string;
+  clientTaxIdType?: string;
+  clientTaxCountryCode?: string;
   colorKey?: string;
 };
 
 export type PublicShareExpenseRow = {
   issueDate?: string;
+  issueDateLabel?: string;
   quarter?: string;
   vendor?: string;
+  category?: string;
   expenseConcept?: string;
   total?: number;
+  deductible?: boolean;
+  nextcloudUrl?: string;
+  operationDate?: string;
+  year?: string | number;
+  taxId?: string;
+  taxIdType?: string;
+  taxCountryCode?: string;
   templateProfileLabel?: string;
   templateProfileId?: string;
   colorKey?: string;
@@ -253,6 +286,7 @@ export function postShareReport(body: {
   templateProfileId: string;
   year?: string;
   quarter?: string;
+  quarters?: string[];
   scope?: string;
   invoiceStatus?: string;
   client?: string;
@@ -264,4 +298,41 @@ export function postShareReport(body: {
     method: "POST",
     body,
   });
+}
+
+export async function downloadPublicShareWorkbookExport(body: PublicShareWorkbookExportBody): Promise<void> {
+  const response = await fetch("/api/public-share-report-export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    let message = `HTTP ${response.status}`;
+    try {
+      const parsed = JSON.parse(text) as { error?: string };
+      if (typeof parsed.error === "string" && parsed.error.trim()) {
+        message = parsed.error.trim();
+      }
+    } catch {
+      if (text.trim()) {
+        message = text.trim().slice(0, 200);
+      }
+    }
+    throw new ApiError(message, response.status);
+  }
+  const blob = await response.blob();
+  const filename = parseFilenameFromContentDisposition(
+    response.headers.get("Content-Disposition"),
+    "resumen-asesoria.xlsx",
+  );
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
 }
