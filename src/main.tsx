@@ -4,7 +4,11 @@ import { RouterProvider } from "react-router-dom";
 
 import { AppProviders } from "@/app/providers";
 import { router } from "@/app/router";
+import { setNumberingPort } from "@/domain/numbering/usecases/getNextNumber";
+import { fetchNextNumber, fetchNumberAvailability } from "@/infrastructure/api/numberingApi";
 import "@/styles/index.css";
+
+setNumberingPort({ fetchNextNumber, fetchNumberAvailability });
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
