@@ -133,6 +133,7 @@ export function ScaledHtmlPreview({
         <iframe
           ref={iframeRef}
           title="Vista previa HTML plantilla legacy"
+          sandbox="allow-same-origin"
           src={src}
           className={cn("absolute left-0 top-0 border-0 bg-white", blockIframePointer && "pointer-events-none")}
           style={{

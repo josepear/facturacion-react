@@ -131,6 +131,10 @@ export async function request<TResponse>(
     throw new ApiError(message, response.status, payload);
   }
 
+  if (payload === null || payload === undefined) {
+    throw new ApiError("Respuesta vacía del servidor.", response.status);
+  }
+
   return payload as TResponse;
 }
 
