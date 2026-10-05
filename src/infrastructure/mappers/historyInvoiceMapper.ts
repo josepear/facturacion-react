@@ -1,4 +1,4 @@
-import type { HistoryInvoice } from "@/features/history/types/historyInvoice";
+import type { HistoryInvoice } from "@/domain/history/types";
 import type { HistoryInvoiceDto } from "@/infrastructure/api/historyInvoiceDto";
 
 export function mapHistoryInvoiceDtoToDomain(dto: HistoryInvoiceDto): HistoryInvoice {

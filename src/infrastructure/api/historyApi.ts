@@ -1,4 +1,4 @@
-import type { HistoryInvoice } from "@/features/history/types/historyInvoice";
+import type { HistoryInvoice } from "@/domain/history/types";
 import { request } from "@/infrastructure/api/httpClient";
 import type { HistoryInvoicesResponseDto } from "@/infrastructure/api/historyInvoiceDto";
 import { mapHistoryInvoiceDtosToDomain } from "@/infrastructure/mappers/historyInvoiceMapper";
