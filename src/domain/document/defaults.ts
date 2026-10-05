@@ -16,6 +16,9 @@ export function createEmptyDocument(): InvoiceDocument {
     dueDate: "",
     reference: "",
     templateLayout: "",
+    design: {
+      layout: "",
+    },
     paymentMethod: "Transferencia",
     bankAccount: "",
     accounting: {
@@ -47,8 +50,8 @@ export function createEmptyDocument(): InvoiceDocument {
         hidePerPersonSubtotalInBudget: false,
       },
     ],
-    taxRate: 7,
-    withholdingRate: "",
+    taxRate: 7, // IGIC Canarias (tipo general)
+    withholdingRate: 0,
     totalsBasis: "items",
     manualGrossSubtotal: 0,
     subtotal: 0,

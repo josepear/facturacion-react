@@ -46,15 +46,15 @@ function mapItem(rawItem: unknown): InvoiceItem {
   };
 }
 
-function toValidWithholdingRate(value: unknown): "" | 15 | 19 | 21 {
+function toValidWithholdingRate(value: unknown): 0 | 7 | 15 | 19 | 21 {
   if (value === "" || value === null || value === undefined) {
-    return "";
+    return 0;
   }
   const numeric = toNumber(value);
-  if (numeric === 15 || numeric === 19 || numeric === 21) {
+  if (numeric === 7 || numeric === 15 || numeric === 19 || numeric === 21) {
     return numeric;
   }
-  return "";
+  return 0;
 }
 
 export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
@@ -92,6 +92,11 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
     dueDate: asString(record.dueDate),
     reference: asString(record.reference),
     templateLayout: asString(design.layout) || base.templateLayout,
+    design: {
+      ...(base.design || {}),
+      ...design,
+      layout: asString(design.layout) || base.templateLayout,
+    },
     paymentMethod: asString(record.paymentMethod) || base.paymentMethod,
     bankAccount: asString(record.bankAccount),
     accounting: {
@@ -163,6 +168,10 @@ export function mapFormToLegacyDocument(document: InvoiceDocument): InvoiceDocum
 
   return {
     ...document,
+    design: {
+      ...(document.design || {}),
+      layout: asString(document.templateLayout),
+    },
     type: docType,
     items: document.items.map((item) => {
       const perPerson = isPerPersonUnitLabel(item.unitLabel);

@@ -37,6 +37,11 @@ export type DocumentAccounting = {
   taxes: string;
 };
 
+export type InvoiceDocumentDesign = {
+  layout?: string;
+  [key: string]: unknown;
+};
+
 export type InvoiceDocument = {
   type: DocumentType;
   templateProfileId: string;
@@ -49,13 +54,15 @@ export type InvoiceDocument = {
   dueDate: string;
   reference: string;
   templateLayout: string;
+  /** Datos visuales legacy (tipografias, colores, medidas, etc.). */
+  design: InvoiceDocumentDesign;
   paymentMethod: string;
   bankAccount: string;
   accounting: DocumentAccounting;
   client: DocumentClient;
   items: InvoiceItem[];
   taxRate: number;
-  withholdingRate: "" | 15 | 19 | 21;
+  withholdingRate: 0 | 7 | 15 | 19 | 21;
   totalsBasis: TotalsBasis;
   manualGrossSubtotal: number;
   subtotal: number;
