@@ -1,3 +1,19 @@
+import { z } from "zod";
+
+export const expenseRecordSchema = z.object({
+  vendor: z.string().trim().min(1, "El proveedor es obligatorio."),
+  issueDate: z.string().trim().min(1, "La fecha es obligatoria."),
+  subtotal: z.number().finite(),
+  total: z.number().finite(),
+  taxRate: z.number().finite().nonnegative().max(100).optional(),
+  taxAmount: z.number().finite().optional(),
+  withholdingRate: z.number().finite().nonnegative().max(100).optional(),
+  withholdingAmount: z.number().finite().optional(),
+  category: z.string().trim().optional(),
+  expenseConcept: z.string().trim().optional(),
+  deductible: z.boolean().optional(),
+});
+
 export type ExpenseRecord = {
   recordId?: string;
   id?: string;
@@ -35,4 +51,3 @@ export type ExpenseOptions = {
   vendors?: string[];
   categories?: string[];
 };
-
