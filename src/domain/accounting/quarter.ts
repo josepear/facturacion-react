@@ -14,7 +14,7 @@ export function normalizeQuarterValue(value = "", fallbackDate = ""): string {
   if (["T2", "2T", "2º TRIMESTRE", "2O TRIMESTRE", "2DO TRIMESTRE", "Q2"].includes(normalizedValue)) {
     return "T2";
   }
-  if (["T3", "3T", "3ER TRIMESTRE", "Q3"].includes(normalizedValue)) {
+  if (["T3", "3T", "3ER TRIMESTRE", "3º TRIMESTRE", "3O TRIMESTRE", "Q3"].includes(normalizedValue)) {
     return "T3";
   }
   if (["T4", "4T", "4º TRIMESTRE", "4O TRIMESTRE", "Q4"].includes(normalizedValue)) {
