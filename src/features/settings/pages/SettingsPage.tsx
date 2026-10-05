@@ -672,7 +672,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
+    <main className="app-page-shell">
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Configuración · Emisores</h1>
         <p className="text-informative">
@@ -682,11 +682,11 @@ export function SettingsPage() {
       </header>
 
       {configQuery.isLoading || sessionQuery.isLoading ? (
-        <Card>
+        <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
           <CardContent className="pt-6 text-informative">Cargando configuración...</CardContent>
         </Card>
       ) : configQuery.error || sessionQuery.error ? (
-        <Card>
+        <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
           <CardContent className="pt-6 text-sm">
             <SettingsConfigLoadError error={configQuery.error ?? sessionQuery.error} />
           </CardContent>
@@ -694,14 +694,14 @@ export function SettingsPage() {
       ) : (
         <>
           {!sessionScope.hasEmitterScope ? (
-            <Card>
+            <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
               <CardContent className="pt-6 text-sm text-informative">
                 Tu sesión no tiene emisores asignados para operar en Configuración. Contacta con un administrador.
               </CardContent>
             </Card>
           ) : null}
           {sessionScope.hasEmitterScope ? (
-          <Card>
+          <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
             <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
               <div className="min-w-0 space-y-1">
                 <CardTitle>Emisores</CardTitle>
@@ -824,7 +824,7 @@ export function SettingsPage() {
             </summary>
             <div className="grid gap-4 border-t border-border p-4 pt-2">
               {serverActiveProfile ? (
-                <Card>
+                <Card className="border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/20">
                   <div className="grid gap-3 p-4">
                     <div className="flex items-center gap-3">
                       <ProfileBadge
@@ -873,7 +873,7 @@ export function SettingsPage() {
               ) : null}
 
               <section className="grid gap-4 lg:grid-cols-2">
-                <Card>
+                <Card className="border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/20">
                   <CardHeader>
                     <CardTitle>Emisor activo (servidor)</CardTitle>
                     <CardDescription>
@@ -927,7 +927,7 @@ export function SettingsPage() {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
                   <CardHeader>
                     <CardTitle>Defaults runtime</CardTitle>
                     <CardDescription>Valores efectivos publicados por `/api/config`.</CardDescription>
@@ -1544,6 +1544,6 @@ export function SettingsPage() {
           ) : null}
         </>
       )}
-    </div>
+    </main>
   );
 }

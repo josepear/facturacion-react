@@ -190,7 +190,7 @@ export function AsesorCeliaPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Card>
+      <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
         <CardHeader>
           <CardTitle>Excel Celia</CardTitle>
           <CardDescription>

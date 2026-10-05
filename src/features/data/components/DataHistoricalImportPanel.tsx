@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,10 @@ import {
   type HistoricalImportScanPerson,
   type HistoricalImportScanResponse,
   type HistoricalImportUploadResponse,
+  type HistoricalExpensePreviewRow,
+  type FiscalRule,
+  fetchFiscalRules,
+  saveFiscalRules,
 } from "@/infrastructure/api/historicalImportApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 
@@ -97,6 +101,8 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
   const [excelPersonCode, setExcelPersonCode] = useState("");
   const [excelYear, setExcelYear] = useState("");
   const [excelProfileId, setExcelProfileId] = useState("");
+  const [excelReviewConfirmed, setExcelReviewConfirmed] = useState(false);
+  const [excelSelectedExpenseRowKeys, setExcelSelectedExpenseRowKeys] = useState<string[]>([]);
 
   const [pdfProfileId, setPdfProfileId] = useState("");
   const [pdfSendReviewRows, setPdfSendReviewRows] = useState(false);
@@ -106,6 +112,28 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
 
   const [message, setMessage] = useState<{ text: string; tone: "success" | "error" } | null>(null);
+  const [fiscalRuleDraft, setFiscalRuleDraft] = useState<{ field: FiscalRule["field"]; matchText: string; decision: FiscalRule["decision"] }>({
+    field: "vendor",
+    matchText: "",
+    decision: "possible",
+  });
+
+  const fiscalRulesQuery = useQuery({
+    queryKey: ["fiscal-rules"],
+    queryFn: fetchFiscalRules,
+    staleTime: 60_000,
+  });
+
+  const saveFiscalRulesMutation = useMutation({
+    mutationFn: (rules: FiscalRule[]) => saveFiscalRules(rules),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["fiscal-rules"] });
+      setMessage({ text: "Diccionario fiscal guardado.", tone: "success" });
+    },
+    onError: (err) => {
+      setMessage({ text: getErrorMessageFromUnknown(err), tone: "error" });
+    },
+  });
 
   const invalidateAfterImport = useCallback(async () => {
     await Promise.all([
@@ -138,10 +166,12 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
     },
     onSuccess: (data) => {
       setExcelResult(data);
+      setExcelReviewConfirmed(false);
+      setExcelSelectedExpenseRowKeys([]);
       const first = data.persons[0];
       setExcelPersonCode(first?.code ?? "");
       setExcelYear(first?.years?.[0]?.year ?? "");
-      setMessage({ text: "Excel preparado en el servidor.", tone: "success" });
+      setMessage({ text: "Excel preparado en el servidor. Revísalo antes de importarlo.", tone: "success" });
     },
     onError: (err) => {
       setMessage({ text: getErrorMessageFromUnknown(err), tone: "error" });
@@ -188,6 +218,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
       });
     },
     onSuccess: async (data) => {
+      setExcelSelectedExpenseRowKeys([]);
       await invalidateAfterImport();
       setMessage({
         text: `Importación terminada: +${data.createdInvoices} facturas nuevas, ${data.updatedInvoices} actualizadas, ${data.skippedInvoices} omitidas; gastos +${data.createdExpenses}, ${data.skippedExpenses} omitidos.`,
@@ -210,6 +241,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
         personCode: excelPersonCode,
         year: excelYear,
         templateProfileId: excelProfileId,
+        selectedExpenseRowKeys: excelSelectedExpenseRowKeys,
       });
     },
     onSuccess: async (data) => {
@@ -276,6 +308,95 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
     [excelResult, excelPersonCode],
   );
 
+  const excelYearBucket = useMemo(
+    () => excelPerson?.years.find((bucket) => bucket.year === excelYear) ?? null,
+    [excelPerson, excelYear],
+  );
+
+  const excelExpensePreviewRows = useMemo(
+    () => (excelYearBucket?.expensePreviewRows ?? []) as HistoricalExpensePreviewRow[],
+    [excelYearBucket],
+  );
+
+  useEffect(() => {
+    const keys = excelExpensePreviewRows.map((row) => String(row.rowKey || "").trim()).filter(Boolean);
+    setExcelSelectedExpenseRowKeys(keys);
+    setExcelReviewConfirmed(false);
+  }, [excelExpensePreviewRows, excelPersonCode, excelYear]);
+
+  const excelSelectedExpenseKeySet = useMemo(
+    () => new Set(excelSelectedExpenseRowKeys.map((key) => String(key || "").trim()).filter(Boolean)),
+    [excelSelectedExpenseRowKeys],
+  );
+
+  const excelSelectedExpenseCount = excelExpensePreviewRows.filter((row) => excelSelectedExpenseKeySet.has(String(row.rowKey || "").trim())).length;
+  const excelLikelyDeductibleExpenseCount = excelExpensePreviewRows.filter((row) => row.deductibleKind === "yes").length;
+  const excelPossibleDeductibleExpenseCount = excelExpensePreviewRows.filter((row) => row.deductibleKind === "possible").length;
+
+  const toggleExcelExpenseRow = useCallback((rowKey: string, checked: boolean) => {
+    const safeKey = String(rowKey || "").trim();
+    if (!safeKey) {
+      return;
+    }
+    setExcelReviewConfirmed(false);
+    setExcelSelectedExpenseRowKeys((prev) => {
+      const next = new Set(prev.map((key) => String(key || "").trim()).filter(Boolean));
+      if (checked) {
+        next.add(safeKey);
+      } else {
+        next.delete(safeKey);
+      }
+      return Array.from(next);
+    });
+  }, []);
+
+  const keepOnlyDeductibleExcelExpenses = useCallback(() => {
+    setExcelReviewConfirmed(false);
+    setExcelSelectedExpenseRowKeys(
+      excelExpensePreviewRows
+        .filter((row) => row.deductibleKind === "yes" || row.deductibleKind === "possible")
+        .map((row) => String(row.rowKey || "").trim())
+        .filter(Boolean),
+    );
+  }, [excelExpensePreviewRows]);
+
+  const selectAllExcelExpenses = useCallback(() => {
+    setExcelReviewConfirmed(false);
+    setExcelSelectedExpenseRowKeys(
+      excelExpensePreviewRows.map((row) => String(row.rowKey || "").trim()).filter(Boolean),
+    );
+  }, [excelExpensePreviewRows]);
+
+  const addFiscalRule = useCallback(() => {
+    const matchText = String(fiscalRuleDraft.matchText || "").trim();
+    if (!matchText) {
+      setMessage({ text: "Escribe un texto para el diccionario fiscal.", tone: "error" });
+      return;
+    }
+    const existing = fiscalRulesQuery.data ?? [];
+    const next: FiscalRule[] = [
+      ...existing.filter((rule) => !(rule.field === fiscalRuleDraft.field && rule.decision === fiscalRuleDraft.decision && String(rule.matchText || "").trim().toLowerCase() === matchText.toLowerCase())),
+      {
+        id: `rule-${Date.now()}`,
+        field: fiscalRuleDraft.field,
+        matchText,
+        decision: fiscalRuleDraft.decision,
+      },
+    ];
+    saveFiscalRulesMutation.mutate(next);
+    setFiscalRuleDraft((prev) => ({ ...prev, matchText: "" }));
+  }, [fiscalRuleDraft, fiscalRulesQuery.data, saveFiscalRulesMutation]);
+
+  const deleteFiscalRule = useCallback((ruleId: string) => {
+    const existing = fiscalRulesQuery.data ?? [];
+    saveFiscalRulesMutation.mutate(existing.filter((rule) => rule.id !== ruleId));
+  }, [fiscalRulesQuery.data, saveFiscalRulesMutation]);
+
+  const loadFiscalRuleDraftFromRow = useCallback((row: HistoricalExpensePreviewRow, field: FiscalRule["field"]) => {
+    const matchText = field === "vendor" ? String(row.vendor || "").trim() : field === "category" ? String(row.category || "").trim() : String(row.vendor || row.category || "").trim();
+    setFiscalRuleDraft((prev) => ({ ...prev, field, matchText }));
+  }, []);
+
   const copyText = async (value: string, okMsg: string) => {
     const v = String(value || "").trim();
     if (!v) {
@@ -298,7 +419,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
     pdfRunMutation.isPending;
 
   return (
-    <Card>
+    <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
       <CardHeader>
         <CardTitle className="text-base">Importación histórica</CardTitle>
         <CardDescription>
@@ -375,17 +496,20 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                 </label>
                 <label className="grid gap-1 text-xs">
                   <span className="text-informative">Año</span>
-                  <select
-                    className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
+                  <Input
+                    className="h-9"
+                    list="historical-server-years"
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="AAAA"
                     value={serverYear}
                     onChange={(e) => setServerYear(e.target.value)}
-                  >
+                  />
+                  <datalist id="historical-server-years">
                     {(serverPerson?.years ?? []).map((y) => (
-                      <option key={y.year} value={y.year}>
-                        {y.year}
-                      </option>
+                      <option key={y.year} value={y.year} />
                     ))}
-                  </select>
+                  </datalist>
                 </label>
                 <label className="grid gap-1 text-xs sm:col-span-2">
                   <span className="text-informative">Emisor destino</span>
@@ -457,6 +581,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                       setExcelPersonCode(code);
                       const person = excelResult.persons.find((x) => x.code === code);
                       setExcelYear(person?.years[0]?.year ?? "");
+                      setExcelReviewConfirmed(false);
                     }}
                   >
                     {excelResult.persons.map((p) => (
@@ -468,17 +593,23 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                 </label>
                 <label className="grid gap-1 text-xs">
                   <span className="text-informative">Año</span>
-                  <select
-                    className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
+                  <Input
+                    className="h-9"
+                    list="historical-excel-years"
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="AAAA"
                     value={excelYear}
-                    onChange={(e) => setExcelYear(e.target.value)}
-                  >
+                    onChange={(e) => {
+                      setExcelYear(e.target.value);
+                      setExcelReviewConfirmed(false);
+                    }}
+                  />
+                  <datalist id="historical-excel-years">
                     {(excelPerson?.years ?? []).map((y) => (
-                      <option key={y.year} value={y.year}>
-                        {y.year}
-                      </option>
+                      <option key={y.year} value={y.year} />
                     ))}
-                  </select>
+                  </datalist>
                 </label>
                 <label className="grid gap-1 text-xs sm:col-span-2">
                   <span className="text-informative">Emisor destino</span>
@@ -495,12 +626,138 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                   </select>
                 </label>
               </div>
+              <div className="grid gap-3 rounded-md border border-amber-300 bg-white/70 p-3">
+                <p className="text-sm font-medium text-foreground">Revisión previa antes de integrar</p>
+                <p className="text-xs text-informative">
+                  Todavía no se ha guardado nada en la aplicación. Revisa esta muestra del Excel y luego confirma la importación.
+                </p>
+                {excelYearBucket?.workbookNames?.length ? (
+                  <p className="text-xs text-informative">
+                    Ficheros detectados: {excelYearBucket.workbookNames.join(", ")}
+                  </p>
+                ) : null}
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="grid gap-2">
+                    <p className="text-xs font-medium text-foreground">Muestra de facturas del año seleccionado</p>
+                    {excelYearBucket?.invoicePreviewRows?.length ? (
+                      <div className="overflow-x-auto rounded-md border border-border bg-background">
+                        <table className="w-full min-w-[34rem] text-xs">
+                          <thead>
+                            <tr className="border-b text-left text-informative">
+                              <th className="p-2 font-medium">Fecha</th>
+                              <th className="p-2 font-medium">Número</th>
+                              <th className="p-2 font-medium">Cliente</th>
+                              <th className="p-2 font-medium">Concepto</th>
+                              <th className="p-2 text-right font-medium">Total</th>
+                                <th className="p-2 font-medium">Aprender</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {excelYearBucket.invoicePreviewRows.map((row, index) => (
+                              <tr key={`invoice-${index}`} className="border-b border-border/60 last:border-b-0">
+                                <td className="p-2">{row.issueDate || "—"}</td>
+                                <td className="p-2">{row.number || "—"}</td>
+                                <td className="p-2">{row.client || "—"}</td>
+                                <td className="p-2">{row.concept || "—"}</td>
+                                <td className="p-2 text-right tabular-nums">
+                                  {typeof row.total === "number" ? row.total.toFixed(2) : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-informative">No hay muestra de facturas para esta selección.</p>
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs font-medium text-foreground">Gastos detectados del año seleccionado</p>
+                      {excelExpensePreviewRows.length ? (
+                        <p className="text-xs text-informative">
+                          Seleccionados: {excelSelectedExpenseCount} de {excelExpensePreviewRows.length} · Claros: {excelLikelyDeductibleExpenseCount} · Posibles: {excelPossibleDeductibleExpenseCount}
+                        </p>
+                      ) : null}
+                    </div>
+                    {excelExpensePreviewRows.length ? (
+                      <>
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" size="sm" variant="outline" onClick={() => keepOnlyDeductibleExcelExpenses()}>
+                            Dejar claros y posibles
+                          </Button>
+                          <Button type="button" size="sm" variant="outline" onClick={() => selectAllExcelExpenses()}>
+                            Volver a marcar todo
+                          </Button>
+                        </div>
+                        <div className="max-h-[28rem] overflow-auto rounded-md border border-border bg-background">
+                          <table className="w-full min-w-[48rem] text-xs">
+                            <thead>
+                              <tr className="sticky top-0 border-b bg-background text-left text-informative">
+                                <th className="p-2 font-medium">Importar</th>
+                                <th className="p-2 font-medium">Fecha</th>
+                                <th className="p-2 font-medium">Proveedor</th>
+                                <th className="p-2 font-medium">Categoría</th>
+                                <th className="p-2 font-medium">Trim.</th>
+                                <th className="p-2 font-medium">Filtro fiscal</th>
+                                <th className="p-2 text-right font-medium">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {excelExpensePreviewRows.map((row, index) => {
+                                const rowKey = String(row.rowKey || `expense-${index}`).trim();
+                                const checked = excelSelectedExpenseKeySet.has(rowKey);
+                                return (
+                                  <tr key={rowKey || `expense-${index}`} className="border-b border-border/60 last:border-b-0">
+                                    <td className="p-2 align-middle">
+                                      <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={(event) => toggleExcelExpenseRow(rowKey, event.target.checked)}
+                                        aria-label={`Importar gasto ${row.vendor || row.category || index + 1}`}
+                                      />
+                                    </td>
+                                    <td className="p-2">{row.issueDate || "—"}</td>
+                                    <td className="p-2">{row.vendor || "—"}</td>
+                                    <td className="p-2">{row.category || "—"}</td>
+                                    <td className="p-2">{row.quarter || "—"}</td>
+                                    <td className="p-2">{row.deductibleLabel || (row.deductible ? "Si" : "No")}</td>
+                                    <td className="p-2 text-right tabular-nums">
+                                      {typeof row.total === "number" ? row.total.toFixed(2) : "—"}
+                                    </td>
+                                    <td className="p-2">
+                                      <div className="flex flex-wrap gap-1">
+                                        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => loadFiscalRuleDraftFromRow(row, "vendor")}>Proveedor</Button>
+                                        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => loadFiscalRuleDraftFromRow(row, "category")}>Categoria</Button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-informative">No hay gastos detectados para esta selección.</p>
+                    )}
+                  </div>
+                </div>
+                <label className="flex items-start gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={excelReviewConfirmed}
+                    onChange={(e) => setExcelReviewConfirmed(e.target.checked)}
+                  />
+                  <span>He revisado las filas seleccionadas y quiero integrar solo esos gastos en la aplicación.</span>
+                </label>
+              </div>
               <Button
                 type="button"
-                disabled={busy || !excelPersonCode || !excelYear || !excelProfileId}
+                disabled={busy || !excelPersonCode || !excelYear || !excelProfileId || !excelReviewConfirmed || excelSelectedExpenseCount === 0}
                 onClick={() => runExcelMutation.mutate()}
               >
-                {runExcelMutation.isPending ? "Importando…" : "Importar Excel subido"}
+                {runExcelMutation.isPending ? "Importando…" : "Confirmar importación del Excel"}
               </Button>
               <p className="text-informative">
                 La subida queda ligada a tu sesión: si otro usuario usa tu <code className="rounded bg-muted px-0.5">uploadId</code>, el

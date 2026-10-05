@@ -45,7 +45,7 @@ export function InvoiceTotalsPanel({
   onIrpfFieldBlur,
 }: InvoiceTotalsPanelProps) {
   const irpfChoicePending = Boolean(taxValidation.irpfChoicePending);
-  const sinIrpf = withholdingRate === "";
+  const sinIrpf = withholdingRate === 0;
   const sinIrpfChecked = !irpfChoicePending && sinIrpf;
 
   return (

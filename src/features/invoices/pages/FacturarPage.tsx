@@ -83,6 +83,7 @@ export function FacturarPage() {
   const [searchParams] = useSearchParams();
   const initialRecordId = String(searchParams.get("recordId") || "").trim();
   const initialTemplateProfileId = String(searchParams.get("templateProfileId") || "").trim();
+  const initialDuplicateFromRecordId = String(searchParams.get("duplicateFrom") || "").trim();
   const {
     form,
     submit,
@@ -128,7 +129,8 @@ export function FacturarPage() {
     repeatLastSetup,
     isDirty,
     sessionScope,
-  } = useFacturarForm(initialRecordId, initialTemplateProfileId);
+    sessionScopePending,
+  } = useFacturarForm(initialRecordId, initialTemplateProfileId, initialDuplicateFromRecordId);
 
   const autoOpenModuleId = useMemo(
     () => autoOpenFacturarWorkflowTarget(workflowChecklist),
@@ -490,15 +492,32 @@ export function FacturarPage() {
     };
   }, [shouldBlockNavigation]);
 
-  if (!sessionScope.hasEmitterScope) {
+  if (sessionScopePending) {
     return (
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
+      <main className="app-page-shell">
         <PageHeader
           className="space-y-2"
           title="Facturar"
           description="Crea o edita documentos; también puedes reabrirlos desde Historial."
         />
-        <Card>
+        <Card className="border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/20">
+          <CardContent className="pt-6 text-sm text-informative">
+            Sincronizando emisores y permisos de la sesión…
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  if (!sessionScope.hasEmitterScope) {
+    return (
+      <main className="app-page-shell">
+        <PageHeader
+          className="space-y-2"
+          title="Facturar"
+          description="Crea o edita documentos; también puedes reabrirlos desde Historial."
+        />
+        <Card className="border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/20">
           <CardContent className="pt-6 text-sm text-informative">
             Tu sesión no tiene emisores asignados para operar en Facturar. Contacta con un administrador.
           </CardContent>
@@ -508,7 +527,7 @@ export function FacturarPage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-6 sm:gap-6 sm:px-6 sm:py-8">
+    <main className="app-page-shell">
       <PageHeader
         className="space-y-2"
         title="Facturar"
@@ -576,7 +595,7 @@ export function FacturarPage() {
             })()}
           </div>
 
-          <div className="min-w-0 flex-1 overflow-hidden rounded-lg border border-border bg-card text-card-foreground shadow-sm divide-y divide-border">
+          <div className="min-w-0 flex-1 overflow-hidden rounded-2xl border border-sky-200 bg-sky-50/40 text-card-foreground shadow-sm divide-y divide-border dark:border-sky-900 dark:bg-sky-950/20">
             <WorkflowModule
             title="Emisor"
             stateLabel={workflowChecklist.emitter.complete ? "Completo" : "Pendiente"}
@@ -994,17 +1013,27 @@ export function FacturarPage() {
                 errors={errors}
                 itemCount={itemsArray.fields.length}
                 totalsBasis={liveDocument.totalsBasis}
-                onAddItem={() =>
-                  itemsArray.append({
+                onAddItem={(afterIndex) => {
+                  const nextItem = {
                     concept: "",
                     description: "",
                     quantity: 1,
                     unitPrice: 0,
                     unitLabel: "",
                     hidePerPersonSubtotalInBudget: false,
-                  })
-                }
+                  };
+
+                  if (typeof afterIndex === "number" && afterIndex >= 0) {
+                    itemsArray.insert(afterIndex + 1, nextItem);
+                    return;
+                  }
+
+                  itemsArray.append(nextItem);
+                }}
                 onRemoveItem={(index) => itemsArray.remove(index)}
+                onBulkImport={(bulkItems) => {
+                  itemsArray.replace(bulkItems);
+                }}
               />
             </div>
           </WorkflowModule>

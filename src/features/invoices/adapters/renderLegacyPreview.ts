@@ -103,7 +103,7 @@ export function buildLegacyPreviewModel(document: InvoiceDocument): LegacyPrevie
 
   const taxCountryCode = String(document.client?.taxCountryCode || "").trim();
   const taxIdType = String(document.client?.taxIdType || "").trim();
-  const withholdingRate = document.withholdingRate === "" ? 0 : Number(document.withholdingRate || 0);
+  const withholdingRate = Number(document.withholdingRate || 0);
   const minusWithholding = withholdingRate > 0
     ? `-${formatCurrency(document.withholdingAmount || 0)}`
     : formatCurrency(document.withholdingAmount || 0);

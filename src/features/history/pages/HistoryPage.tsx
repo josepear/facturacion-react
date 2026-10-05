@@ -912,13 +912,25 @@ export function HistoryPage() {
                           </p>
                         </button>
                         <div
-                          className={`flex shrink-0 items-center border-l border-border px-1 py-1 ${
+                          className={`flex shrink-0 items-center gap-1 border-l border-border px-1 py-1 ${
                             isActive ? "border-primary-foreground/25 bg-primary" : "bg-background"
                           }`}
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => e.stopPropagation()}
                           role="presentation"
                         >
+                          {item.type === "factura" ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/facturar?duplicateFrom=${item.recordId}`)}
+                              title="Duplicar esta factura"
+                              className={isActive ? "text-primary-foreground hover:text-primary-foreground/85" : undefined}
+                            >
+                              Duplicar
+                            </Button>
+                          ) : null}
                           <InvoicePreviewListTrigger
                             recordId={item.recordId}
                             label={item.number || item.recordId}

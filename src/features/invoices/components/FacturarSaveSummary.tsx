@@ -37,7 +37,7 @@ export function FacturarSaveSummary({ document, profileLabel, lineTotals }: Fact
   const irpfPct = w === "" ? 0 : w;
 
   return (
-    <section className="rounded-md border border-border bg-muted/30 p-4">
+    <section className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-900 dark:bg-sky-950/20">
       <h3 className="mb-3 text-sm font-semibold text-foreground">Resumen antes de guardar</h3>
       <div className="grid gap-3 text-sm">
         <div className="space-y-2 border-b border-border pb-3">

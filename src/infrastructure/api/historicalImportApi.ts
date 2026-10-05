@@ -50,12 +50,18 @@ export type HistoricalInvoicePreviewRow = {
 };
 
 export type HistoricalExpensePreviewRow = {
+  rowKey?: string;
+  sourceFile?: string;
+  sheetName?: string;
+  rowNumber?: number;
   type?: string;
   issueDate?: string;
   vendor?: string;
   reference?: string;
   category?: string;
   deductible?: boolean;
+  deductibleKind?: "yes" | "possible" | "no";
+  deductibleLabel?: string;
   quarter?: string;
   total?: number;
 };
@@ -99,6 +105,7 @@ export type HistoricalImportWorkbookRunBody = {
   personCode: string;
   year: string;
   templateProfileId: string;
+  selectedExpenseRowKeys?: string[];
   uploadId?: string;
   sourceDir?: string;
   tenantId?: string;
@@ -306,4 +313,25 @@ export async function filesToHistoricalEncoded(files: File[]): Promise<Historica
 /** Igual que `filesToHistoricalEncoded` pero fuerza nombre `.pdf` para el endpoint `pdf-upload`. */
 export async function filesToHistoricalPdfEncoded(files: File[]): Promise<HistoricalImportEncodedFile[]> {
   return Promise.all(files.map((f) => readFileAsBase64Payload(f, normalizeHistoricalPdfClientFileName(f))));
+}
+
+
+export type FiscalRule = {
+  id: string;
+  field: "vendor" | "category" | "concept";
+  matchText: string;
+  decision: "yes" | "possible" | "no";
+};
+
+export async function fetchFiscalRules(): Promise<FiscalRule[]> {
+  const payload = await request<{ rules?: FiscalRule[] }>("/api/fiscal-rules");
+  return Array.isArray(payload.rules) ? payload.rules : [];
+}
+
+export async function saveFiscalRules(rules: FiscalRule[]): Promise<FiscalRule[]> {
+  const payload = await request<{ rules?: FiscalRule[] }>("/api/fiscal-rules", {
+    method: "POST",
+    body: { rules },
+  });
+  return Array.isArray(payload.rules) ? payload.rules : [];
 }

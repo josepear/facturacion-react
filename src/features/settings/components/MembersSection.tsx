@@ -209,7 +209,7 @@ export function MembersSection({
   };
 
   return (
-    <Card>
+    <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
       <CardHeader>
         <CardTitle>Miembros del sistema</CardTitle>
         <CardDescription>

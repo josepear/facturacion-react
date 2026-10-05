@@ -1,11 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import type { ExpenseRecord } from "@/domain/expenses/types";
 import { formatAdvisorCompactDate } from "@/features/data/lib/advisorShareFilters";
 import { CLOSE } from "@/features/shared/lib/uiActionCopy";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
 function row(label: string, value: string) {
   return (
@@ -24,20 +24,24 @@ export type ExpenseRecordPreviewModalProps = {
 
 /**
  * Resumen legible de un gasto (no hay HTML oficial en API como en facturas).
+ * `<dialog showModal>` para apilar por encima de otros `<dialog>` (p. ej. resumen asesor).
  */
 export function ExpenseRecordPreviewModal({ open, expense, onOpenChange }: ExpenseRecordPreviewModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
   useEffect(() => {
-    if (!open) {
+    const el = dialogRef.current;
+    if (!el) {
       return;
     }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onOpenChange(false);
+    if (open && expense) {
+      if (!el.open) {
+        el.showModal();
       }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onOpenChange]);
+    } else if (el.open) {
+      el.close();
+    }
+  }, [open, expense]);
 
   if (typeof document === "undefined" || !open || !expense) {
     return null;
@@ -48,55 +52,61 @@ export function ExpenseRecordPreviewModal({ open, expense, onOpenChange }: Expen
   const issueFmt = issue ? formatAdvisorCompactDate(issue) : "—";
 
   return createPortal(
-    <div className="fixed inset-0 z-[500] flex items-center justify-center p-3 sm:p-6" role="presentation">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/55"
-        aria-label={`${CLOSE} vista de gasto`}
-        onClick={() => onOpenChange(false)}
-      />
-      <div
-        role="dialog"
-        aria-modal
-        aria-labelledby="expense-preview-modal-title"
-        className="relative z-[1] flex max-h-[min(90vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl"
-      >
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3">
-          <h2 id="expense-preview-modal-title" className="text-sm font-semibold text-foreground">
-            Vista de gasto
-          </h2>
-          <Button type="button" variant="default" size="sm" onClick={() => onOpenChange(false)}>
-            {CLOSE}
-          </Button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-          <dl>
-            {row("recordId", rid)}
-            {row("Proveedor", String(expense.vendor || ""))}
-            {row("Descripción", String(expense.description || ""))}
-            {row("Concepto contable", String(expense.expenseConcept || ""))}
-            {row("Fecha factura", issueFmt)}
-            {row("Fecha operación", String(expense.operationDate || "").trim() ? formatAdvisorCompactDate(String(expense.operationDate)) : "")}
-            {row("Nº factura proveedor", String(expense.invoiceNumber || ""))}
-            {row("Categoría", String(expense.category || ""))}
-            {row("Forma de pago", String(expense.paymentMethod || ""))}
-            {row("Emisor (perfil)", String(expense.templateProfileLabel || expense.templateProfileId || ""))}
-            {row("Base", formatCurrency(Number(expense.subtotal || 0)))}
-            {row("IGIC %", String(expense.taxRate ?? ""))}
-            {row("Cuota IGIC", formatCurrency(Number(expense.taxAmount || 0)))}
-            {row("IRPF %", String(expense.withholdingRate ?? ""))}
-            {row("Retención", formatCurrency(Number(expense.withholdingAmount || 0)))}
-            {row("Total", formatCurrency(Number(expense.total || 0)))}
-            {row(
-              "Deducible",
-              expense.deductible === false ? "No deducible" : expense.deductible === true ? "Deducible" : "—",
-            )}
-            {row("Notas", String(expense.notes || ""))}
-            {row("Nextcloud / enlace", String(expense.nextcloudUrl || ""))}
-          </dl>
+    <dialog
+      ref={dialogRef}
+      className={cn(
+        "fixed inset-0 z-50 m-0 flex h-[100dvh] max-h-none w-full max-w-none flex-col border-0 bg-transparent p-0 shadow-none backdrop:bg-black/55",
+        "open:flex",
+      )}
+      aria-labelledby="expense-preview-modal-title"
+      aria-modal="true"
+      onClose={() => onOpenChange(false)}
+    >
+      <div className="relative flex min-h-0 flex-1 items-center justify-center p-3 sm:p-6">
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/55"
+          aria-label={`${CLOSE} vista de gasto`}
+          onClick={() => onOpenChange(false)}
+        />
+        <div className="relative z-[1] flex max-h-[min(90vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3">
+            <h2 id="expense-preview-modal-title" className="text-sm font-semibold text-foreground">
+              Vista de gasto
+            </h2>
+            <Button type="button" variant="default" size="sm" onClick={() => onOpenChange(false)}>
+              {CLOSE}
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+            <dl>
+              {row("recordId", rid)}
+              {row("Proveedor", String(expense.vendor || ""))}
+              {row("Descripción", String(expense.description || ""))}
+              {row("Concepto contable", String(expense.expenseConcept || ""))}
+              {row("Fecha factura", issueFmt)}
+              {row("Fecha operación", String(expense.operationDate || "").trim() ? formatAdvisorCompactDate(String(expense.operationDate)) : "")}
+              {row("Nº factura proveedor", String(expense.invoiceNumber || ""))}
+              {row("Categoría", String(expense.category || ""))}
+              {row("Forma de pago", String(expense.paymentMethod || ""))}
+              {row("Emisor (perfil)", String(expense.templateProfileLabel || expense.templateProfileId || ""))}
+              {row("Base", formatCurrency(Number(expense.subtotal || 0)))}
+              {row("IGIC %", String(expense.taxRate ?? ""))}
+              {row("Cuota IGIC", formatCurrency(Number(expense.taxAmount || 0)))}
+              {row("IRPF %", String(expense.withholdingRate ?? ""))}
+              {row("Retención", formatCurrency(Number(expense.withholdingAmount || 0)))}
+              {row("Total", formatCurrency(Number(expense.total || 0)))}
+              {row(
+                "Deducible",
+                expense.deductible === false ? "No deducible" : expense.deductible === true ? "Deducible" : "—",
+              )}
+              {row("Notas", String(expense.notes || ""))}
+              {row("Nextcloud / enlace", String(expense.nextcloudUrl || ""))}
+            </dl>
+          </div>
         </div>
       </div>
-    </div>,
+    </dialog>,
     document.body,
   );
 }

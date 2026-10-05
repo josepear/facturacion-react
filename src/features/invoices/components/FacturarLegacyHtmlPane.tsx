@@ -169,7 +169,7 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
   }, [modalOpen]);
 
   return (
-    <div className="grid gap-2">
+    <div className="grid gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-900 dark:bg-sky-950/20">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-foreground">Factura (plantilla legacy)</h3>
         {loading ? <span className="text-xs text-muted-foreground">Actualizando…</span> : null}
@@ -187,7 +187,7 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
       </p>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       {src ? (
-        <div className="relative rounded-md border border-border bg-muted/10 shadow-sm">
+        <div className="relative rounded-xl border border-sky-200 bg-white shadow-sm dark:border-sky-900 dark:bg-slate-950">
           <ScaledHtmlPreview
             src={src}
             boxClassName="h-[min(55vh,720px)] min-h-[220px]"

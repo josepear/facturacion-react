@@ -18,6 +18,16 @@ body {
   min-height: 100vh;
 }
 
+@layer components {
+  .app-page-shell {
+    @apply mx-auto flex w-full max-w-[1680px] flex-col gap-8 px-4 py-5 sm:px-6 lg:px-8 xl:px-10 2xl:px-12;
+  }
+
+  .app-page-shell-narrow {
+    @apply mx-auto flex w-full max-w-[1320px] flex-col gap-8 px-4 py-5 sm:px-6 lg:px-8 xl:px-10;
+  }
+}
+
 @layer utilities {
   .text-informative {
     font-size: var(--text-informative-size);

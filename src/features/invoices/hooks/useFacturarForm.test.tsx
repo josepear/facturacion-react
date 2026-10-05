@@ -252,5 +252,52 @@ describe("useFacturarForm regression", () => {
 
     expect(saveDocumentMock).toHaveBeenCalledTimes(1);
   });
-});
 
+  it("editor con varios emisores usa por defecto el emisor activo si está en scope", async () => {
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: {
+        id: "e1",
+        name: "Editor",
+        email: "e@test",
+        role: "editor",
+        tenantId: "default",
+        allowedTemplateProfileIds: ["perfil-main", "perfil-b"],
+      },
+    });
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-b",
+      templateProfiles: [
+        {
+          id: "perfil-main",
+          label: "Perfil Main",
+          defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
+          business: { bankAccount: "ES00..." },
+          design: { layout: "pear" },
+        },
+        {
+          id: "perfil-b",
+          label: "Perfil B",
+          defaults: { paymentMethod: "Bizum", taxRate: 7, withholdingRate: "" },
+          business: { bankAccount: "ES11..." },
+          design: { layout: "pear" },
+        },
+      ],
+    });
+    fetchClientsMock.mockResolvedValue([]);
+    fetchHistoryInvoicesMock.mockResolvedValue([]);
+    saveDocumentMock.mockResolvedValue({ recordId: "docs/2026/doc-b.json", document: createEmptyDocument() });
+    getNextNumberMock.mockResolvedValue("1");
+    validateNumberAvailabilityMock.mockResolvedValue({ available: true });
+
+    const { result } = renderHook(() => useFacturarForm(), { wrapper: createHookWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.profileOptions.map((profile) => profile.id)).toEqual(["perfil-main", "perfil-b"]);
+    });
+
+    await waitFor(() => {
+      expect(result.current.form.getValues("templateProfileId")).toBe("perfil-b");
+    });
+  });
+});

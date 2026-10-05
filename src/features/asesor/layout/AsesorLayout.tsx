@@ -23,7 +23,7 @@ export function AsesorLayout() {
 
   if (!isAdmin) {
     return (
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-6 py-8">
+      <main className="app-page-shell-narrow">
         <header className="space-y-1">
           <h1 className="text-2xl font-semibold">Asesor</h1>
           <p className="text-informative">Solo los administradores pueden acceder a las exportaciones de asesoría.</p>
@@ -33,7 +33,7 @@ export function AsesorLayout() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8">
+    <main className="app-page-shell-narrow">
       <header className="space-y-1">
         <div className="flex items-center gap-2">
           <FileSpreadsheet className="h-7 w-7 text-informative" aria-hidden />

@@ -16,6 +16,7 @@ import { invoiceDocumentSchema } from "@/domain/document/schemas";
 import { accountingQuarterSelectFromIssueDate } from "@/domain/accounting/quarter";
 import type { CalculatedTotals, InvoiceDocument } from "@/domain/document/types";
 import { fetchClients } from "@/infrastructure/api/clientsApi";
+import { getAuthToken } from "@/infrastructure/api/httpClient";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { fetchDocumentDetail, fetchRuntimeConfig, saveDocument } from "@/infrastructure/api/documentsApi";
@@ -74,7 +75,7 @@ function totalsAreConsistent(document: InvoiceDocument, totals: CalculatedTotals
   );
 }
 
-export function useFacturarForm(initialRecordId?: string, initialTemplateProfileId?: string) {
+export function useFacturarForm(initialRecordId?: string, initialTemplateProfileId?: string, initialDuplicateFromRecordId?: string) {
   const [recordIdInput, setRecordIdInput] = useState("");
   const [serverRecordId, setServerRecordId] = useState("");
   const [numberAvailabilityText, setNumberAvailabilityText] = useState("");
@@ -102,6 +103,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const [hasLastSetup, setHasLastSetup] = useState(false);
   const bootstrappedRecordIdRef = useRef("");
   const bootstrappedTemplateProfileRef = useRef("");
+  const bootstrappedDuplicateFromRef = useRef("");
+  const duplicatedFromRef = useRef(false);
   const lastSavedSnapshotRef = useRef<InvoiceDocument | null>(null);
   const previousTotalsBasisRef = useRef<InvoiceDocument["totalsBasis"] | undefined>(undefined);
 
@@ -136,6 +139,11 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     () => resolveSessionScope(sessionQuery.data, configQuery.data?.templateProfiles ?? []),
     [sessionQuery.data, configQuery.data?.templateProfiles],
   );
+  const sessionScopePending =
+    Boolean(getAuthToken()) &&
+    !sessionQuery.data &&
+    !sessionQuery.isError &&
+    sessionQuery.isPending;
 
   useEffect(() => {
     if (String(selectedClientOptionId || "").trim()) {
@@ -261,7 +269,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         totalsBasis: watched.totalsBasis ?? "items",
         manualGrossSubtotal: watched.manualGrossSubtotal ?? 0,
         taxRate: watched.taxRate ?? 0,
-        withholdingRate: watched.withholdingRate ?? "",
+        withholdingRate: watched.withholdingRate ?? 0,
       }),
     [watched.items, watched.manualGrossSubtotal, watched.taxRate, watched.totalsBasis, watched.withholdingRate],
   );
@@ -489,6 +497,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     [configQuery.data?.templateProfiles, effectiveTemplateProfileId],
   );
   useEffect(() => {
+    if (sessionScopePending) {
+      return;
+    }
     if (!sessionScope.hasEmitterScope) {
       form.setValue("templateProfileId", "", { shouldDirty: false, shouldValidate: true });
       return;
@@ -499,11 +510,16 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       form.setValue("templateProfileId", fallback, { shouldDirty: false, shouldValidate: true });
       return;
     }
+    const activeProfileFallback =
+      activeTemplateProfileId && isTemplateProfileInScope(activeTemplateProfileId, sessionScope)
+        ? activeTemplateProfileId
+        : "";
     const singleProfileId = profileOptions.length === 1 ? profileOptions[0]?.id : "";
-    if (!current && singleProfileId) {
-      form.setValue("templateProfileId", singleProfileId, { shouldDirty: false, shouldValidate: true });
+    const fallback = activeProfileFallback || singleProfileId;
+    if (!current && fallback) {
+      form.setValue("templateProfileId", fallback, { shouldDirty: false, shouldValidate: true });
     }
-  }, [form, profileOptions, sessionScope]);
+  }, [activeTemplateProfileId, form, profileOptions, sessionScope, sessionScopePending]);
 
   const clientOptions = useMemo(
     () =>
@@ -574,7 +590,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       if (!profileId) {
         form.setValue("templateLayout", "", { shouldDirty: true, shouldValidate: true });
       }
-      form.setValue("withholdingRate", "", { shouldDirty: true, shouldValidate: true });
+      form.setValue("withholdingRate", 0, { shouldDirty: true, shouldValidate: true });
       setWithoutWithholding(true);
       setFiscalIrpfChoiceAcknowledged(false);
       return;
@@ -594,7 +610,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     }
 
     // IGIC/IRPF no se heredan del perfil: IGIC por defecto 7% en documento vacío; IRPF hasta que el usuario elija.
-    form.setValue("withholdingRate", "", { shouldDirty: true, shouldValidate: true });
+    form.setValue("withholdingRate", 0, { shouldDirty: true, shouldValidate: true });
     setWithoutWithholding(true);
     setFiscalIrpfChoiceAcknowledged(false);
   };
@@ -602,7 +618,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const applyWithholdingMode = (mode: "sin_irpf" | "irpf_15" | "irpf_19" | "irpf_21") => {
     if (mode === "sin_irpf") {
       setWithoutWithholding(true);
-      form.setValue("withholdingRate", "", { shouldDirty: true, shouldValidate: true });
+      form.setValue("withholdingRate", 0, { shouldDirty: true, shouldValidate: true });
       setFiscalIrpfChoiceAcknowledged(true);
       return;
     }
@@ -615,7 +631,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
   const commitFiscalIrpfChoiceFromInput = useCallback(() => {
     const v = form.getValues("withholdingRate");
-    if (v === "" || v === 15 || v === 19 || v === 21) {
+    if (v === 0 || v === 7 || v === 15 || v === 19 || v === 21) {
       setFiscalIrpfChoiceAcknowledged(true);
     }
   }, [form]);
@@ -791,6 +807,21 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   }, [initialRecordId, loadMutation, sessionScope]);
 
   useEffect(() => {
+    const safeDupFrom = String(initialDuplicateFromRecordId || "").trim();
+    if (!safeDupFrom) {
+      return;
+    }
+    if (bootstrappedDuplicateFromRef.current === safeDupFrom) {
+      return;
+    }
+    if (loadMutation.isPending) {
+      return;
+    }
+    bootstrappedDuplicateFromRef.current = safeDupFrom;
+    loadMutation.mutate(safeDupFrom);
+  }, [initialDuplicateFromRecordId, loadMutation, sessionScope]);
+
+  useEffect(() => {
     const safeProfileId = String(initialTemplateProfileId || "").trim();
     if (!safeProfileId) {
       return;
@@ -818,7 +849,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     if (profileBank) {
       form.setValue("bankAccount", profileBank, { shouldDirty: false, shouldValidate: true });
     }
-    form.setValue("withholdingRate", "", { shouldDirty: false, shouldValidate: true });
+    form.setValue("withholdingRate", 0, { shouldDirty: false, shouldValidate: true });
     setWithoutWithholding(true);
     setFiscalIrpfChoiceAcknowledged(false);
   }, [initialTemplateProfileId, configQuery.data, serverRecordId, form]);
@@ -936,6 +967,29 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     setNumberAvailabilityTone("neutral");
   };
 
+  useEffect(() => {
+    const safeDupFrom = String(initialDuplicateFromRecordId || "").trim();
+    if (!safeDupFrom || !serverRecordId) {
+      return;
+    }
+    if (duplicatedFromRef.current) {
+      return;
+    }
+    if (!loadMutation.isSuccess) {
+      return;
+    }
+    duplicatedFromRef.current = true;
+    const today = new Date().toISOString().slice(0, 10);
+    const current = form.getValues();
+    const copy = { ...current, number: "", issueDate: today, numberEnd: "" };
+    setServerRecordId("");
+    setRecordIdInput("");
+    setOfficialOutputError(null);
+    form.reset(copy);
+    setNumberAvailabilityText("Duplicada. Edita el número y guarda para crear nuevo documento.");
+    setNumberAvailabilityTone("neutral");
+  }, [initialDuplicateFromRecordId, serverRecordId, loadMutation.isSuccess, form]);
+
   const repeatLastSetup = () => {
     const snap = lastSavedSnapshotRef.current;
     if (!snap) {
@@ -1020,5 +1074,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     liveDocument,
     isDirty: form.formState.isDirty,
     sessionScope,
+    sessionScopePending,
   };
 }

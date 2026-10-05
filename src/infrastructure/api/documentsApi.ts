@@ -65,16 +65,11 @@ export async function saveDocument(document: InvoiceDocument, recordId?: string,
  * HTML de plantilla legacy para el borrador (sin persistir). Requiere sesión.
  * Misma pipeline que el HTML guardado (`renderDocumentHtml` en servidor).
  */
-export async function fetchDocumentLegacyPreviewBlob(document: InvoiceDocument, signal?: AbortSignal): Promise<Blob> {
-  let storageScope: "sandbox" | undefined;
-  try {
-    storageScope =
-      typeof globalThis !== "undefined" && globalThis.localStorage?.getItem("facturacion-storage-scope") === "sandbox"
-        ? "sandbox"
-        : undefined;
-  } catch {
-    storageScope = undefined;
-  }
+export async function fetchDocumentLegacyPreviewBlob(
+  document: InvoiceDocument,
+  signal?: AbortSignal,
+  storageScope?: "sandbox",
+): Promise<Blob> {
   const response = await fetchWithAuth("/api/documents/preview-html", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -65,11 +65,19 @@ export async function archiveExpenseYear(input: ArchiveExpenseYearInput) {
   });
 }
 
+export type ControlExpensesImportPreview = {
+  file: string;
+  sheet?: string;
+  row?: number;
+  duplicateExisting?: boolean;
+  expense: ExpenseRecord;
+};
+
 export type ControlExpensesImportResponse = {
   ok?: boolean;
-  /** Si true, no se ha guardado nada: `previews` trae el borrador (p. ej. un PDF). */
+  /** Si true, no se ha guardado nada: `previews` trae el borrador o la vista previa. */
   preview?: boolean;
-  previews?: { file: string; expense: ExpenseRecord }[];
+  previews?: ControlExpensesImportPreview[];
   created?: number;
   skipped?: unknown[];
   errors?: unknown[];

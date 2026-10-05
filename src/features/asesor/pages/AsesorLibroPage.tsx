@@ -128,7 +128,7 @@ export function AsesorLibroPage() {
     (!isAdmin && !String(workbookProfile || "").trim());
 
   return (
-    <Card>
+    <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
       <CardHeader>
         <CardTitle>Libro de control (Excel)</CardTitle>
         <CardDescription>

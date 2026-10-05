@@ -21,8 +21,31 @@ const KIND_LABEL: Record<OfficialDocumentOutputKind, string> = {
 const HTTP_ERROR_DETAIL =
   "Si el documento está archivado o aún no tiene salida generada, revisa en Historial o en la app legacy.";
 
+function buildOfficialFileName(recordId: string, kind: OfficialDocumentOutputKind): string {
+  const base = String(recordId || "documento")
+    .replace(/\.json$/iu, "")
+    .split("/")
+    .filter(Boolean)
+    .pop() || "documento";
+
+  return `${base}.${kind === "pdf" ? "pdf" : "html"}`;
+}
+
+function triggerBlobDownload(blob: Blob, fileName: string) {
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  anchor.rel = "noopener";
+  anchor.style.display = "none";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120_000);
+}
+
 /**
- * Descarga HTML/PDF oficial con Bearer, abre en nueva pestaña mediante blob URL.
+ * HTML/PDF oficial con Bearer sin popup: PDF descarga directa, HTML abre misma pestaña.
  */
 export async function openOfficialDocumentInNewTab(
   recordId: string,
@@ -32,8 +55,10 @@ export async function openOfficialDocumentInNewTab(
   if (!id) {
     return { ok: false, message: "No hay recordId para abrir la salida oficial." };
   }
+
   const path = buildPath(id, kind);
   const label = KIND_LABEL[kind];
+
   try {
     const response = await fetchWithAuth(path);
     if (!response.ok) {
@@ -42,18 +67,17 @@ export async function openOfficialDocumentInNewTab(
         message: `${label} no disponible (HTTP ${response.status}). ${HTTP_ERROR_DETAIL}`,
       };
     }
+
     const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
-    const win = window.open(objectUrl, "_blank", "noopener,noreferrer");
-    if (!win) {
-      URL.revokeObjectURL(objectUrl);
-      return {
-        ok: false,
-        message:
-          "El navegador bloqueó la ventana emergente. Permite ventanas para este sitio e inténtalo de nuevo.",
-      };
+
+    if (kind === "pdf") {
+      triggerBlobDownload(blob, buildOfficialFileName(id, kind));
+      return { ok: true };
     }
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+
+    const objectUrl = URL.createObjectURL(blob);
+    window.location.assign(objectUrl);
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 120_000);
     return { ok: true };
   } catch (error) {
     return {

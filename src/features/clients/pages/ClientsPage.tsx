@@ -283,7 +283,7 @@ export function ClientsPage() {
   });
 
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
+    <main className="app-page-shell">
       <PageHeader
         title="Clientes"
         description="Módulo real conectado al contrato legacy de clientes, coherente con Facturar."
@@ -310,7 +310,7 @@ export function ClientsPage() {
       ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[1fr_1.35fr]">
-        <Card>
+        <Card className="border-violet-200 bg-violet-50 dark:border-violet-900 dark:bg-violet-950/20">
           <CardHeader>
             <CardTitle>Listado</CardTitle>
             <CardDescription>Búsqueda y selección de clientes guardados.</CardDescription>
@@ -438,7 +438,7 @@ export function ClientsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/20">
           <CardHeader>
             <CardTitle>{selectedRecordId ? "Editar cliente" : "Alta de cliente"}</CardTitle>
             <CardDescription>Edición mínima operativa con el mismo modelo que consume Facturar.</CardDescription>
