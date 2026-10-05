@@ -35,6 +35,18 @@ body {
     color: hsl(var(--muted-foreground));
   }
 
+  .text-danger {
+    @apply text-red-600 dark:text-red-400;
+  }
+
+  .text-success {
+    @apply text-emerald-600 dark:text-emerald-400;
+  }
+
+  .text-warning {
+    @apply text-amber-600 dark:text-amber-400;
+  }
+
   .step-indicator-custom button {
     width: 46px !important;
     height: 46px !important;

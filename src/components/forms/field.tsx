@@ -14,7 +14,7 @@ export function Field({ label, error, children, hint }: FieldProps) {
       {/* Un solo hijo en la rejilla del label: evita que Fragmentos (p. ej. input + aviso) abran filas extra y desalineen respecto a otros campos */}
       <div className="grid min-w-0 w-full gap-1">{children}</div>
       {hint ? <span className="text-informative">{hint}</span> : null}
-      {error ? <span className="text-xs text-red-600">{error}</span> : null}
+      {error ? <span className="text-xs text-danger">{error}</span> : null}
     </label>
   );
 }

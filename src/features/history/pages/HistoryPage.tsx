@@ -10,6 +10,10 @@ import { Input } from "@/components/ui/input";
 import { calculateTotals } from "@/domain/document/calculateTotals";
 import type { HistoryInvoice } from "@/features/history/types/historyInvoice";
 import { PageHeader } from "@/features/shared/components/PageHeader";
+import { EmptyState } from "@/components/ui/empty-state";
+import { InfoCallout } from "@/components/ui/info-callout";
+import { SectionTitle } from "@/components/ui/section-title";
+import { Select } from "@/components/ui/select";
 import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
@@ -601,11 +605,7 @@ export function HistoryPage() {
         <span className="font-medium text-foreground">{sessionScope.visibleTemplateProfileIds.length}</span>
       </p>
       {!sessionScope.hasEmitterScope ? (
-        <Card>
-          <CardContent className="pt-6 text-sm text-informative">
-            Tu sesión no tiene emisores asignados para operar en Historial. Contacta con un administrador.
-          </CardContent>
-        </Card>
+        <InfoCallout>Tu sesión no tiene emisores asignados para operar en Historial. Contacta con un administrador.</InfoCallout>
       ) : null}
 
       {sessionScope.hasEmitterScope ? <section className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
@@ -618,7 +618,7 @@ export function HistoryPage() {
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="grid gap-1">
                 <span className="text-informative font-medium">Tipo de documento</span>
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterType}
                   onChange={(event) => {
@@ -631,11 +631,11 @@ export function HistoryPage() {
                   <option value="">Todos</option>
                   <option value="factura">Factura</option>
                   <option value="presupuesto">Presupuesto</option>
-                </select>
+                </Select>
               </div>
               <div className="grid gap-1">
                 <span className="text-informative font-medium">Ejercicio (fecha emisión)</span>
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterYear}
                   onChange={(event) => {
@@ -651,11 +651,11 @@ export function HistoryPage() {
                       {year}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className="grid gap-1">
                 <span className="text-informative font-medium">Estado contable</span>
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterStatus}
                   onChange={(event) => {
@@ -671,11 +671,11 @@ export function HistoryPage() {
                       {opt.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div className="grid gap-1">
                 <span className="text-informative font-medium">Emisor</span>
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterProfile}
                   onChange={(event) => {
@@ -691,7 +691,7 @@ export function HistoryPage() {
                       {p.label || p.id}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
             <Input
@@ -726,7 +726,7 @@ export function HistoryPage() {
             <div className="grid gap-2 rounded-md border p-3">
               <p className="text-informative font-medium">Vista compartida (solo lectura)</p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={shareProfileId}
                   onChange={(event) => setShareProfileId(event.target.value)}
@@ -738,7 +738,7 @@ export function HistoryPage() {
                       {p.label || p.id}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <Button
                   type="button"
                   variant="outline"
@@ -760,9 +760,9 @@ export function HistoryPage() {
                 <p
                   className={
                     shareMessage.tone === "error"
-                      ? "text-xs text-red-600"
+                      ? "text-xs text-danger"
                       : shareMessage.tone === "success"
-                        ? "text-xs text-emerald-600"
+                        ? "text-xs text-success"
                         : "text-informative"
                   }
                 >
@@ -789,10 +789,10 @@ export function HistoryPage() {
                   </label>
                   <span className="text-informative">{selectedRecordIds.size} seleccionada(s)</span>
                   {selectedRecordIds.size >= 20 ? (
-                    <span className="text-xs text-amber-700 dark:text-amber-300">Máximo 20 facturas.</span>
+                    <span className="text-xs text-warning">Máximo 20 facturas.</span>
                   ) : null}
                   {batchProfileConflict && selectedRows.length > 0 ? (
-                    <span className="text-xs text-red-600">Las facturas seleccionadas deben compartir el mismo emisor.</span>
+                    <span className="text-xs text-danger">Las facturas seleccionadas deben compartir el mismo emisor.</span>
                   ) : null}
                   {selectedRecordIds.size > 0 ? (
                     <Button type="button" variant="outline" size="sm" onClick={clearSelection}>
@@ -848,7 +848,7 @@ export function HistoryPage() {
               {historyQuery.isLoading ? (
                 <p className="p-3 text-informative">Cargando historial...</p>
               ) : historyQuery.isError ? (
-                <p className="p-3 text-sm text-red-600">
+                <p className="p-3 text-sm text-danger">
                   {(historyQuery.error as Error).message || "No se pudo cargar el historial. Revisa la conexión y vuelve a entrar en la página."}
                 </p>
               ) : filteredItems.length ? (
@@ -942,7 +942,7 @@ export function HistoryPage() {
                   })}
                 </ul>
               ) : rawHistoryCount === 0 ? (
-                <p className="p-3 text-informative">No hay documentos en el historial.</p>
+                <EmptyState>No hay documentos en el historial.</EmptyState>
               ) : (
                 <div className="grid gap-3 p-3">
                   <p className="text-informative">
@@ -970,7 +970,7 @@ export function HistoryPage() {
             <div className="grid gap-2 rounded-md border p-3">
               <p className="text-informative font-medium">Archivar ejercicio (emisor + año)</p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={archiveYear}
                   onChange={(event) => setArchiveYear(event.target.value)}
@@ -981,8 +981,8 @@ export function HistoryPage() {
                       {year}
                     </option>
                   ))}
-                </select>
-                <select
+                </Select>
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={archiveProfileId}
                   onChange={(event) => setArchiveProfileId(event.target.value)}
@@ -993,11 +993,11 @@ export function HistoryPage() {
                       {profile.label || profile.id}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <Button
                 type="button"
-                variant="outline"
+                variant="destructive"
                 onClick={() => archiveYearMutation.mutate()}
                 disabled={archiveYearMutation.isPending || !isAdmin}
               >
@@ -1023,7 +1023,7 @@ export function HistoryPage() {
                 </div>
                 {recordIdCopyFeedback ? (
                   <p
-                    className={`text-xs ${recordIdCopyFeedback.tone === "success" ? "text-emerald-600" : "text-red-600"}`}
+                    className={`text-xs ${recordIdCopyFeedback.tone === "success" ? "text-success" : "text-danger"}`}
                   >
                     {recordIdCopyFeedback.text}
                   </p>
@@ -1033,7 +1033,7 @@ export function HistoryPage() {
           </CardHeader>
           <CardContent className="grid gap-3">
             {!selectedRecordId ? (
-              <p className="text-informative">Selecciona un documento del listado para abrirlo.</p>
+              <EmptyState>Selecciona un documento del listado para abrirlo.</EmptyState>
             ) : (
               <>
                 {selectionHiddenByFilters ? (
@@ -1044,7 +1044,7 @@ export function HistoryPage() {
                 {detailQuery.isLoading ? (
                   <p className="text-informative">Abriendo documento...</p>
                 ) : detailQuery.error ? (
-                  <p className="text-sm text-red-600">{(detailQuery.error as Error).message || "No se pudo abrir el documento."}</p>
+                  <p className="text-sm text-danger">{(detailQuery.error as Error).message || "No se pudo abrir el documento."}</p>
                 ) : openedDocument ? (
               <>
                 <div className="rounded-md border p-3 text-sm">
@@ -1095,7 +1095,7 @@ export function HistoryPage() {
                   </Button>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="destructive"
                     onClick={() => archiveDocumentMutation.mutate(selectedRecordId)}
                     disabled={archiveDocumentMutation.isPending || !isAdmin}
                   >
@@ -1135,11 +1135,11 @@ export function HistoryPage() {
                   ) : null}
                 </div>
                 {outputFeedback ? (
-                  <p className="text-sm text-red-600">{outputFeedback.text}</p>
+                  <p className="text-sm text-danger">{outputFeedback.text}</p>
                 ) : null}
               </>
                 ) : (
-                  <p className="text-informative">Sin datos de documento.</p>
+                  <EmptyState>Sin datos de documento.</EmptyState>
                 )}
               </>
             )}
@@ -1169,7 +1169,7 @@ export function HistoryPage() {
                     <Button
                       type="button"
                       size="sm"
-                      variant="outline"
+                      variant="destructive"
                       onClick={() => deleteTrashMutation.mutate(item.path)}
                       disabled={!isAdmin || deleteTrashMutation.isPending}
                     >
@@ -1179,16 +1179,16 @@ export function HistoryPage() {
                 ))}
               </ul>
             ) : (
-              <p className="p-3 text-informative">No hay documentos en papelera.</p>
+              <EmptyState>No hay documentos en papelera.</EmptyState>
             )}
           </div>
           {statusMessage ? (
             <p
               className={
                 statusTone === "error"
-                  ? "text-sm text-red-600"
+                  ? "text-sm text-danger"
                   : statusTone === "success"
-                    ? "text-sm text-emerald-600"
+                    ? "text-sm text-success"
                     : "text-informative"
               }
             >
@@ -1204,7 +1204,7 @@ export function HistoryPage() {
         className="fixed left-1/2 top-1/2 z-[60] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 overflow-auto bg-background text-foreground shadow-lg backdrop:bg-black/50"
         style={{ borderRadius: 8, padding: 24, maxWidth: 480, width: "90vw", border: "1px solid #ccc" }}
       >
-        <h2 style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar facturas por Gmail (lote)</h2>
+        <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar facturas por Gmail (lote)</SectionTitle>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
             Para (email)
@@ -1257,7 +1257,7 @@ export function HistoryPage() {
         onClose={() => setGmailDialog(false)}
         style={{ borderRadius: 8, padding: 24, maxWidth: 480, width: "90vw", border: "1px solid #ccc" }}
       >
-        <h2 style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar factura por Gmail</h2>
+        <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar factura por Gmail</SectionTitle>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
             Para (email)

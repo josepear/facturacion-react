@@ -22,6 +22,10 @@ import {
   workbookQuarterRowToneClass,
 } from "@/features/expenses/lib/controlWorkbookExpenseMonths";
 import { PageHeader } from "@/features/shared/components/PageHeader";
+import { EmptyState } from "@/components/ui/empty-state";
+import { InfoCallout } from "@/components/ui/info-callout";
+import { SectionTitle } from "@/components/ui/section-title";
+import { Select } from "@/components/ui/select";
 import { CLOSE, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { ExpensePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
@@ -204,7 +208,7 @@ function ExpenseCatalogBulkSection({
       <CardContent className="grid gap-4">
         {optionsQuery.isLoading && <p className="text-informative">Cargando catálogo...</p>}
         {optionsQuery.isError && (
-          <p className="text-sm text-red-600">No se pudo cargar el catálogo de gastos.</p>
+          <p className="text-sm text-danger">No se pudo cargar el catálogo de gastos.</p>
         )}
         {optionsQuery.isSuccess && (
           <>
@@ -265,9 +269,9 @@ function ExpenseCatalogBulkSection({
                   <p
                     className={
                       status.tone === "error"
-                        ? "text-sm text-red-600"
+                        ? "text-sm text-danger"
                         : status.tone === "success"
-                          ? "text-sm text-emerald-600"
+                          ? "text-sm text-success"
                           : "text-informative"
                     }
                   >
@@ -1081,11 +1085,7 @@ export function ExpensesPage() {
           title="Gastos"
           description="Módulo real conectado a `/api/expenses` con ciclo de vida y control por emisor."
         />
-        <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20">
-          <CardContent className="pt-6 text-sm text-informative">
-            Tu sesión no tiene emisores asignados para operar en Gastos. Contacta con un administrador.
-          </CardContent>
-        </Card>
+        <InfoCallout>Tu sesión no tiene emisores asignados para operar en Gastos. Contacta con un administrador.</InfoCallout>
       </main>
     );
   }
@@ -1103,9 +1103,9 @@ export function ExpensesPage() {
 
       <div className={`grid gap-6 lg:items-start ${isAdmin ? "lg:grid-cols-2" : ""}`}>
         {isAdmin ? (
-          <Card className="border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
+          <Card>
             <div className="grid gap-4 p-4">
-              <h2 className="text-base font-semibold">Importar gastos</h2>
+              <SectionTitle>Importar gastos</SectionTitle>
               <p className="text-informative">
                 <strong>Excel (.xlsx):</strong> importa filas y crea gastos en el servidor (como en la vista legacy).
                 <strong className="mt-1 block">PDF:</strong> un solo PDF rellena el formulario de la derecha como{" "}
@@ -1115,7 +1115,7 @@ export function ExpensesPage() {
 
               <div className="grid gap-2">
                 <label className="text-sm font-medium">Emisor destino</label>
-                <select
+                <Select
                   value={importProfileId}
                   onChange={(e) => setImportProfileId(e.target.value)}
                   className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
@@ -1126,7 +1126,7 @@ export function ExpensesPage() {
                       {p.label || p.id}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
 
               <div className="grid gap-2">
@@ -1177,7 +1177,7 @@ export function ExpensesPage() {
               </div>
 
               {importExpensesMutation.isError ? (
-                <p className="text-sm text-red-600">
+                <p className="text-sm text-danger">
                   {(importExpensesMutation.error as Error)?.message || "Error al importar."}
                 </p>
               ) : null}
@@ -1224,7 +1224,7 @@ export function ExpensesPage() {
               {importResult ? (
                 <div className="grid gap-2 rounded-md border border-border bg-muted/20 p-3 text-sm">
                   <p className="font-medium text-foreground">Resultado</p>
-                  <p className="text-emerald-700">Creados en servidor: {importResult.created ?? 0}</p>
+                  <p className="text-success">Creados en servidor: {importResult.created ?? 0}</p>
                   {(importResult.skipped ?? []).length > 0 ? (
                     <div className="grid gap-1">
                       <p className="text-xs font-medium text-informative">Omitidos</p>
@@ -1239,8 +1239,8 @@ export function ExpensesPage() {
                   ) : null}
                   {(importResult.errors ?? []).length > 0 ? (
                     <div className="grid gap-1">
-                      <p className="text-xs font-medium text-red-700">Errores</p>
-                      <ul className="max-h-40 list-inside list-disc overflow-y-auto text-xs text-red-700">
+                      <p className="text-xs font-medium text-danger">Errores</p>
+                      <ul className="max-h-40 list-inside list-disc overflow-y-auto text-xs text-danger">
                         {(importResult.errors ?? []).map((line) => (
                           <li key={line} className="break-words">
                             {line}
@@ -1258,7 +1258,7 @@ export function ExpensesPage() {
       </div>
 
       <section className="grid gap-6">
-        <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20">
+        <Card>
           <CardHeader>
             <CardTitle>Gastos</CardTitle>
             <CardDescription>Vista del filtro actual; mismo criterio que la hoja de control (perfil, ejercicio, trimestre, deducible y búsqueda).</CardDescription>
@@ -1281,7 +1281,7 @@ export function ExpensesPage() {
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <label className="grid gap-1 text-sm">
                 <span className="font-medium text-foreground">Emisor</span>
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={profileFilter}
                   onChange={(event) => setProfileFilter(event.target.value)}
@@ -1295,11 +1295,11 @@ export function ExpensesPage() {
                       {profile.label || profile.id}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="grid gap-1 text-sm">
                 <span className="font-medium text-foreground">Ejercicio</span>
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={yearFilter}
                   onChange={(event) => setYearFilter(event.target.value)}
@@ -1311,11 +1311,11 @@ export function ExpensesPage() {
                       {year}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label className="grid gap-1 text-sm">
                 <span className="font-medium text-foreground">Trimestre</span>
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={quarterFilter}
                   onChange={(event) => setQuarterFilter(event.target.value)}
@@ -1326,11 +1326,11 @@ export function ExpensesPage() {
                   <option value="T2">T2</option>
                   <option value="T3">T3</option>
                   <option value="T4">T4</option>
-                </select>
+                </Select>
               </label>
               <label className="grid gap-1 text-sm">
                 <span className="font-medium text-foreground">Deducible</span>
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={deductibleFilter}
                   onChange={(event) => setDeductibleFilter(event.target.value as "all" | "yes" | "no")}
@@ -1339,7 +1339,7 @@ export function ExpensesPage() {
                   <option value="all">Todos</option>
                   <option value="yes">Deducibles</option>
                   <option value="no">No deducibles</option>
-                </select>
+                </Select>
               </label>
             </div>
             <p className="text-sm text-informative">{expenseTableMetaLine}</p>
@@ -1369,7 +1369,7 @@ export function ExpensesPage() {
               {isAdmin ? (
                 <>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <select
+                    <Select
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={archiveYear}
                       onChange={(event) => setArchiveYear(event.target.value)}
@@ -1380,8 +1380,8 @@ export function ExpensesPage() {
                           {year}
                         </option>
                       ))}
-                    </select>
-                    <select
+                    </Select>
+                    <Select
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={archiveProfileId}
                       onChange={(event) => setArchiveProfileId(event.target.value)}
@@ -1392,9 +1392,9 @@ export function ExpensesPage() {
                           {profile.label || profile.id}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
-                  <Button type="button" variant="outline" onClick={() => archiveYearMutation.mutate()} disabled={archiveYearMutation.isPending}>
+                  <Button type="button" variant="destructive" onClick={() => archiveYearMutation.mutate()} disabled={archiveYearMutation.isPending}>
                     {archiveYearMutation.isPending ? "Archivando..." : "Archivar ejercicio"}
                   </Button>
                 </>
@@ -1507,9 +1507,9 @@ export function ExpensesPage() {
                                 {isAdmin && rid ? (
                                   <Button
                                     type="button"
-                                    variant="ghost"
+                                    variant="destructive"
                                     size="sm"
-                                    className="h-8 px-2 text-red-600 hover:text-red-700"
+                                    className="h-8 px-2"
                                     disabled={archiveExpenseMutation.isPending}
                                     onClick={() => archiveExpenseMutation.mutate(rid)}
                                   >
@@ -1595,7 +1595,7 @@ export function ExpensesPage() {
               </p>
             ) : null}
             <Field label="Emisor">
-              <select
+              <Select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={draft.templateProfileId || ""}
                 onChange={(event) => setDraft((prev) => ({ ...prev, templateProfileId: event.target.value }))}
@@ -1610,7 +1610,7 @@ export function ExpensesPage() {
                     {profile.label || profile.id}
                   </option>
                 ))}
-              </select>
+              </Select>
               <p className="mt-1 text-informative">
                 El emisor activo de Configuración es <span className="font-medium text-foreground">{activeProfileId || "—"}</span>
                 {activeProfileLabel && activeProfileLabel !== activeProfileId ? ` (${activeProfileLabel})` : ""}. Vacío = el
@@ -1822,7 +1822,7 @@ export function ExpensesPage() {
                   </datalist>
                 </Field>
                 <Field label="Trimestre">
-                  <select
+                  <Select
                     aria-label="Trimestre"
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={draft.quarter || ""}
@@ -1833,7 +1833,7 @@ export function ExpensesPage() {
                     <option value="2T">2T</option>
                     <option value="3T">3T</option>
                     <option value="4T">4T</option>
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Enlace Nextcloud">
                   <Input
@@ -1999,14 +1999,14 @@ export function ExpensesPage() {
               />
             </Field>
             <Field label="Deducible">
-              <select
+              <Select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={draft.deductible ? "yes" : "no"}
                 onChange={(event) => setDraft((prev) => ({ ...prev, deductible: event.target.value === "yes" }))}
               >
                 <option value="yes">Sí</option>
                 <option value="no">No</option>
-              </select>
+              </Select>
             </Field>
             <Field label="Notas">
               <Input value={draft.notes || ""} onChange={(event) => setDraft((prev) => ({ ...prev, notes: event.target.value }))} />
@@ -2048,7 +2048,7 @@ export function ExpensesPage() {
               {selectedRecordId && isAdmin ? (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="destructive"
                   onClick={() => archiveExpenseMutation.mutate(selectedRecordId)}
                   disabled={archiveExpenseMutation.isPending}
                 >
@@ -2068,9 +2068,9 @@ export function ExpensesPage() {
               <p
                 className={
                   statusTone === "error"
-                    ? "sm:col-span-2 text-sm text-red-600"
+                    ? "sm:col-span-2 text-sm text-danger"
                     : statusTone === "success"
-                      ? "sm:col-span-2 text-sm text-emerald-600"
+                      ? "sm:col-span-2 text-sm text-success"
                       : "sm:col-span-2 text-informative"
                 }
               >
@@ -2082,7 +2082,7 @@ export function ExpensesPage() {
         ) : null}
       </dialog>
 
-      <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
+      <Card>
         <CardHeader>
           <CardTitle>Papelera gastos</CardTitle>
           <CardDescription>
@@ -2104,7 +2104,7 @@ export function ExpensesPage() {
                     <Button
                       type="button"
                       size="sm"
-                      variant="outline"
+                      variant="destructive"
                       onClick={() => deleteTrashMutation.mutate(item.path)}
                       disabled={!isAdmin || deleteTrashMutation.isPending}
                     >
@@ -2114,7 +2114,7 @@ export function ExpensesPage() {
                 ))}
               </ul>
             ) : (
-              <p className="p-3 text-informative">No hay gastos en papelera.</p>
+              <EmptyState>No hay gastos en papelera.</EmptyState>
             )}
           </div>
         </CardContent>
@@ -2134,9 +2134,9 @@ export function ExpensesPage() {
             <header className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
               <div>
                 <p className="text-xs font-medium uppercase tracking-wide text-informative">Etiquetas</p>
-                <h2 id="expense-labels-modal-heading" className="text-lg font-semibold tracking-tight">
+                <SectionTitle id="expense-labels-modal-heading">
                   Editar etiquetas de gastos
-                </h2>
+                </SectionTitle>
               </div>
               <Button
                 type="button"
@@ -2152,7 +2152,7 @@ export function ExpensesPage() {
 
             <div className="grid flex-1 gap-4 overflow-auto p-6 md:grid-cols-2">
               <section className="grid gap-3 rounded-md border border-border p-4">
-                <h3 className="text-base font-semibold">Proveedores</h3>
+                <SectionTitle as="h3">Proveedores</SectionTitle>
                 <div className="grid gap-1">
                   <span className="text-sm text-informative">Nueva etiqueta de proveedor</span>
                   <div className="flex flex-wrap items-stretch gap-2">
@@ -2205,7 +2205,7 @@ export function ExpensesPage() {
                   onDrop={(e) => handleDropLabelRow("vendors", e)}
                 >
                   {catalogVendorsDraft.length === 0 ? (
-                    <p className="p-3 text-sm text-informative">No hay etiquetas en esta lista.</p>
+                    <EmptyState>No hay etiquetas en esta lista.</EmptyState>
                   ) : (
                     catalogVendorsDraft.map((item, i) => (
                       <div
@@ -2254,7 +2254,7 @@ export function ExpensesPage() {
               </section>
 
               <section className="grid gap-3 rounded-md border border-border p-4">
-                <h3 className="text-base font-semibold">Conceptos del gasto</h3>
+                <SectionTitle as="h3">Conceptos del gasto</SectionTitle>
                 <div className="grid gap-1">
                   <span className="text-sm text-informative">Nueva etiqueta de concepto</span>
                   <div className="flex flex-wrap items-stretch gap-2">
@@ -2307,7 +2307,7 @@ export function ExpensesPage() {
                   onDrop={(e) => handleDropLabelRow("categories", e)}
                 >
                   {catalogCategoriesDraft.length === 0 ? (
-                    <p className="p-3 text-sm text-informative">No hay etiquetas en esta lista.</p>
+                    <EmptyState>No hay etiquetas en esta lista.</EmptyState>
                   ) : (
                     catalogCategoriesDraft.map((item, i) => (
                       <div
@@ -2359,9 +2359,9 @@ export function ExpensesPage() {
             <p
               className={`border-t border-border px-6 py-3 text-sm ${
                 labelsModalMessage?.tone === "error"
-                  ? "text-red-600"
+                  ? "text-danger"
                   : labelsModalMessage?.tone === "success"
-                    ? "text-emerald-600"
+                    ? "text-success"
                     : "text-informative"
               }`}
             >

@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import type { ClientRecord } from "@/domain/document/types";
 import { PageHeader } from "@/features/shared/components/PageHeader";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Select } from "@/components/ui/select";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
@@ -323,7 +325,7 @@ export function ClientsPage() {
             />
             <div className="grid gap-2 sm:grid-cols-2">
               <Field label="País">
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={filterCountry}
                   onChange={(event) => setFilterCountry(String(event.target.value || "").trim().toUpperCase())}
@@ -334,10 +336,10 @@ export function ClientsPage() {
                       {country}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
               <Field label="Ordenar por">
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={sortBy}
                   onChange={(event) => setSortBy(event.target.value as "name" | "taxCountryCode" | "recent")}
@@ -345,7 +347,7 @@ export function ClientsPage() {
                   <option value="name">Nombre (A-Z)</option>
                   <option value="taxCountryCode">País (A-Z)</option>
                   <option value="recent">Orden original</option>
-                </select>
+                </Select>
               </Field>
             </div>
             {hasActiveFilters ? (
@@ -432,13 +434,13 @@ export function ClientsPage() {
                   })}
                 </ul>
               ) : (
-                <p className="p-3 text-informative">No hay clientes para ese filtro.</p>
+                <EmptyState>No hay clientes para ese filtro.</EmptyState>
               )}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/20">
+        <Card>
           <CardHeader>
             <CardTitle>{selectedRecordId ? "Editar cliente" : "Alta de cliente"}</CardTitle>
             <CardDescription>Edición mínima operativa con el mismo modelo que consume Facturar.</CardDescription>
@@ -518,7 +520,7 @@ export function ClientsPage() {
               {selectedRecordId ? (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="destructive"
                   disabled={archiveMutation.isPending || !canArchiveSelectedClient}
                   title={
                     !canArchiveSelectedClient
@@ -541,7 +543,7 @@ export function ClientsPage() {
               <p
                 className={cn(
                   "sm:col-span-2",
-                  statusTone === "error" ? "text-sm text-red-600" : statusTone === "success" ? "text-sm text-emerald-600" : "text-informative",
+                  statusTone === "error" ? "text-sm text-danger" : statusTone === "success" ? "text-sm text-success" : "text-informative",
                 )}
               >
                 {statusMessage}

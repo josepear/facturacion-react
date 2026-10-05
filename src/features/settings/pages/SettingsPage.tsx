@@ -7,6 +7,12 @@ import { Button } from "@/components/ui/button";
 import { ProfileBadge } from "@/components/ui/ProfileBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
+import { InfoCallout } from "@/components/ui/info-callout";
+import { SectionTitle } from "@/components/ui/section-title";
+import { Select } from "@/components/ui/select";
+import { PageHeader } from "@/features/shared/components/PageHeader";
+import { workbookDataTableBase } from "@/features/shared/lib/workbookTableText";
 import type { TemplateProfileConfig } from "@/domain/document/types";
 import { MembersSection } from "@/features/settings/components/MembersSection";
 import { TrashSection } from "@/features/settings/components/TrashSection";
@@ -98,7 +104,7 @@ function SettingsConfigLoadError({ error }: { error: unknown }) {
   if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
     return (
       <div role="alert" className="space-y-2">
-        <p className="font-medium text-red-600">No se pudo cargar la configuración (HTTP {error.status})</p>
+        <p className="font-medium text-danger">No se pudo cargar la configuración (HTTP {error.status})</p>
         <p className="text-informative">
           Una petición a <code className="text-xs">GET /api/config</code> o <code className="text-xs">GET /api/session</code>{" "}
           fue rechazada: <span className="text-foreground">{error.message}</span>. Suele indicar sesión caducada, ausencia de
@@ -113,7 +119,7 @@ function SettingsConfigLoadError({ error }: { error: unknown }) {
     );
   }
   return (
-    <p role="alert" className="text-red-600">
+    <p role="alert" className="text-danger">
       {(error as Error)?.message || "No se pudo leer la configuración."}
     </p>
   );
@@ -673,35 +679,24 @@ export function SettingsPage() {
 
   return (
     <main className="app-page-shell">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Configuración · Emisores</h1>
-        <p className="text-informative">
-          Gestiona emisores desde el listado: edita o borra cada fila y guarda los cambios en el servidor con «{SAVE} datos del
-          emisor». Independiente de «{SAVE} documento» en Facturar.
-        </p>
-      </header>
+      <PageHeader
+        title="Configuración · Emisores"
+        description={`Gestiona emisores desde el listado: edita o borra cada fila y guarda los cambios en el servidor con «${SAVE} datos del emisor». Independiente de «${SAVE} documento» en Facturar.`}
+      />
 
       {configQuery.isLoading || sessionQuery.isLoading ? (
-        <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
-          <CardContent className="pt-6 text-informative">Cargando configuración...</CardContent>
-        </Card>
+        <InfoCallout>Cargando configuración...</InfoCallout>
       ) : configQuery.error || sessionQuery.error ? (
-        <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
-          <CardContent className="pt-6 text-sm">
-            <SettingsConfigLoadError error={configQuery.error ?? sessionQuery.error} />
-          </CardContent>
-        </Card>
+        <InfoCallout>
+          <SettingsConfigLoadError error={configQuery.error ?? sessionQuery.error} />
+        </InfoCallout>
       ) : (
         <>
           {!sessionScope.hasEmitterScope ? (
-            <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
-              <CardContent className="pt-6 text-sm text-informative">
-                Tu sesión no tiene emisores asignados para operar en Configuración. Contacta con un administrador.
-              </CardContent>
-            </Card>
+            <InfoCallout>Tu sesión no tiene emisores asignados para operar en Configuración. Contacta con un administrador.</InfoCallout>
           ) : null}
           {sessionScope.hasEmitterScope ? (
-          <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
+          <Card>
             <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
               <div className="min-w-0 space-y-1">
                 <CardTitle>Emisores</CardTitle>
@@ -725,12 +720,12 @@ export function SettingsPage() {
             <CardContent className="grid gap-4">
               {profiles.length ? (
                 <div className="overflow-x-auto rounded-md border border-border">
-                  <table className="w-full min-w-[28rem] text-left text-sm">
+                  <table className={cn(workbookDataTableBase, "min-w-[28rem] text-left")}>
                     <thead className="border-b border-border bg-muted/40 text-informative">
                       <tr>
-                        <th className="px-3 py-2 font-medium">Nombre</th>
-                        <th className="px-3 py-2 font-medium">Email</th>
-                        <th className="px-3 py-2 font-medium text-right">Acciones</th>
+                        <th className="p-2 font-medium">Nombre</th>
+                        <th className="p-2 font-medium">Email</th>
+                        <th className="p-2 font-medium text-right">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -744,9 +739,9 @@ export function SettingsPage() {
                           <tr
                             key={profile.id}
                             data-testid={`emitter-row-${profile.id}`}
-                            className={cn("border-b border-border last:border-b-0", isRowSelected && "bg-muted/30")}
+                            className={cn("border-b border-border/70 last:border-b-0 hover:bg-muted/25", isRowSelected && "bg-muted/30")}
                           >
-                            <td className="px-3 py-2 align-middle">
+                            <td className="p-2 align-middle">
                               <div className="flex flex-wrap items-center gap-2">
                                 <ProfileBadge label={merged.label || profile.id} colorKey={merged.colorKey} />
                                 {isServerActive ? (
@@ -756,10 +751,10 @@ export function SettingsPage() {
                                 ) : null}
                               </div>
                             </td>
-                            <td className="max-w-[14rem] truncate px-3 py-2 align-middle text-informative" title={email || undefined}>
+                            <td className="max-w-[14rem] truncate p-2 align-middle text-informative" title={email || undefined}>
                               {email || "—"}
                             </td>
-                            <td className="whitespace-nowrap px-3 py-2 text-right align-middle">
+                            <td className="whitespace-nowrap p-2 text-right align-middle">
                               <div className="flex flex-wrap justify-end gap-1">
                                 <Button
                                   type="button"
@@ -775,9 +770,8 @@ export function SettingsPage() {
                                 </Button>
                                 <Button
                                   type="button"
-                                  variant="ghost"
+                                  variant="destructive"
                                   size="sm"
-                                  className="text-destructive hover:text-destructive"
                                   disabled={!isAdmin || profiles.length <= 1}
                                   title={
                                     !isAdmin
@@ -799,7 +793,7 @@ export function SettingsPage() {
                   </table>
                 </div>
               ) : (
-                <p className="text-informative">No hay emisores configurados.</p>
+                <EmptyState>No hay emisores configurados.</EmptyState>
               )}
               <select
                 aria-label="Emisor"
@@ -824,7 +818,7 @@ export function SettingsPage() {
             </summary>
             <div className="grid gap-4 border-t border-border p-4 pt-2">
               {serverActiveProfile ? (
-                <Card className="border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/20">
+                <Card>
                   <div className="grid gap-3 p-4">
                     <div className="flex items-center gap-3">
                       <ProfileBadge
@@ -873,7 +867,7 @@ export function SettingsPage() {
               ) : null}
 
               <section className="grid gap-4 lg:grid-cols-2">
-                <Card className="border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/20">
+                <Card>
                   <CardHeader>
                     <CardTitle>Emisor activo (servidor)</CardTitle>
                     <CardDescription>
@@ -927,7 +921,7 @@ export function SettingsPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
+                <Card>
                   <CardHeader>
                     <CardTitle>Defaults runtime</CardTitle>
                     <CardDescription>Valores efectivos publicados por `/api/config`.</CardDescription>
@@ -1031,7 +1025,7 @@ export function SettingsPage() {
               {profiles.length ? (
                 <>
                   <Field label="Plantilla PDF">
-                    <select
+                    <Select
                       aria-label="Plantilla"
                       className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={
@@ -1046,7 +1040,7 @@ export function SettingsPage() {
                           {opt.label}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </Field>
 
                   <div className="flex flex-wrap gap-2">
@@ -1176,7 +1170,7 @@ export function SettingsPage() {
                         ) : null}
                       </Field>
                       <Field label="Color en listados y vista previa">
-                        <select
+                        <Select
                           aria-label="Color del usuario"
                           className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                           value={editingDraft.colorKey}
@@ -1188,10 +1182,10 @@ export function SettingsPage() {
                               {PROFILE_COLOR_LABELS[key]}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </Field>
                       <Field label="Fuente del documento">
-                        <select
+                        <Select
                           value={String(editingDraft.fontFamily ?? "")}
                           onChange={(event) => updateDraft({ fontFamily: event.target.value })}
                           className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm"
@@ -1203,7 +1197,7 @@ export function SettingsPage() {
                               {f}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </Field>
                       <Field label="Marca / empresa">
                         <Input
@@ -1314,7 +1308,7 @@ export function SettingsPage() {
                             </div>
                             <p className="text-informative">{brandImageSummary}</p>
                             {brandImageFileError ? (
-                              <p className="text-xs text-red-600">{brandImageFileError}</p>
+                              <p className="text-xs text-danger">{brandImageFileError}</p>
                             ) : null}
                             <Input
                               placeholder="/assets/logo.svg o ruta absoluta (opcional)"
@@ -1404,16 +1398,16 @@ export function SettingsPage() {
                   </div>
                 </>
               ) : (
-                <p className="text-informative">No hay emisores configurados.</p>
+                <EmptyState>No hay emisores configurados.</EmptyState>
               )}
 
               {statusMessage ? (
                 <p
                   className={
                     statusTone === "error"
-                      ? "text-sm text-red-600"
+                      ? "text-sm text-danger"
                       : statusTone === "success"
-                        ? "text-sm text-emerald-600"
+                        ? "text-sm text-success"
                         : "text-informative"
                   }
                 >
@@ -1426,9 +1420,9 @@ export function SettingsPage() {
           {isAdmin && sessionScope.hasEmitterScope ? (
             <Card>
               <div className="grid gap-4 p-4">
-                <h2 className="text-base font-semibold">Integración Gmail</h2>
+                <SectionTitle>Integración Gmail</SectionTitle>
 
-                {gmailOAuthSectionError ? <p className="text-sm text-red-600">{gmailOAuthSectionError}</p> : null}
+                {gmailOAuthSectionError ? <p className="text-sm text-danger">{gmailOAuthSectionError}</p> : null}
 
                 {gmailProfilesQuery.isLoading ? (
                   <p className="text-informative">Cargando estado de Gmail...</p>
@@ -1472,7 +1466,7 @@ export function SettingsPage() {
                     ))}
 
                     {gmailProfilesQuery.data?.items?.length === 0 ? (
-                      <p className="text-informative">No hay emisores con Gmail configurado.</p>
+                      <EmptyState>No hay emisores con Gmail configurado.</EmptyState>
                     ) : null}
                   </div>
                 ) : null}
@@ -1492,7 +1486,7 @@ export function SettingsPage() {
             className="z-[60] w-[min(100vw-2rem,420px)] rounded-lg border border-border bg-background p-6 text-foreground shadow-lg"
           >
             <div className="grid gap-4">
-              <h2 className="text-base font-semibold">Nueva base de diseño</h2>
+              <SectionTitle>Nueva base de diseño</SectionTitle>
               <p className="text-informative">
                 Crea un emisor vacío con la plantilla visual elegida. Completa datos fiscales y guarda en el servidor.
               </p>
@@ -1505,7 +1499,7 @@ export function SettingsPage() {
                 />
               </Field>
               <Field label="Plantilla base">
-                <select
+                <Select
                   aria-label="Plantilla base del nuevo emisor"
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={newBaseLayout}
@@ -1516,7 +1510,7 @@ export function SettingsPage() {
                       {opt.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
               <div className="flex flex-wrap justify-end gap-2">
                 <Button

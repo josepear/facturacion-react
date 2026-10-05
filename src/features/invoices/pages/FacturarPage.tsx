@@ -20,6 +20,9 @@ import {
   facturarClientHistoryRowsSummary,
 } from "@/features/invoices/lib/facturarClientHistoryCopy";
 import { PageHeader } from "@/features/shared/components/PageHeader";
+import { InfoCallout } from "@/components/ui/info-callout";
+import { SectionTitle } from "@/components/ui/section-title";
+import { Select } from "@/components/ui/select";
 import { isTemplateProfileInScope } from "@/features/shared/lib/sessionScope";
 import { CLOSE, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
@@ -39,7 +42,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 
 /** Badge de valor en módulo Emisor (misma estética que estado «Completo», solo lectura). */
 const facturarIssuerValueBadgeClass =
-  "inline-flex h-5 max-h-[1.25rem] min-h-[1.25rem] items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0 text-xs font-medium leading-none text-emerald-700";
+  "inline-flex h-5 max-h-[1.25rem] min-h-[1.25rem] items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0 text-xs font-medium leading-none text-success";
 
 /** Módulos del acordeón (un solo panel abierto en modo auto). «Guardar» va aparte, siempre visible. */
 const FACTURAR_ACCORDION_MODULE_ORDER = ["emitter", "document", "client", "concepts", "fiscal", "history"] as const;
@@ -500,11 +503,7 @@ export function FacturarPage() {
           title="Facturar"
           description="Crea o edita documentos; también puedes reabrirlos desde Historial."
         />
-        <Card className="border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/20">
-          <CardContent className="pt-6 text-sm text-informative">
-            Sincronizando emisores y permisos de la sesión…
-          </CardContent>
-        </Card>
+        <InfoCallout>Sincronizando emisores y permisos de la sesión…</InfoCallout>
       </main>
     );
   }
@@ -517,11 +516,7 @@ export function FacturarPage() {
           title="Facturar"
           description="Crea o edita documentos; también puedes reabrirlos desde Historial."
         />
-        <Card className="border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/20">
-          <CardContent className="pt-6 text-sm text-informative">
-            Tu sesión no tiene emisores asignados para operar en Facturar. Contacta con un administrador.
-          </CardContent>
-        </Card>
+        <InfoCallout>Tu sesión no tiene emisores asignados para operar en Facturar. Contacta con un administrador.</InfoCallout>
       </main>
     );
   }
@@ -618,7 +613,7 @@ export function FacturarPage() {
                   ) : null}
                 </div>
                 <div className="grid gap-1">
-                  <select
+                  <Select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     {...register("templateProfileId")}
                     onChange={(event) => {
@@ -632,11 +627,11 @@ export function FacturarPage() {
                         {profile.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               </label>
               <Field label="Plantilla/layout">
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register("templateLayout")}
                 >
@@ -646,7 +641,7 @@ export function FacturarPage() {
                       {opt.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
               <Field label="Forma de pago">
                 <span
@@ -687,20 +682,20 @@ export function FacturarPage() {
           >
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Field label="Tipo" error={errors.type?.message}>
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register("type")}
                 >
                   <option value="">Elegir tipo…</option>
                   <option value="factura">Factura</option>
                   <option value="presupuesto">Presupuesto</option>
-                </select>
+                </Select>
               </Field>
               <Field label="Número">
                 <>
                   <Input placeholder="Número factura" {...register("number")} />
                   {numberConflict ? (
-                    <p className="mt-0.5 text-xs text-amber-600">
+                    <p className="mt-0.5 text-xs text-warning">
                       Este número ya está en uso
                       {numberAvailabilityQuery.data?.conflictRecordId
                         ? ` (${numberAvailabilityQuery.data.conflictRecordId})`
@@ -715,7 +710,7 @@ export function FacturarPage() {
                 hint="Indica si el documento está enviado, cobrado o cancelado."
                 error={errors.accounting?.status?.message}
               >
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register("accounting.status")}
                 >
@@ -725,7 +720,7 @@ export function FacturarPage() {
                       {opt.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
               <Field label="Fecha emisión" error={errors.issueDate?.message}>
                 <div className="flex items-stretch gap-1">
@@ -755,9 +750,9 @@ export function FacturarPage() {
                   <p
                     className={`text-sm ${
                       numberAvailabilityTone === "success"
-                        ? "text-emerald-600"
+                        ? "text-success"
                         : numberAvailabilityTone === "error"
-                          ? "text-red-600"
+                          ? "text-danger"
                           : "text-muted-foreground"
                     }`}
                   >
@@ -781,7 +776,7 @@ export function FacturarPage() {
                     <Input type="date" {...register("accounting.paymentDate")} />
                   </Field>
                   <Field label="Trimestre contable">
-                    <select
+                    <Select
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       {...register("accounting.quarter")}
                     >
@@ -790,7 +785,7 @@ export function FacturarPage() {
                       <option value="2T">2T</option>
                       <option value="3T">3T</option>
                       <option value="4T">4T</option>
-                    </select>
+                    </Select>
                   </Field>
                   <Field label="Referencia contable / ID">
                     <Input placeholder="ID contable / Drive label" {...register("accounting.invoiceId")} />
@@ -828,7 +823,7 @@ export function FacturarPage() {
                         : undefined
                 }
               >
-                <select
+                <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={reloadSelectValue}
                   disabled={loadMutation.isPending || !String(templateProfileIdWatched || "").trim()}
@@ -846,7 +841,7 @@ export function FacturarPage() {
                       {opt.label}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
             </div>
           </WorkflowModule>
@@ -864,7 +859,7 @@ export function FacturarPage() {
             <div className="grid gap-4 sm:grid-cols-1">
               <Field label="Cliente guardado" hint="Si eliges uno, se rellenan los datos. «Quitar cliente» deja el bloque listo para otro.">
                 <div className="flex gap-2">
-                  <select
+                  <Select
                     className="flex h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={selectedClientOptionId}
                     onChange={(event) => applyClientByOptionId(event.target.value)}
@@ -875,7 +870,7 @@ export function FacturarPage() {
                         {option.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <Button
                     type="button"
                     variant="ghost"
@@ -997,13 +992,13 @@ export function FacturarPage() {
                 label="Modo cálculo conceptos"
                 hint="'Por concepto' y 'Por bruto' calculan el total a partir de las líneas; en bruto las líneas siguen sirviendo para detalle y vista previa."
               >
-                <select
+                <Select
                   className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register("totalsBasis")}
                 >
                   <option value="items">Por concepto (suma líneas)</option>
                   <option value="gross">Por bruto (totales desde líneas)</option>
-                </select>
+                </Select>
               </Field>
               <InvoiceItemsTable
                 register={register}
@@ -1186,11 +1181,11 @@ export function FacturarPage() {
                     {saveMutation.isPending ? savePending() : `${SAVE} documento`}
                   </Button>
                   {!workflowChecklist.save.complete ? (
-                    <p className="text-pretty text-sm text-amber-700 sm:max-w-xl sm:text-right">
+                    <p className="text-pretty text-sm text-warning sm:max-w-xl sm:text-right">
                       Completa los módulos obligatorios pendientes ({requiredWorkflowPendingCount}) para habilitar el guardado.
                     </p>
                   ) : !saveAllowedByEmitterScope ? (
-                    <p className="text-pretty text-sm text-amber-700 sm:max-w-xl sm:text-right">
+                    <p className="text-pretty text-sm text-warning sm:max-w-xl sm:text-right">
                       {templateProfileIdForSave
                         ? "El emisor seleccionado no está en tu alcance. Elige un emisor permitido para tu usuario."
                         : "Selecciona un emisor permitido para tu usuario antes de guardar."}
@@ -1229,7 +1224,7 @@ export function FacturarPage() {
                     {canOpenOfficialOutput ? (
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="destructive"
                         disabled={archiveMutation.isPending}
                         onClick={() => {
                           if (!serverRecordId) return;
@@ -1285,8 +1280,8 @@ export function FacturarPage() {
                       </Button>
                     ) : null}
                   </div>
-                {gmailAuthError ? <p className="text-sm text-red-600 sm:text-right">{gmailAuthError}</p> : null}
-                {officialOutputError ? <p className="text-sm text-red-600 sm:text-right">{officialOutputError}</p> : null}
+                {gmailAuthError ? <p className="text-sm text-danger sm:text-right">{gmailAuthError}</p> : null}
+                {officialOutputError ? <p className="text-sm text-danger sm:text-right">{officialOutputError}</p> : null}
                 <div className="flex flex-col gap-1 text-informative sm:items-end sm:text-right">
                   <span>{serverRecordId ? `recordId: ${serverRecordId}` : "Documento nuevo"}</span>
                   <span>
@@ -1296,7 +1291,7 @@ export function FacturarPage() {
                   </span>
                 </div>
                 {(saveMutation.error || loadMutation.error || suggestNumberMutation.error || checkAvailabilityMutation.error) && (
-                  <p className="text-sm text-red-600 sm:text-right">
+                  <p className="text-sm text-danger sm:text-right">
                     {(saveMutation.error as Error | null)?.message ||
                       (loadMutation.error as Error | null)?.message ||
                       (suggestNumberMutation.error as Error | null)?.message ||
@@ -1330,7 +1325,7 @@ export function FacturarPage() {
         onClose={() => setGmailDialog(false)}
         style={{ borderRadius: 8, padding: 24, maxWidth: 480, width: "90vw", border: "1px solid #ccc" }}
       >
-        <h2 style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar factura por Gmail</h2>
+        <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar factura por Gmail</SectionTitle>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
             Para (email)
