@@ -3,6 +3,45 @@ import { afterEach, beforeEach, vi } from "vitest";
 
 import { AUTH_TOKEN_STORAGE_KEY } from "@/infrastructure/api/httpClient";
 
+/**
+ * jsdom no implementa HTMLDialogElement (open/showModal/show/close).
+ * Simulamos su comportamiento reflejando el atributo `open`, de modo que el
+ * contenido de un <dialog> abierto sea accesible a testing-library.
+ */
+if (typeof HTMLDialogElement !== "undefined") {
+  const dialogProto = HTMLDialogElement.prototype;
+
+  Object.defineProperty(dialogProto, "open", {
+    configurable: true,
+    get(this: HTMLDialogElement) {
+      return this.hasAttribute("open");
+    },
+    set(this: HTMLDialogElement, value: boolean) {
+      if (value) {
+        this.setAttribute("open", "");
+      } else {
+        this.removeAttribute("open");
+      }
+    },
+  });
+
+  dialogProto.showModal = function showModal(this: HTMLDialogElement) {
+    this.setAttribute("open", "");
+  };
+
+  dialogProto.show = function show(this: HTMLDialogElement) {
+    this.setAttribute("open", "");
+  };
+
+  dialogProto.close = function close(this: HTMLDialogElement) {
+    const wasOpen = this.hasAttribute("open");
+    this.removeAttribute("open");
+    if (wasOpen) {
+      this.dispatchEvent(new Event("close"));
+    }
+  };
+}
+
 beforeEach(() => {
   try {
     globalThis.localStorage?.setItem(AUTH_TOKEN_STORAGE_KEY, "vitest-bearer-token");

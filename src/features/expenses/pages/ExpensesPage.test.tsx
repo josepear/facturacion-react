@@ -220,7 +220,7 @@ describe("ExpensesPage regression", () => {
 
     render(<ExpensesPage />, { wrapper: createPageWrapper() });
 
-    await screen.findByRole("button", { name: "Nuevo gasto" });
+    await userEvent.click(await screen.findByRole("button", { name: "Nuevo gasto" }));
     await userEvent.click(screen.getByRole("button", { name: "Poner fecha factura a hoy" }));
     await userEvent.type(screen.getByRole("combobox", { name: "Proveedor del gasto" }), "Proveedor X");
     await userEvent.click(screen.getByRole("button", { name: "Guardar gasto" }));

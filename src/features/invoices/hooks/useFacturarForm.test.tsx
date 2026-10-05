@@ -148,7 +148,9 @@ describe("useFacturarForm regression", () => {
     });
 
     act(() => {
+      result.current.form.setValue("issueDate", "2026-05-05", { shouldValidate: true });
       result.current.form.setValue("client.name", "Cliente Test", { shouldValidate: true });
+      result.current.form.setValue("client.taxId", "B12345678", { shouldValidate: true });
       result.current.confirmClientModule();
       result.current.form.setValue("items.0.concept", "Servicio", { shouldValidate: true });
       result.current.form.setValue("items.0.quantity", 2, { shouldValidate: true });
@@ -234,6 +236,7 @@ describe("useFacturarForm regression", () => {
       result.current.form.setValue("issueDate", "2026-05-05", { shouldValidate: true });
       result.current.form.setValue("accounting.status", "ENVIADA", { shouldValidate: true });
       result.current.form.setValue("client.name", "Cliente Ed", { shouldValidate: true });
+      result.current.form.setValue("client.taxId", "B12345678", { shouldValidate: true });
       result.current.form.setValue("items.0.description", "Servicio", { shouldValidate: true });
       result.current.form.setValue("items.0.quantity", 1, { shouldValidate: true });
       result.current.form.setValue("items.0.unitPrice", 100, { shouldValidate: true });
