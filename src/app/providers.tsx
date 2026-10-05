@@ -1,8 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import type { PropsWithChildren } from "react";
+import { lazy, Suspense, type PropsWithChildren } from "react";
 
 import { AuthProvider } from "@/features/auth/AuthContext";
+
+const ReactQueryDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import("@tanstack/react-query-devtools").then((m) => ({ default: m.ReactQueryDevtools })),
+    )
+  : () => null;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,7 +23,9 @@ export function AppProviders({ children }: PropsWithChildren) {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         {children}
-        {import.meta.env.DEV ? <ReactQueryDevtools initialIsOpen={false} /> : null}
+        <Suspense>
+          <ReactQueryDevtools initialIsOpen={false} />
+        </Suspense>
       </AuthProvider>
     </QueryClientProvider>
   );
