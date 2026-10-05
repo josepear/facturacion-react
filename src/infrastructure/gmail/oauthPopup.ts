@@ -9,7 +9,7 @@ export type GmailOAuthPostMessagePayload = {
   error: string;
 };
 
-export function waitForGmailOAuthMessage(timeoutMs = 120_000): Promise<void> {
+export function waitForGmailOAuthMessage(timeoutMs = 120_000, expectedOrigin = ""): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => {
       window.removeEventListener("message", onMessage);
@@ -21,9 +21,10 @@ export function waitForGmailOAuthMessage(timeoutMs = 120_000): Promise<void> {
       if (!data || data.type !== "facturacion-gmail-oauth") {
         return;
       }
-      // No exigir event.origin === location: el callback OAuth suele ser el host del redirect_uri
-      // (p. ej. producción) mientras Vite corre en localhost; el HTML del servidor ya usa postMessage
-      // con el Origin capturado en /api/gmail/oauth/start. El payload solo indica ok/error.
+      const allowed = [window.location.origin, expectedOrigin].filter(Boolean);
+      if (allowed.length > 0 && !allowed.includes(event.origin)) {
+        return;
+      }
       window.clearTimeout(timer);
       window.removeEventListener("message", onMessage);
       if (data.ok) {
@@ -42,5 +43,9 @@ export async function openGmailOAuthPopupAndWait(authUrl: string): Promise<void>
   if (!popup) {
     throw new Error("El navegador bloqueó la ventana emergente. Permite ventanas para este sitio.");
   }
-  await waitForGmailOAuthMessage();
+  let serverOrigin = "";
+  try {
+    serverOrigin = new URL(authUrl, window.location.origin).origin;
+  } catch { /* keep empty — falls back to window.location.origin only */ }
+  await waitForGmailOAuthMessage(120_000, serverOrigin);
 }
