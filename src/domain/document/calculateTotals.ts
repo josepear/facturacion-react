@@ -2,6 +2,10 @@ import { isPerPersonUnitLabel, normalizePerPersonQuantity } from "@/domain/docum
 import type { CalculatedTotals, InvoiceDocument, InvoiceItem } from "@/domain/document/types";
 import { toNumber } from "@/lib/utils";
 
+function roundCents(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 type TotalsInput = Pick<
   InvoiceDocument,
   "items" | "totalsBasis" | "taxRate" | "withholdingRate"
@@ -31,9 +35,9 @@ function mapItem(item: InvoiceItem): InvoiceItem & { total: number } {
   let total = 0;
 
   if (explicitLineTotal !== undefined) {
-    total = explicitLineTotal;
-  } else if (unitPrice > 0) {
-    total = quantity * unitPrice;
+    total = roundCents(explicitLineTotal);
+  } else if (unitPrice !== 0) {
+    total = roundCents(quantity * unitPrice);
   }
 
   return {
@@ -53,10 +57,10 @@ export function calculateTotals(document: TotalsInput): CalculatedTotals {
       : toNumber(document.manualGrossSubtotal);
 
   if (basis === "gross" && manualGross > 0) {
-    const subtotal = manualGross;
-    const taxAmount = subtotal * (toNumber(document.taxRate) / 100);
-    const withholdingAmount = subtotal * (toNumber(document.withholdingRate) / 100);
-    const total = subtotal + taxAmount - withholdingAmount;
+    const subtotal = roundCents(manualGross);
+    const taxAmount = roundCents(subtotal * (toNumber(document.taxRate) / 100));
+    const withholdingAmount = roundCents(subtotal * (toNumber(document.withholdingRate) / 100));
+    const total = roundCents(subtotal + taxAmount - withholdingAmount);
 
     return {
       items,
@@ -67,10 +71,10 @@ export function calculateTotals(document: TotalsInput): CalculatedTotals {
     };
   }
 
-  const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-  const taxAmount = subtotal * (toNumber(document.taxRate) / 100);
-  const withholdingAmount = subtotal * (toNumber(document.withholdingRate) / 100);
-  const total = subtotal + taxAmount - withholdingAmount;
+  const subtotal = roundCents(items.reduce((sum, item) => sum + item.total, 0));
+  const taxAmount = roundCents(subtotal * (toNumber(document.taxRate) / 100));
+  const withholdingAmount = roundCents(subtotal * (toNumber(document.withholdingRate) / 100));
+  const total = roundCents(subtotal + taxAmount - withholdingAmount);
 
   return {
     items,
