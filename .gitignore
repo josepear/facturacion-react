@@ -13,7 +13,10 @@ e2e/.auth/
 # Artefactos locales de sesión (no versionar)
 docs/cursor-session-handoff.md
 
-# Finder: archivo de icono de carpeta (nombre termina en CR)
+# Finder: archivo de icono de carpeta (nombre termina en CR).
+# OJO: "Icon?" tambien hacia match con el directorio "icons/", asi que lo exceptuamos.
 Icon?
 **/Icon?
+!src/components/icons/
+!src/components/icons/**
 
