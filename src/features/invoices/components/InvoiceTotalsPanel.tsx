@@ -83,10 +83,10 @@ export function InvoiceTotalsPanel({
               const wr = register("withholdingRate", {
                 setValueAs: (value) => {
                   if (value === "" || value === null || value === undefined) {
-                    return "";
+                    return 0;
                   }
                   const parsed = Number(value);
-                  return Number.isFinite(parsed) ? parsed : "";
+                  return Number.isFinite(parsed) ? parsed : 0;
                 },
               });
               return (

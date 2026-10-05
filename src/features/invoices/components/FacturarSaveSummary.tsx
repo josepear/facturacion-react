@@ -34,7 +34,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 
 export function FacturarSaveSummary({ document, profileLabel, lineTotals }: FacturarSaveSummaryProps) {
   const w = document.withholdingRate;
-  const irpfPct = w === "" ? 0 : w;
+  const irpfPct = Number(w || 0);
 
   return (
     <section className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-900 dark:bg-sky-950/20">
@@ -73,7 +73,7 @@ export function FacturarSaveSummary({ document, profileLabel, lineTotals }: Fact
         <div className="space-y-2 border-b border-border pb-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Fiscal</p>
           <Row label="IGIC">{`${Number(document.taxRate ?? 0).toFixed(2)} %`}</Row>
-          <Row label="IRPF">{w === "" ? "Sin retención" : `${irpfPct} %`}</Row>
+          <Row label="IRPF">{irpfPct > 0 ? `${irpfPct} %` : "Sin retención"}</Row>
         </div>
 
         <div className="space-y-2 border-b border-border pb-3">

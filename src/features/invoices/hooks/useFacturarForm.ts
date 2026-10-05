@@ -278,10 +278,10 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     const taxValid = Number.isFinite(taxRate) && taxRate >= 0;
 
     const withholdingValue = watched.withholdingRate;
-    const withholdingNumeric = typeof withholdingValue === "number" ? withholdingValue : null;
+    const withholdingNumeric = typeof withholdingValue === "number" ? withholdingValue : 0;
     const withholdingSyntaxValid =
-      withholdingValue === "" || withholdingNumeric === 15 || withholdingNumeric === 19 || withholdingNumeric === 21;
-    const withholdingMode = withholdingValue === "" ? "sin_irpf" : `irpf_${withholdingValue}`;
+      withholdingNumeric === 0 || withholdingNumeric === 7 || withholdingNumeric === 15 || withholdingNumeric === 19 || withholdingNumeric === 21;
+    const withholdingMode = withholdingNumeric === 0 ? "sin_irpf" : `irpf_${withholdingNumeric}`;
 
     const isReady = taxValid && fiscalIrpfChoiceAcknowledged && withholdingSyntaxValid;
 
