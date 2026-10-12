@@ -1223,7 +1223,7 @@ export function ExpensesPage() {
 
               <dialog
                 ref={importPreviewDialogRef}
-                className="fixed inset-0 z-50 m-auto flex max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem))] w-[calc(100%_-_1rem)] max-w-none flex-col overflow-hidden rounded-lg border border-border bg-background p-0 shadow-lg backdrop:bg-black/50"
+                className="fixed inset-0 z-50 m-auto hidden max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem))] w-[calc(100%_-_1rem)] max-w-none flex-col overflow-hidden rounded-lg border border-border bg-background p-0 shadow-lg open:flex backdrop:bg-black/50"
                 aria-labelledby="import-preview-modal-heading"
                 onClose={() => setImportPreviewModalOpen(false)}
               >
