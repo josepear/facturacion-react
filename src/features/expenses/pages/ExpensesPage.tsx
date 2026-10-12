@@ -466,7 +466,9 @@ export function ExpensesPage() {
     files: { name: string; contentBase64: string }[];
   } | null>(null);
   const [selectedImportRowKeys, setSelectedImportRowKeys] = useState<Set<string>>(new Set());
+  const [importPreviewModalOpen, setImportPreviewModalOpen] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
+  const importPreviewDialogRef = useRef<HTMLDialogElement>(null);
 
   const configQuery = useQuery({
     queryKey: ["runtime-config"],
@@ -718,6 +720,7 @@ export function ExpensesPage() {
           errors: formatExpenseImportErrorLines(data.errors),
         });
         setImportPreviewRows(data.previews);
+        setImportPreviewModalOpen(true);
         setSelectedImportRowKeys(new Set(data.previews.map((row) => expenseImportRowKey(row))));
         setImportPreparedPayload({
           templateProfileId: variables.templateProfileId,
@@ -739,6 +742,7 @@ export function ExpensesPage() {
       setImportFileName("");
       setImportPreparedPayload(null);
       setImportPreviewRows([]);
+      setImportPreviewModalOpen(false);
       setSelectedImportRowKeys(new Set());
       const created = data.created ?? 0;
       setImportResult({
@@ -783,6 +787,7 @@ export function ExpensesPage() {
       }
       setImportResult(null);
       setImportPreviewRows([]);
+      setImportPreviewModalOpen(false);
       setSelectedImportRowKeys(new Set());
       setImportPreparedPayload(null);
       importExpensesMutation.mutate({
@@ -792,6 +797,27 @@ export function ExpensesPage() {
       });
     };
     reader.readAsDataURL(file);
+  }
+
+  function confirmImportExpenses() {
+    if (!importPreparedPayload) {
+      setStatusMessage("Haz primero la vista previa del Excel antes de confirmar.");
+      setStatusTone("error");
+      return;
+    }
+    if (selectedImportRowKeys.size === 0) {
+      setStatusMessage("Marca al menos una fila de la vista previa para importar.");
+      setStatusTone("error");
+      return;
+    }
+    setImportResult(null);
+    setImportPreviewModalOpen(false);
+    importExpensesMutation.mutate({
+      templateProfileId: importPreparedPayload.templateProfileId,
+      files: importPreparedPayload.files,
+      previewOnly: false,
+      selectedRowKeys: Array.from(selectedImportRowKeys),
+    });
   }
 
   const saveCatalogListsMutation = useMutation({
@@ -1010,6 +1036,20 @@ export function ExpensesPage() {
     }
   }, [expenseFormModalOpen]);
 
+  useEffect(() => {
+    const el = importPreviewDialogRef.current;
+    if (!el) {
+      return;
+    }
+    if (importPreviewModalOpen) {
+      if (!el.open) {
+        el.showModal();
+      }
+    } else if (el.open) {
+      el.close();
+    }
+  }, [importPreviewModalOpen]);
+
   /**
    * Alta sin `recordId`: una vez que llega `/api/config`, si el borrador sigue sin `templateProfileId`,
    * rellena con el activo del servidor. No se re-ejecuta al cambiar solo el borrador (p. ej. usuario elige
@@ -1164,31 +1204,13 @@ export function ExpensesPage() {
                       ? "Analizar PDF en formulario"
                       : "Vista previa Excel"}
                 </Button>
-                {!/\.pdf$/iu.test(importFileName) ? (
+                {!/\.pdf$/iu.test(importFileName) && importPreviewRows.length > 0 ? (
                   <Button
                     type="button"
-                    onClick={() => {
-                      if (!importPreparedPayload) {
-                        setStatusMessage("Haz primero la vista previa del Excel antes de confirmar.");
-                        setStatusTone("error");
-                        return;
-                      }
-                      if (selectedImportRowKeys.size === 0) {
-                        setStatusMessage("Marca al menos una fila de la vista previa para importar.");
-                        setStatusTone("error");
-                        return;
-                      }
-                      setImportResult(null);
-                      importExpensesMutation.mutate({
-                        templateProfileId: importPreparedPayload.templateProfileId,
-                        files: importPreparedPayload.files,
-                        previewOnly: false,
-                        selectedRowKeys: Array.from(selectedImportRowKeys),
-                      });
-                    }}
-                    disabled={importExpensesMutation.isPending || !importPreparedPayload || selectedImportRowKeys.size === 0}
+                    variant="outline"
+                    onClick={() => setImportPreviewModalOpen(true)}
                   >
-                    {importExpensesMutation.isPending ? "Importando..." : `Confirmar importación (${selectedImportRowKeys.size})`}
+                    Ver vista previa ({importPreviewRows.length})
                   </Button>
                 ) : null}
               </div>
@@ -1199,15 +1221,36 @@ export function ExpensesPage() {
                 </p>
               ) : null}
 
-              {importPreviewRows.length > 0 ? (
-                <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50/60 p-3 text-sm">
-                  <p className="font-medium text-foreground">Vista previa antes de guardar</p>
-                  <p className="text-informative">
-                    Revisa fecha, trimestre, proveedor e importe. Marca o desmarca las filas que quieras importar. Las filas marcadas como posible duplicado conviene mirarlas antes de confirmar.
-                  </p>
-                  <div className="max-h-64 overflow-auto rounded-md border border-border bg-background">
-                    <table className={cn(workbookDataTableBase, "min-w-[42rem] text-xs") }>
-                      <thead>
+              <dialog
+                ref={importPreviewDialogRef}
+                className="fixed inset-0 z-50 m-auto flex max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem))] w-[calc(100vw-2rem)] max-w-none flex-col overflow-hidden rounded-lg border border-border bg-background p-0 shadow-lg backdrop:bg-black/50"
+                aria-labelledby="import-preview-modal-heading"
+                onClose={() => setImportPreviewModalOpen(false)}
+              >
+                {importPreviewModalOpen ? (
+                  <>
+                    <header className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium uppercase tracking-wide text-informative">Gastos · Excel</p>
+                        <h2 id="import-preview-modal-heading" className="text-lg font-semibold tracking-tight">Vista previa antes de guardar</h2>
+                        <p className="text-informative text-sm">
+                          Revisa fecha, trimestre, proveedor e importe. Marca o desmarca las filas que quieras importar. Las filas marcadas como posible duplicado conviene mirarlas antes de confirmar.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 shrink-0"
+                        aria-label={CLOSE}
+                        onClick={() => setImportPreviewModalOpen(false)}
+                      >
+                        ×
+                      </Button>
+                    </header>
+                    <div className="min-h-0 flex-1 overflow-auto">
+                      <table className={cn(workbookDataTableBase, "w-full min-w-[48rem] text-xs")}>
+                        <thead>
                         <tr className="border-b bg-muted/40 text-left text-informative">
                           <th className="w-8 p-2 font-medium">
                             <input
@@ -1265,11 +1308,29 @@ export function ExpensesPage() {
                             <td className={workbookDataTdTight}>{row.duplicateExisting ? "Posible duplicado" : "OK"}</td>
                           </tr>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : null}
+                        </tbody>
+                      </table>
+                    </div>
+                    <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3">
+                      <span className="text-sm text-informative">
+                        Seleccionadas: {selectedImportRowKeys.size} de {importPreviewRows.length}
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" variant="outline" onClick={() => setImportPreviewModalOpen(false)}>
+                          {CLOSE}
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={confirmImportExpenses}
+                          disabled={importExpensesMutation.isPending || selectedImportRowKeys.size === 0}
+                        >
+                          {importExpensesMutation.isPending ? "Importando..." : `Confirmar importación (${selectedImportRowKeys.size})`}
+                        </Button>
+                      </div>
+                    </footer>
+                  </>
+                ) : null}
+              </dialog>
 
               {importResult ? (
                 <div className="grid gap-2 rounded-md border border-border bg-muted/20 p-3 text-sm">

@@ -13,9 +13,12 @@ extracto de banco soportados, y las mejoras de selección de filas y de fechas.
 
 1. **Gastos → Importar gastos** (solo admin).
 2. Se elige **Emisor destino** y un archivo **`.xlsx`** (el `.xls` no se procesa).
-3. **Vista previa Excel** → el servidor devuelve las filas detectadas **sin guardar nada**.
-   - Se ve una tabla: `Hoja · Fila · Fecha · Trimestre · Proveedor · Concepto · Importe · Aviso`.
+3. **Vista previa Excel** → se abre un **popup a todo el ancho** con las filas detectadas,
+   **sin guardar nada** todavía.
+   - Tabla: `Hoja · Fila · Fecha · Trimestre · Proveedor · Concepto · Importe · Aviso`.
    - Cada fila tiene **checkbox**; hay uno de **“seleccionar todas”** en la cabecera.
+   - La **confirmación está dentro del popup** (“Confirmar importación (N)”); al cerrarlo,
+     el botón **“Ver vista previa (N)”** de la tarjeta lo vuelve a abrir.
 4. **Confirmar importación (N)** → se crean solo las **N filas marcadas**.
 
 > Nota de UX: durante la vista previa el bloque *Resultado* muestra `Creados en servidor: 0`.
@@ -107,6 +110,8 @@ omite con `Sin cabeceras reconocibles (fecha, concepto o proveedor, e importe).`
   - Al confirmar se envía `selectedRowKeys`.
   - **Modales** de gasto/etiquetas: centrado robusto `fixed inset-0 m-auto` +
     `max-h-[min(92dvh, …)]` + `overflow-y-auto` (antes se recortaban por arriba al ser altos).
+  - **Vista previa como popup a todo el ancho** (`w-[calc(100vw-2rem)]`), con la tabla scrollable
+    y la confirmación en el pie (antes era una tabla embebida pequeña en la tarjeta).
 - `src/infrastructure/api/expensesApi.ts` — `importControlExpenses` acepta `selectedRowKeys`.
 - `src/test/setup.ts` — el stub de `useMutation` pasa también `variables` a `onSuccess`
   (antes solo `data`, lo que ocultaba este flujo en los tests).
