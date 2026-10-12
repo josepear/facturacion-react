@@ -263,6 +263,7 @@ Evidencia de guardado en cliente (`public/app.js`): [`parity-partials-legacy-cod
 
 - [x] **(P1) Campo `nextcloudUrl` en gasto:** campo "Enlace Nextcloud" visible/editable en el formulario React y enlace "Carpeta Nextcloud" en cada fila del listado.
 - [x] **(P2) Importar gastos desde libro de control:** `POST /api/control-expenses-import` — sección "Importar gastos" admin en ExpensesPage con file input (.xlsx/.pdf), selector de perfil, FileReader→base64, resultado inline (commit `0f23152`).
+- [x] **(P1) Extractos bancarios en el import Excel:** cabeceras de banco (`F. VALOR`, `DESCRIPCIÓN`, …), fecha en hora local (sin desfase de 1 día) y **selección de filas** en la vista previa (`selectedRowKeys`, botón "Confirmar importación (N)"). Detalle: [`import-gastos-excel-extractos-bancarios.md`](./import-gastos-excel-extractos-bancarios.md).
 
 ### Integraciones Gmail — sección nueva
 

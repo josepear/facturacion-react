@@ -13,6 +13,9 @@ e2e/.auth/
 # Artefactos locales de sesión (no versionar)
 docs/cursor-session-handoff.md
 
+# Extractos bancarios locales (datos personales; no versionar)
+estractos/
+
 # Finder: archivo de icono de carpeta (nombre termina en CR).
 # OJO: "Icon?" tambien hacia match con el directorio "icons/", asi que lo exceptuamos.
 Icon?
