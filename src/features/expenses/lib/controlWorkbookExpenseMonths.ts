@@ -75,3 +75,48 @@ export function groupExpensesByMonth(sortedItems: ExpenseRecord[]): ExpenseMonth
     };
   });
 }
+
+/** Clave de trimestre (`2026-T4`) a partir de un `monthKey` (`2026-10`). */
+export function getExpenseQuarterKeyFromMonthKey(monthKey: string): string {
+  const [yearRaw, monthRaw] = String(monthKey || "").split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return "";
+  }
+  return `${year}-T${Math.floor((month - 1) / 3) + 1}`;
+}
+
+export type ExpenseQuarterTotal = {
+  quarterKey: string;
+  label: string;
+  total: number;
+  count: number;
+};
+
+/** Totales por trimestre a partir de los grupos por mes (`getExpenseQuarterKeyFromMonthKey`). */
+export function buildExpenseQuarterTotalsByKey(
+  monthGroups: ExpenseMonthGroup[],
+): Map<string, ExpenseQuarterTotal> {
+  const byKey = new Map<string, ExpenseQuarterTotal>();
+  for (const group of monthGroups) {
+    const quarterKey = getExpenseQuarterKeyFromMonthKey(group.monthKey);
+    if (!quarterKey) {
+      continue;
+    }
+    const existing = byKey.get(quarterKey);
+    if (existing) {
+      existing.total += group.monthTotal;
+      existing.count += group.items.length;
+      continue;
+    }
+    const [year, quarterCode] = quarterKey.split("-T");
+    byKey.set(quarterKey, {
+      quarterKey,
+      label: `T${quarterCode} ${year}`,
+      total: group.monthTotal,
+      count: group.items.length,
+    });
+  }
+  return byKey;
+}

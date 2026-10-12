@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { Field } from "@/components/forms/field";
@@ -17,6 +17,8 @@ import {
   sortExpenseWorkbookDefault,
 } from "@/features/data/lib/advisorShareFilters";
 import {
+  buildExpenseQuarterTotalsByKey,
+  getExpenseQuarterKeyFromMonthKey,
   groupExpensesByMonth,
   mapReactExpenseProfileFilterToControl,
   workbookQuarterRowToneClass,
@@ -544,6 +546,10 @@ export function ExpensesPage() {
   }, [expensesQuery.data?.items, profileControlToken, yearFilter, sessionScope]);
 
   const expenseMonthGroups = useMemo(() => groupExpensesByMonth(workbookFilteredExpenses), [workbookFilteredExpenses]);
+  const expenseQuarterTotals = useMemo(
+    () => buildExpenseQuarterTotalsByKey(expenseMonthGroups),
+    [expenseMonthGroups],
+  );
 
   const workbookExpenseTotal = useMemo(
     () => workbookFilteredExpenses.reduce((s, e) => s + (Number(e.total) || 0), 0),
@@ -1511,8 +1517,16 @@ export function ExpensesPage() {
                       <th className="p-2 font-medium">Acciones</th>
                     </tr>
                   </thead>
-                  {expenseMonthGroups.map((group) => (
-                    <tbody key={group.monthKey} className="border-b border-border/80">
+                  {expenseMonthGroups.map((group, groupIndex) => {
+                    const quarterKey = getExpenseQuarterKeyFromMonthKey(group.monthKey);
+                    const nextQuarterKey =
+                      groupIndex + 1 < expenseMonthGroups.length
+                        ? getExpenseQuarterKeyFromMonthKey(expenseMonthGroups[groupIndex + 1]!.monthKey)
+                        : "";
+                    const quarterTotal = quarterKey ? expenseQuarterTotals.get(quarterKey) : undefined;
+                    return (
+                    <Fragment key={group.monthKey}>
+                    <tbody className="border-b border-border/80">
                       <tr>
                         <th colSpan={7} scope="colgroup" className="bg-muted/30 px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-foreground">
                           <span>{group.title}</span>
@@ -1620,7 +1634,20 @@ export function ExpensesPage() {
                         <td />
                       </tr>
                     </tbody>
-                  ))}
+                    {quarterKey && quarterKey !== nextQuarterKey && quarterTotal ? (
+                      <tbody className="border-b-2 border-primary/40">
+                        <tr className="bg-primary/5 text-xs font-semibold text-foreground">
+                          <td colSpan={4} className="p-2">
+                            Total trimestre {quarterTotal.label} · {quarterTotal.count} gasto(s)
+                          </td>
+                          <td className="p-2 text-right tabular-nums">{formatCurrency(quarterTotal.total)}</td>
+                          <td />
+                        </tr>
+                      </tbody>
+                    ) : null}
+                    </Fragment>
+                    );
+                  })}
                   <tfoot>
                     <tr className="border-t bg-muted/30 font-medium">
                       <td colSpan={4} className="p-2">
