@@ -89,6 +89,8 @@ export async function importControlExpenses(payload: {
   files: { name: string; contentBase64: string }[];
   /** Solo un PDF: devuelve datos para el formulario sin persistir (legacy: antes se guardaba al vuelo). */
   previewOnly?: boolean;
+  /** Claves `${sheet}::${row}` de las filas marcadas en la vista previa; sin ellas se importan todas. */
+  selectedRowKeys?: string[];
 }): Promise<ControlExpensesImportResponse> {
   return request<ControlExpensesImportResponse>("/api/control-expenses-import", {
     method: "POST",

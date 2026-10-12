@@ -399,6 +399,12 @@ function formatExpenseImportErrorLines(errors: unknown): string[] {
   });
 }
 
+/** Clave estable de una fila de la vista previa; debe coincidir con el backend `${sheet}::${row}`. */
+function expenseImportRowKey(row: ControlExpensesImportPreview): string {
+  const sheet = String(row.sheet || row.file || "Excel");
+  return `${sheet}::${row.row ?? ""}`;
+}
+
 export function ExpensesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialRecordId = String(searchParams.get("recordId") || "").trim();
@@ -459,6 +465,7 @@ export function ExpensesPage() {
     templateProfileId: string;
     files: { name: string; contentBase64: string }[];
   } | null>(null);
+  const [selectedImportRowKeys, setSelectedImportRowKeys] = useState<Set<string>>(new Set());
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const configQuery = useQuery({
@@ -659,6 +666,7 @@ export function ExpensesPage() {
       templateProfileId: string;
       files: { name: string; contentBase64: string }[];
       previewOnly?: boolean;
+      selectedRowKeys?: string[];
     }) => importControlExpenses(payload),
     onSuccess: (data, variables) => {
       const isPdfRequest = variables.files.some((file) => /\.pdf$/iu.test(String(file.name || "")));
@@ -710,6 +718,7 @@ export function ExpensesPage() {
           errors: formatExpenseImportErrorLines(data.errors),
         });
         setImportPreviewRows(data.previews);
+        setSelectedImportRowKeys(new Set(data.previews.map((row) => expenseImportRowKey(row))));
         setImportPreparedPayload({
           templateProfileId: variables.templateProfileId,
           files: variables.files,
@@ -730,6 +739,7 @@ export function ExpensesPage() {
       setImportFileName("");
       setImportPreparedPayload(null);
       setImportPreviewRows([]);
+      setSelectedImportRowKeys(new Set());
       const created = data.created ?? 0;
       setImportResult({
         created,
@@ -773,6 +783,7 @@ export function ExpensesPage() {
       }
       setImportResult(null);
       setImportPreviewRows([]);
+      setSelectedImportRowKeys(new Set());
       setImportPreparedPayload(null);
       importExpensesMutation.mutate({
         templateProfileId: importProfileId,
@@ -1162,16 +1173,22 @@ export function ExpensesPage() {
                         setStatusTone("error");
                         return;
                       }
+                      if (selectedImportRowKeys.size === 0) {
+                        setStatusMessage("Marca al menos una fila de la vista previa para importar.");
+                        setStatusTone("error");
+                        return;
+                      }
                       setImportResult(null);
                       importExpensesMutation.mutate({
                         templateProfileId: importPreparedPayload.templateProfileId,
                         files: importPreparedPayload.files,
                         previewOnly: false,
+                        selectedRowKeys: Array.from(selectedImportRowKeys),
                       });
                     }}
-                    disabled={importExpensesMutation.isPending || !importPreparedPayload}
+                    disabled={importExpensesMutation.isPending || !importPreparedPayload || selectedImportRowKeys.size === 0}
                   >
-                    {importExpensesMutation.isPending ? "Importando..." : "Confirmar importación"}
+                    {importExpensesMutation.isPending ? "Importando..." : `Confirmar importación (${selectedImportRowKeys.size})`}
                   </Button>
                 ) : null}
               </div>
@@ -1186,12 +1203,26 @@ export function ExpensesPage() {
                 <div className="grid gap-2 rounded-md border border-amber-300 bg-amber-50/60 p-3 text-sm">
                   <p className="font-medium text-foreground">Vista previa antes de guardar</p>
                   <p className="text-informative">
-                    Revisa fecha, trimestre, proveedor e importe. Las filas marcadas como posible duplicado conviene mirarlas antes de confirmar.
+                    Revisa fecha, trimestre, proveedor e importe. Marca o desmarca las filas que quieras importar. Las filas marcadas como posible duplicado conviene mirarlas antes de confirmar.
                   </p>
                   <div className="max-h-64 overflow-auto rounded-md border border-border bg-background">
                     <table className={cn(workbookDataTableBase, "min-w-[42rem] text-xs") }>
                       <thead>
                         <tr className="border-b bg-muted/40 text-left text-informative">
+                          <th className="w-8 p-2 font-medium">
+                            <input
+                              type="checkbox"
+                              aria-label="Seleccionar todas las filas"
+                              checked={importPreviewRows.length > 0 && selectedImportRowKeys.size === importPreviewRows.length}
+                              onChange={(event) => {
+                                setSelectedImportRowKeys(
+                                  event.target.checked
+                                    ? new Set(importPreviewRows.map((row) => expenseImportRowKey(row)))
+                                    : new Set(),
+                                );
+                              }}
+                            />
+                          </th>
                           <th className="p-2 font-medium">Hoja</th>
                           <th className="p-2 font-medium">Fila</th>
                           <th className="p-2 font-medium">Fecha</th>
@@ -1205,6 +1236,25 @@ export function ExpensesPage() {
                       <tbody>
                         {importPreviewRows.map((row, index) => (
                           <tr key={`${row.sheet || row.file}-${row.row || index}-${row.expense.issueDate}-${row.expense.total}`} className="border-b border-border/60">
+                            <td className={workbookDataTdTight}>
+                              <input
+                                type="checkbox"
+                                aria-label={`Seleccionar fila ${row.row ?? index + 1}`}
+                                checked={selectedImportRowKeys.has(expenseImportRowKey(row))}
+                                onChange={(event) => {
+                                  const key = expenseImportRowKey(row);
+                                  setSelectedImportRowKeys((prev) => {
+                                    const next = new Set(prev);
+                                    if (event.target.checked) {
+                                      next.add(key);
+                                    } else {
+                                      next.delete(key);
+                                    }
+                                    return next;
+                                  });
+                                }}
+                              />
+                            </td>
                             <td className={workbookDataTdTight}>{row.sheet || row.file || "Excel"}</td>
                             <td className={workbookDataTdTight}>{row.row || "-"}</td>
                             <td className={workbookDataTdTight}>{row.expense.issueDate || "-"}</td>

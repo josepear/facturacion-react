@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -30,6 +30,7 @@ const {
   archiveExpenseYearMock,
   fetchTrashMock,
   deleteTrashEntriesMock,
+  importControlExpensesMock,
   searchState,
 } = vi.hoisted(() => ({
   fetchRuntimeConfigMock: vi.fn(),
@@ -42,6 +43,7 @@ const {
   archiveExpenseYearMock: vi.fn(),
   fetchTrashMock: vi.fn(),
   deleteTrashEntriesMock: vi.fn(),
+  importControlExpensesMock: vi.fn(),
   searchState: { query: "" },
 }));
 
@@ -74,7 +76,7 @@ vi.mock("@/infrastructure/api/expensesApi", () => ({
   saveExpense: saveExpenseMock,
   archiveExpense: archiveExpenseMock,
   archiveExpenseYear: archiveExpenseYearMock,
-  importControlExpenses: vi.fn().mockResolvedValue({ created: 0, skipped: [] }),
+  importControlExpenses: importControlExpensesMock,
 }));
 
 vi.mock("@/infrastructure/api/historyApi", () => ({
@@ -229,6 +231,70 @@ describe("ExpensesPage regression", () => {
       expect(saveExpenseMock).toHaveBeenCalled();
     });
     expect(await screen.findByText("Error fiscal del servidor")).toBeTruthy();
+  });
+
+  it("import de Excel: la vista previa permite elegir qué filas importar", async () => {
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "Admin", email: "a@test", role: "admin", tenantId: "default" },
+    });
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-main",
+      templateProfiles: [{ id: "perfil-main", label: "Main" }],
+    });
+    fetchExpensesMock.mockResolvedValue({ items: [], years: [] });
+    fetchExpenseOptionsMock.mockResolvedValue({ vendors: [], categories: [] });
+    fetchTrashMock.mockResolvedValue({ items: [] });
+    importControlExpensesMock.mockReset();
+    importControlExpensesMock.mockResolvedValueOnce({
+      preview: true,
+      skipped: [],
+      previews: [
+        {
+          file: "banco.xlsx",
+          sheet: "Movimientos",
+          row: 5,
+          expense: { issueDate: "2026-10-05", quarter: "T4", vendor: "Bizum A", expenseConcept: "Bizum A", total: 220 },
+        },
+        {
+          file: "banco.xlsx",
+          sheet: "Movimientos",
+          row: 7,
+          expense: { issueDate: "2026-10-05", quarter: "T4", vendor: "Traspaso B", expenseConcept: "Traspaso B", total: 200 },
+        },
+      ],
+    });
+    importControlExpensesMock.mockResolvedValueOnce({ created: 1, skipped: [] });
+
+    render(<ExpensesPage />, { wrapper: createPageWrapper() });
+
+    await userEvent.selectOptions(await screen.findByDisplayValue("— Selecciona emisor —"), "perfil-main");
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(["dummy"], "banco.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await userEvent.click(screen.getByRole("button", { name: "Vista previa Excel" }));
+    await waitFor(() => {
+      expect(importControlExpensesMock).toHaveBeenCalledTimes(1);
+    });
+    await screen.findByText("Vista previa antes de guardar");
+
+    expect((screen.getByRole("checkbox", { name: "Seleccionar fila 5" }) as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(screen.getByRole("checkbox", { name: "Seleccionar fila 5" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirmar importación (1)" }));
+
+    await waitFor(() => {
+      expect(importControlExpensesMock).toHaveBeenCalledTimes(2);
+    });
+    const confirmPayload = importControlExpensesMock.mock.calls[1]?.[0] as {
+      previewOnly?: boolean;
+      selectedRowKeys?: string[];
+    };
+    expect(confirmPayload.previewOnly).toBe(false);
+    expect(confirmPayload.selectedRowKeys).toEqual(["Movimientos::7"]);
   });
 });
 

@@ -118,7 +118,7 @@ vi.mock("@tanstack/react-query", async () => {
     onError,
   }: {
     mutationFn: (arg: TArg) => Promise<TData> | TData;
-    onSuccess?: (data: TData) => void | Promise<void>;
+    onSuccess?: (data: TData, variables: TArg) => void | Promise<void>;
     onError?: (error: Error) => void;
   }) => {
     const [isPending, setIsPending] = React.useState(false);
@@ -129,7 +129,7 @@ vi.mock("@tanstack/react-query", async () => {
       setError(null);
       try {
         const result = await Promise.resolve(mutationFn(arg));
-        await onSuccess?.(result);
+        await onSuccess?.(result, arg);
         return result;
       } catch (err) {
         const safeError = err as Error;
