@@ -1611,7 +1611,7 @@ export function ExpensesPage() {
 
       <dialog
         ref={expenseFormDialogRef}
-        className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-5xl -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-0 shadow-lg backdrop:bg-black/50"
+        className="fixed inset-0 z-50 m-auto max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem))] w-[calc(100vw-2rem)] max-w-5xl overflow-y-auto overscroll-contain rounded-lg border border-border bg-background p-0 shadow-lg backdrop:bg-black/50"
         aria-labelledby="expense-form-modal-heading"
         onClose={() => setExpenseFormModalOpen(false)}
       >
@@ -1637,7 +1637,7 @@ export function ExpensesPage() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="grid max-h-[min(88vh,54rem)] gap-4 overflow-y-auto p-6 sm:grid-cols-2">
+          <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
             {String(draft.year || "").trim() ? (
               <p className="sm:col-span-2 text-informative">
                 <span className="font-medium text-foreground">Ejercicio (registro):</span>{" "}
@@ -2172,7 +2172,7 @@ export function ExpensesPage() {
 
       <dialog
         ref={expenseLabelsDialogRef}
-        className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-4xl -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-0 shadow-lg backdrop:bg-black/50"
+        className="fixed inset-0 z-50 m-auto max-h-[min(92dvh,calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-1rem))] w-[calc(100vw-2rem)] max-w-4xl overflow-y-auto overscroll-contain rounded-lg border border-border bg-background p-0 shadow-lg backdrop:bg-black/50"
         aria-labelledby="expense-labels-modal-heading"
         onClose={() => {
           setLabelsModalOpen(false);
