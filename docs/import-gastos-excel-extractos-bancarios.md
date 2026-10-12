@@ -5,7 +5,7 @@
 **Estado:** cerrado y desplegado.
 
 Este documento describe cómo funciona el importador de gastos por Excel, los formatos de
-extracto de banco soportados, y las mejoras de selección de filas y de fechas.
+extracto de banco soportados, y las mejoras de quita/selección de filas y de fechas.
 
 ---
 
@@ -19,7 +19,7 @@ extracto de banco soportados, y las mejoras de selección de filas y de fechas.
    - Cada fila tiene un botón **✕ (Quitar)**; se importan **las que queden**.
    - La **confirmación está dentro del popup** (“Confirmar importación (N)”); al cerrarlo,
      el botón **“Ver vista previa (N)”** de la tarjeta lo vuelve a abrir.
-4. **Confirmar importación (N)** → se crean solo las **N filas marcadas**.
+4. **Confirmar importación (N)** → se crean las **N filas que quedan en la vista previa**.
 
 > Nota de UX: durante la vista previa el bloque *Resultado* muestra `Creados en servidor: 0`.
 > Es correcto: en vista previa no se persiste nada. Los “Omitidos” de la vista previa son
@@ -40,8 +40,9 @@ extracto de banco soportados, y las mejoras de selección de filas y de fechas.
 }
 ```
 
-- `selectedRowKeys`: claves `${sheet}::${row}` de las filas marcadas. Si **no se envía**,
-  se importan **todas** las filas válidas (retrocompatible).
+- `selectedRowKeys`: claves `${sheet}::${row}` de las filas **a importar** (las que quedan en la
+  vista previa tras quitar las que no quieras). Si **no se envía**, se importan **todas** las
+  filas válidas (retrocompatible).
 - Se usa `::` como separador porque el carácter `:` **no es válido** en un nombre de hoja
   de Excel, así que no hay colisión.
 - `row` es el **número de fila de Excel (1-based)**.
@@ -105,19 +106,17 @@ omite con `Sin cabeceras reconocibles (fecha, concepto o proveedor, e importe).`
 ### Frontend (`facturacion-react`)
 
 - `src/features/expenses/pages/ExpensesPage.tsx`
-  - Vista previa con **checkbox por fila** + “seleccionar todas”.
-  - Botón **`Confirmar importación (N)`** (deshabilitado sin selección).
-  - Al confirmar se envía `selectedRowKeys`.
+  - **Vista previa como popup a todo el ancho**, con tabla scrollable y confirmación en el pie.
+    Cada fila tiene **✕ (Quitar)**; se importan **las que quedan**. Al confirmar se envía
+    `selectedRowKeys` (claves de las filas restantes).
   - **Modales** de gasto/etiquetas: centrado robusto `fixed inset-0 m-auto` +
     `max-h-[min(92dvh, …)]` + `overflow-y-auto` (antes se recortaban por arriba al ser altos).
-  - **Vista previa como popup a todo el ancho** (tabla scrollable, confirmación en el pie); se
-    **quitan filas** con ✕ y se importan las que queden (antes eran checkboxes de selección).
-  - Popup: ancho con `calc(100% - 1rem)` (evita el scroll horizontal de `100vw`) y `hidden open:flex`
+  - Popup: ancho `calc(100% - 1rem)` (evita el scroll horizontal de `100vw`) y `hidden open:flex`
     (un `<dialog>` cerrado con `flex` se dibuja como una línea fantasma a todo el ancho).
 - `src/infrastructure/api/expensesApi.ts` — `importControlExpenses` acepta `selectedRowKeys`.
 - `src/test/setup.ts` — el stub de `useMutation` pasa también `variables` a `onSuccess`
   (antes solo `data`, lo que ocultaba este flujo en los tests).
-- Test: `ExpensesPage.test.tsx` → “import de Excel: la vista previa permite elegir qué filas importar”.
+- Test: `ExpensesPage.test.tsx` → “import de Excel: la vista previa permite quitar filas antes de importar”.
 
 ### Backend (`facturacion`, `server.mjs`)
 
@@ -147,5 +146,4 @@ En el despliegue de este cambio se construyó **este repo (`main`)** y se subió
 Si más adelante se vuelve a desplegar con el submódulo, comprobar que ambos apuntan a la misma
 rama/commit para no revertir estas mejoras (`ExpensesPage` y `expensesApi`).
 
-Rollback: backups en el mini `~/facturacion-app/react-dist.bak-*` y
-`~/facturacion-app/server.mjs.bak-*`.
+Rollback: backups en el mini en `~/agent-backups-20261012/` (copias de `react-dist/` y `server.mjs`).
