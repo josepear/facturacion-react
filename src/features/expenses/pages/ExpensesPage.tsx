@@ -465,7 +465,6 @@ export function ExpensesPage() {
     templateProfileId: string;
     files: { name: string; contentBase64: string }[];
   } | null>(null);
-  const [selectedImportRowKeys, setSelectedImportRowKeys] = useState<Set<string>>(new Set());
   const [importPreviewModalOpen, setImportPreviewModalOpen] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
   const importPreviewDialogRef = useRef<HTMLDialogElement>(null);
@@ -721,7 +720,6 @@ export function ExpensesPage() {
         });
         setImportPreviewRows(data.previews);
         setImportPreviewModalOpen(true);
-        setSelectedImportRowKeys(new Set(data.previews.map((row) => expenseImportRowKey(row))));
         setImportPreparedPayload({
           templateProfileId: variables.templateProfileId,
           files: variables.files,
@@ -743,7 +741,6 @@ export function ExpensesPage() {
       setImportPreparedPayload(null);
       setImportPreviewRows([]);
       setImportPreviewModalOpen(false);
-      setSelectedImportRowKeys(new Set());
       const created = data.created ?? 0;
       setImportResult({
         created,
@@ -788,7 +785,6 @@ export function ExpensesPage() {
       setImportResult(null);
       setImportPreviewRows([]);
       setImportPreviewModalOpen(false);
-      setSelectedImportRowKeys(new Set());
       setImportPreparedPayload(null);
       importExpensesMutation.mutate({
         templateProfileId: importProfileId,
@@ -799,14 +795,18 @@ export function ExpensesPage() {
     reader.readAsDataURL(file);
   }
 
+  function removeImportPreviewRow(rowKey: string) {
+    setImportPreviewRows((prev) => prev.filter((row) => expenseImportRowKey(row) !== rowKey));
+  }
+
   function confirmImportExpenses() {
     if (!importPreparedPayload) {
       setStatusMessage("Haz primero la vista previa del Excel antes de confirmar.");
       setStatusTone("error");
       return;
     }
-    if (selectedImportRowKeys.size === 0) {
-      setStatusMessage("Marca al menos una fila de la vista previa para importar.");
+    if (importPreviewRows.length === 0) {
+      setStatusMessage("No quedan filas en la vista previa para importar.");
       setStatusTone("error");
       return;
     }
@@ -816,7 +816,7 @@ export function ExpensesPage() {
       templateProfileId: importPreparedPayload.templateProfileId,
       files: importPreparedPayload.files,
       previewOnly: false,
-      selectedRowKeys: Array.from(selectedImportRowKeys),
+      selectedRowKeys: importPreviewRows.map((row) => expenseImportRowKey(row)),
     });
   }
 
@@ -1234,7 +1234,7 @@ export function ExpensesPage() {
                         <p className="text-xs font-medium uppercase tracking-wide text-informative">Gastos · Excel</p>
                         <h2 id="import-preview-modal-heading" className="text-lg font-semibold tracking-tight">Vista previa antes de guardar</h2>
                         <p className="text-informative text-sm">
-                          Revisa fecha, trimestre, proveedor e importe. Marca o desmarca las filas que quieras importar. Las filas marcadas como posible duplicado conviene mirarlas antes de confirmar.
+                          Revisa fecha, trimestre, proveedor e importe. Pulsa ✕ en las filas que no quieras importar: se importan las que queden. Las filas marcadas como posible duplicado conviene mirarlas antes de confirmar.
                         </p>
                       </div>
                       <Button
@@ -1252,20 +1252,7 @@ export function ExpensesPage() {
                       <table className={cn(workbookDataTableBase, "w-full min-w-[48rem] text-xs")}>
                         <thead>
                         <tr className="border-b bg-muted/40 text-left text-informative">
-                          <th className="w-8 p-2 font-medium">
-                            <input
-                              type="checkbox"
-                              aria-label="Seleccionar todas las filas"
-                              checked={importPreviewRows.length > 0 && selectedImportRowKeys.size === importPreviewRows.length}
-                              onChange={(event) => {
-                                setSelectedImportRowKeys(
-                                  event.target.checked
-                                    ? new Set(importPreviewRows.map((row) => expenseImportRowKey(row)))
-                                    : new Set(),
-                                );
-                              }}
-                            />
-                          </th>
+                          <th className="w-16 p-2 font-medium">Quitar</th>
                           <th className="p-2 font-medium">Hoja</th>
                           <th className="p-2 font-medium">Fila</th>
                           <th className="p-2 font-medium">Fecha</th>
@@ -1280,23 +1267,16 @@ export function ExpensesPage() {
                         {importPreviewRows.map((row, index) => (
                           <tr key={`${row.sheet || row.file}-${row.row || index}-${row.expense.issueDate}-${row.expense.total}`} className="border-b border-border/60">
                             <td className={workbookDataTdTight}>
-                              <input
-                                type="checkbox"
-                                aria-label={`Seleccionar fila ${row.row ?? index + 1}`}
-                                checked={selectedImportRowKeys.has(expenseImportRowKey(row))}
-                                onChange={(event) => {
-                                  const key = expenseImportRowKey(row);
-                                  setSelectedImportRowKeys((prev) => {
-                                    const next = new Set(prev);
-                                    if (event.target.checked) {
-                                      next.add(key);
-                                    } else {
-                                      next.delete(key);
-                                    }
-                                    return next;
-                                  });
-                                }}
-                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-destructive hover:text-destructive"
+                                aria-label={`Quitar fila ${row.row ?? index + 1}`}
+                                onClick={() => removeImportPreviewRow(expenseImportRowKey(row))}
+                              >
+                                ✕
+                              </Button>
                             </td>
                             <td className={workbookDataTdTight}>{row.sheet || row.file || "Excel"}</td>
                             <td className={workbookDataTdTight}>{row.row || "-"}</td>
@@ -1313,7 +1293,7 @@ export function ExpensesPage() {
                     </div>
                     <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3">
                       <span className="text-sm text-informative">
-                        Seleccionadas: {selectedImportRowKeys.size} de {importPreviewRows.length}
+                        Se importarán {importPreviewRows.length} fila(s).
                       </span>
                       <div className="flex flex-wrap gap-2">
                         <Button type="button" variant="outline" onClick={() => setImportPreviewModalOpen(false)}>
@@ -1322,9 +1302,9 @@ export function ExpensesPage() {
                         <Button
                           type="button"
                           onClick={confirmImportExpenses}
-                          disabled={importExpensesMutation.isPending || selectedImportRowKeys.size === 0}
+                          disabled={importExpensesMutation.isPending || importPreviewRows.length === 0}
                         >
-                          {importExpensesMutation.isPending ? "Importando..." : `Confirmar importación (${selectedImportRowKeys.size})`}
+                          {importExpensesMutation.isPending ? "Importando..." : `Confirmar importación (${importPreviewRows.length})`}
                         </Button>
                       </div>
                     </footer>

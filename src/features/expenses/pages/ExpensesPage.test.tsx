@@ -233,7 +233,7 @@ describe("ExpensesPage regression", () => {
     expect(await screen.findByText("Error fiscal del servidor")).toBeTruthy();
   });
 
-  it("import de Excel: la vista previa permite elegir qué filas importar", async () => {
+  it("import de Excel: la vista previa permite quitar filas antes de importar", async () => {
     fetchSessionMock.mockResolvedValue({
       authenticated: true,
       user: { id: "u1", name: "Admin", email: "a@test", role: "admin", tenantId: "default" },
@@ -281,8 +281,7 @@ describe("ExpensesPage regression", () => {
     });
     await screen.findByText("Vista previa antes de guardar");
 
-    expect((screen.getByRole("checkbox", { name: "Seleccionar fila 5" }) as HTMLInputElement).checked).toBe(true);
-    await userEvent.click(screen.getByRole("checkbox", { name: "Seleccionar fila 5" }));
+    await userEvent.click(screen.getByRole("button", { name: "Quitar fila 5" }));
 
     await userEvent.click(screen.getByRole("button", { name: "Confirmar importación (1)" }));
 
