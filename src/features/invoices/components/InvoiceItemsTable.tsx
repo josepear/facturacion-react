@@ -180,6 +180,8 @@ export function InvoiceItemsTable({
 }: InvoiceItemsTableProps) {
   const items = useWatch({ control, name: "items" }) ?? [];
   const [expandedIndex, setExpandedIndex] = useState(0);
+  /** Modo por bruto: las líneas son solo texto (sin cantidad/precio/importe). */
+  const isManualGrossMode = totalsBasis === "gross";
   const [bulkText, setBulkText] = useState("");
   const [bulkFeedback, setBulkFeedback] = useState("");
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -310,11 +312,15 @@ export function InvoiceItemsTable({
       </div>
 
       <div className="mb-1 hidden gap-3 px-1 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-12 sm:items-end">
-        <div className="sm:col-span-5">Concepto</div>
-        <div className="sm:col-span-2">Comensales</div>
-        <div className="sm:col-span-2">EUR x persona</div>
-        <div className="sm:col-span-2 text-right">Total linea</div>
-        <div className="sm:col-span-1" aria-hidden />
+        <div className={isManualGrossMode ? "sm:col-span-11" : "sm:col-span-5"}>Concepto</div>
+        {isManualGrossMode ? null : (
+          <>
+            <div className="sm:col-span-2">Comensales</div>
+            <div className="sm:col-span-2">EUR x persona</div>
+            <div className="sm:col-span-2 text-right">Total linea</div>
+            <div className="sm:col-span-1" aria-hidden />
+          </>
+        )}
       </div>
 
       {Array.from({ length: itemCount }).map((_, index) => {
@@ -350,7 +356,7 @@ export function InvoiceItemsTable({
                 <span className="truncate text-sm font-medium">{conceptLabel}</span>
               </button>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="hidden sm:inline">Total linea: {lineTotalLabel}</span>
+                {isManualGrossMode ? null : <span className="hidden sm:inline">Total linea: {lineTotalLabel}</span>}
                 <Button
                   type="button"
                   variant="ghost"
@@ -441,6 +447,7 @@ export function InvoiceItemsTable({
                     </div>
                     {perPersonHint ? <p className="mt-1 text-xs text-muted-foreground">{perPersonHint}</p> : null}
                   </div>
+                  {isManualGrossMode ? null : (
                   <div className="sm:col-span-2">
                     <label className="grid gap-1 text-xs">
                       <span className="sm:sr-only">{isPerPerson ? "Comensales" : "Cant."}</span>
@@ -465,12 +472,16 @@ export function InvoiceItemsTable({
                       />
                     </label>
                   </div>
+                  )}
+                  {isManualGrossMode ? null : (
                   <div className="sm:col-span-2">
                     <label className="grid gap-1 text-xs">
                       <span className="sm:sr-only">{isPerPerson ? "EUR x persona" : "Precio"}</span>
                       <Input type="number" step="0.01" {...register(`items.${index}.unitPrice`, { valueAsNumber: true })} />
                     </label>
                   </div>
+                  )}
+                  {isManualGrossMode ? null : (
                   <div className="sm:col-span-2">
                     <label className="grid gap-1 text-xs">
                       <span className="sm:sr-only">Total linea</span>
@@ -491,6 +502,7 @@ export function InvoiceItemsTable({
                       />
                     </label>
                   </div>
+                  )}
                   <div className="flex sm:col-span-1 sm:justify-end">
                     <span className="text-xs text-muted-foreground">Linea {index + 1}</span>
                   </div>
@@ -500,7 +512,9 @@ export function InvoiceItemsTable({
                   <Textarea placeholder="Detalle del concepto" rows={3} {...register(`items.${index}.description`)} />
                 </label>
                 <p className="text-informative text-sm">
-                  Si informas total manual, prevalece sobre cantidad x precio.
+                  {isManualGrossMode
+                    ? "Modo por bruto: escribe solo el concepto. El importe se indica en «Importe bruto (base)»."
+                    : "Si informas total manual, prevalece sobre cantidad x precio."}
                 </p>
               </>
             )}
@@ -509,11 +523,7 @@ export function InvoiceItemsTable({
       })}
 
       {errors.items?.message ? <p className="text-sm text-red-600">{errors.items.message}</p> : null}
-      {totalsBasis === "gross" ? (
-        <p className="text-informative">
-          En modo bruto, los importes se calculan a partir de estas lineas (detalle y vista previa).
-        </p>
-      ) : null}
+
 
       <ConceptLibraryDialog
         open={libraryOpen}
