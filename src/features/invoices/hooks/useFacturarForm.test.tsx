@@ -250,7 +250,7 @@ describe("useFacturarForm regression", () => {
     });
 
     expect(saveDocumentMock).toHaveBeenCalledTimes(1);
-    const saved = saveDocumentMock.mock.calls[0][0] as typeof document;
+    const saved = saveDocumentMock.mock.calls[0]?.[0] as typeof document;
     expect(saved.totalsBasis).toBe("gross");
     expect(saved.manualGrossSubtotal).toBe(1000);
     expect(saved.subtotal).toBe(1000);

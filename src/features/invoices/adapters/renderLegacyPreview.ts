@@ -82,6 +82,7 @@ function formatLineAmountLabel(
 }
 
 export function buildLegacyPreviewModel(document: InvoiceDocument): LegacyPreviewModel {
+  const manualGrossMode = document.totalsBasis === "gross";
   const sourceItems = (document.items || []).map((item) => {
     const quantity = Number(item.quantity || 0);
     const unitPrice = Number(item.unitPrice || 0);
@@ -91,7 +92,7 @@ export function buildLegacyPreviewModel(document: InvoiceDocument): LegacyPrevie
       total,
       concept: String(item.concept || ""),
       description: String(item.description || ""),
-      amountLabel: formatLineAmountLabel(quantity, unitPrice, total, item),
+      amountLabel: manualGrossMode ? "" : formatLineAmountLabel(quantity, unitPrice, total, item),
     };
   });
   const subtotalFromItems = sourceItems.reduce((sum, item) => sum + item.total, 0);
@@ -129,7 +130,7 @@ export function buildLegacyPreviewModel(document: InvoiceDocument): LegacyPrevie
     clientEmailLabel: String(document.client?.email || ""),
     clientContactLabel: String(document.client?.contactPerson || ""),
     items,
-    totalsBasisLabel: document.totalsBasis === "gross" ? "Modo bruto (desde líneas)" : "Suma de líneas",
+    totalsBasisLabel: document.totalsBasis === "gross" ? "Por bruto (importe manual)" : "Suma de líneas",
     subtotalBaseLabel: formatCurrency(
       document.totalsBasis === "gross" && Number(document.manualGrossSubtotal || 0) > 0
         ? Number(document.manualGrossSubtotal || 0)
