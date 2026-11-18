@@ -18,6 +18,7 @@ import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
 import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { hasSendableRecipients, parseRecipientList } from "@/features/shared/lib/emailRecipients";
 import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { ACCOUNTING_STATUS_OPTIONS, formatAccountingStatusLabel } from "@/features/shared/lib/accountingStatusOptions";
 import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
@@ -76,12 +77,14 @@ export function HistoryPage() {
   const [shareMessage, setShareMessage] = useState<{ text: string; tone: "neutral" | "success" | "error" } | null>(null);
   const [gmailDialog, setGmailDialog] = useState(false);
   const [gmailTo, setGmailTo] = useState("");
+  const gmailRecipients = useMemo(() => parseRecipientList(gmailTo), [gmailTo]);
   const [gmailBodyText, setGmailBodyText] = useState("");
   const [gmailSentMessage, setGmailSentMessage] = useState("");
   const gmailDialogRef = useRef<HTMLDialogElement>(null);
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(() => new Set());
   const [gmailBatchDialog, setGmailBatchDialog] = useState(false);
   const [gmailBatchTo, setGmailBatchTo] = useState("");
+  const gmailBatchRecipients = useMemo(() => parseRecipientList(gmailBatchTo), [gmailBatchTo]);
   const [gmailBatchBody, setGmailBatchBody] = useState("");
   const [gmailBatchMessage, setGmailBatchMessage] = useState("");
   const gmailBatchDialogRef = useRef<HTMLDialogElement>(null);
@@ -309,7 +312,7 @@ export function HistoryPage() {
       sendGmailInvoice({
         recordId: selectedRecordId,
         templateProfileId: gmailProfileId,
-        to: gmailTo,
+        to: gmailRecipients.normalized,
         bodyText: gmailBodyText || undefined,
       }),
     onSuccess: async () => {
@@ -360,7 +363,7 @@ export function HistoryPage() {
       sendGmailInvoiceBatch({
         recordIds: selectedRows.map((r) => r.recordId),
         templateProfileId: gmailBatchProfileId,
-        to: gmailBatchTo.trim() || undefined,
+        to: gmailBatchTo.trim() ? gmailBatchRecipients.normalized : undefined,
         bodyText: gmailBatchBody.trim() || undefined,
       }),
     onSuccess: async () => {
@@ -1207,14 +1210,18 @@ export function HistoryPage() {
         <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar facturas por Gmail (lote)</SectionTitle>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
-            Para (email)
+            Para (opcional, uno o varios separados por comas)
             <input
-              type="email"
+              type="text"
+              inputMode="email"
               value={gmailBatchTo}
               onChange={(e) => setGmailBatchTo(e.target.value)}
-              placeholder="cliente@ejemplo.com (un solo destino para todas)"
+              placeholder="Vacío = correo de cada cliente. Varios: a@x.com, b@y.com"
               style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem" }}
             />
+            {gmailBatchTo.trim() && gmailBatchRecipients.error ? (
+              <span style={{ color: "#dc2626", fontSize: "0.8125rem" }}>{gmailBatchRecipients.error}</span>
+            ) : null}
           </label>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
             Mensaje (opcional)
@@ -1243,7 +1250,10 @@ export function HistoryPage() {
             </Button>
             <Button
               type="button"
-              disabled={!gmailBatchTo.trim() || gmailBatchSendMutation.isPending}
+              disabled={
+                (gmailBatchTo.trim() !== "" && !hasSendableRecipients(gmailBatchRecipients)) ||
+                gmailBatchSendMutation.isPending
+              }
               onClick={() => gmailBatchSendMutation.mutate()}
             >
               {gmailBatchSendMutation.isPending ? "Enviando..." : "Enviar"}
@@ -1260,14 +1270,18 @@ export function HistoryPage() {
         <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>{getDocLabels(openedDocument?.type || "").gmailDialogTitle}</SectionTitle>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
-            Para (email)
+            Para (uno o varios, separados por comas)
             <input
-              type="email"
+              type="text"
+              inputMode="email"
               value={gmailTo}
               onChange={(e) => setGmailTo(e.target.value)}
-              placeholder="cliente@ejemplo.com"
+              placeholder="cliente@ejemplo.com, otro@ejemplo.com"
               style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem" }}
             />
+            {gmailTo.trim() && gmailRecipients.error ? (
+              <span style={{ color: "#dc2626", fontSize: "0.8125rem" }}>{gmailRecipients.error}</span>
+            ) : null}
           </label>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
             Mensaje (opcional)
@@ -1296,7 +1310,7 @@ export function HistoryPage() {
             </Button>
             <Button
               type="button"
-              disabled={!gmailTo.trim() || gmailSendMutation.isPending}
+              disabled={!hasSendableRecipients(gmailRecipients) || gmailSendMutation.isPending}
               onClick={() => gmailSendMutation.mutate()}
             >
               {gmailSendMutation.isPending ? "Enviando..." : "Enviar"}

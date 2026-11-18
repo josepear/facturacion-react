@@ -24,6 +24,7 @@ import { PageHeader } from "@/features/shared/components/PageHeader";
 import { InfoCallout } from "@/components/ui/info-callout";
 import { SectionTitle } from "@/components/ui/section-title";
 import { Select } from "@/components/ui/select";
+import { hasSendableRecipients, parseRecipientList } from "@/features/shared/lib/emailRecipients";
 import { isTemplateProfileInScope } from "@/features/shared/lib/sessionScope";
 import { CLOSE, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
@@ -303,6 +304,7 @@ export function FacturarPage() {
 
   const [gmailDialog, setGmailDialog] = useState(false);
   const [gmailTo, setGmailTo] = useState("");
+  const gmailRecipients = useMemo(() => parseRecipientList(gmailTo), [gmailTo]);
   const [gmailBodyText, setGmailBodyText] = useState("");
   const [gmailSentMessage, setGmailSentMessage] = useState("");
   const [gmailAuthError, setGmailAuthError] = useState("");
@@ -433,7 +435,7 @@ export function FacturarPage() {
       sendGmailInvoice({
         recordId: serverRecordId,
         templateProfileId: templateProfileIdForGmail,
-        to: gmailTo,
+        to: gmailRecipients.normalized,
         bodyText: gmailBodyText || undefined,
       }),
     onSuccess: async () => {
@@ -1362,14 +1364,18 @@ export function FacturarPage() {
         <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>{docLabels.gmailDialogTitle}</SectionTitle>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
-            Para (email)
+            Para (uno o varios, separados por comas)
             <input
-              type="email"
+              type="text"
+              inputMode="email"
               value={gmailTo}
               onChange={(e) => setGmailTo(e.target.value)}
-              placeholder="cliente@ejemplo.com"
+              placeholder="cliente@ejemplo.com, otro@ejemplo.com"
               style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem" }}
             />
+            {gmailTo.trim() && gmailRecipients.error ? (
+              <span style={{ color: "#dc2626", fontSize: "0.8125rem" }}>{gmailRecipients.error}</span>
+            ) : null}
           </label>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
             Mensaje (opcional)
@@ -1398,7 +1404,7 @@ export function FacturarPage() {
             </Button>
             <Button
               type="button"
-              disabled={!gmailTo.trim() || gmailSendMutation.isPending}
+              disabled={!hasSendableRecipients(gmailRecipients) || gmailSendMutation.isPending}
               onClick={() => gmailSendMutation.mutate()}
             >
               {gmailSendMutation.isPending ? "Enviando..." : "Enviar"}
