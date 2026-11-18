@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { BarChart2, FileSpreadsheet, LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
+import { BarChart2, BookOpen, FileSpreadsheet, LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/AuthContext";
 import { getAuthToken } from "@/infrastructure/api/httpClient";
 import { hasFirstUseWizardBeenDismissed, markFirstUseWizardDismissed } from "@/infrastructure/wizardFirstUseStorage";
+import { ConceptLibraryDialog } from "@/features/invoices/components/ConceptLibraryDialog";
 import { cn } from "@/lib/utils";
 
 type ShellNavItem = {
@@ -36,9 +37,10 @@ type SidebarContentProps = {
   toggleSandbox: () => void;
   onNavigate?: () => void;
   onLogout?: () => void;
+  onOpenConceptLibrary?: () => void;
 };
 
-function SidebarContent({ collapsed, isDark, toggle, sandbox, toggleSandbox, onNavigate, onLogout }: SidebarContentProps) {
+function SidebarContent({ collapsed, isDark, toggle, sandbox, toggleSandbox, onNavigate, onLogout, onOpenConceptLibrary }: SidebarContentProps) {
   return (
     <div className="flex h-full flex-col gap-4 p-3">
       <div className={cn("rounded-lg border bg-card px-3 py-3", collapsed ? "text-center" : "")}>
@@ -70,6 +72,22 @@ function SidebarContent({ collapsed, isDark, toggle, sandbox, toggleSandbox, onN
           );
         })}
       </nav>
+
+      <button
+        type="button"
+        onClick={() => {
+          onOpenConceptLibrary?.();
+          onNavigate?.();
+        }}
+        className={cn(
+          "flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
+          "hover:bg-accent hover:text-accent-foreground text-muted-foreground",
+          collapsed ? "justify-center px-2" : "",
+        )}
+      >
+        <BookOpen className="h-4 w-4 shrink-0" />
+        {!collapsed ? <span>Conceptos</span> : null}
+      </button>
 
       <div className="mt-auto border-t pt-2">
         <Button
@@ -146,6 +164,7 @@ export function AppShell() {
   const [wizardStep, setWizardStep] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [conceptLibraryOpen, setConceptLibraryOpen] = useState(false);
   const location = useLocation();
 
   const handleLogout = () => {
@@ -258,6 +277,7 @@ export function AppShell() {
               toggleSandbox={toggleSandbox}
               onNavigate={() => setMobileOpen(false)}
               onLogout={handleLogout}
+              onOpenConceptLibrary={() => setConceptLibraryOpen(true)}
             />
           </aside>
         </div>
@@ -289,6 +309,7 @@ export function AppShell() {
             sandbox={sandbox}
             toggleSandbox={toggleSandbox}
             onLogout={handleLogout}
+            onOpenConceptLibrary={() => setConceptLibraryOpen(true)}
           />
         </aside>
 
@@ -301,6 +322,12 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      <ConceptLibraryDialog
+        open={conceptLibraryOpen}
+        onClose={() => setConceptLibraryOpen(false)}
+        mode="manage"
+      />
 
       <dialog
         ref={wizardDialogRef}
