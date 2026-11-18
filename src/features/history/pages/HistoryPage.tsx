@@ -17,9 +17,6 @@ import { Select } from "@/components/ui/select";
 import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
 import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
-import { InvoiceHtmlPreviewModal } from "@/features/shared/components/InvoiceHtmlPreviewModal";
-import { ScaledHtmlPreview } from "@/features/shared/components/ScaledHtmlPreview";
-import { loadInvoiceHtmlBlob } from "@/features/shared/lib/loadInvoiceHtmlBlob";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { ACCOUNTING_STATUS_OPTIONS, formatAccountingStatusLabel } from "@/features/shared/lib/accountingStatusOptions";
@@ -67,7 +64,6 @@ export function HistoryPage() {
   const [filterStatus, setFilterStatus] = useState(initialStatus);
   const [filterProfile, setFilterProfile] = useState(initialProfile);
   const [selectedRecordId, setSelectedRecordId] = useState(initialRecordId);
-  const [expandedRecordId, setExpandedRecordId] = useState(initialRecordId);
   const [archiveYear, setArchiveYear] = useState("");
   const [archiveProfileId, setArchiveProfileId] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
@@ -599,148 +595,6 @@ export function HistoryPage() {
     },
   });
 
-  const renderRecordPanel = () => (
-        <Card>
-          <CardHeader>
-            <CardTitle>Detalle del documento</CardTitle>
-            <CardDescription>Detalle cargado con `GET /api/documents/detail`.</CardDescription>
-            {selectedRecordId ? (
-              <div className="space-y-1">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="min-w-0 text-informative">
-                    Seleccionado: <span className="font-mono break-all">{selectedRecordId}</span>
-                  </p>
-                  <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => void copySelectedRecordId()}>
-                    Copiar recordId
-                  </Button>
-                </div>
-                {recordIdCopyFeedback ? (
-                  <p
-                    className={`text-xs ${recordIdCopyFeedback.tone === "success" ? "text-success" : "text-danger"}`}
-                  >
-                    {recordIdCopyFeedback.text}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {!selectedRecordId ? (
-              <EmptyState>Selecciona un documento del listado para abrirlo.</EmptyState>
-            ) : (
-              <>
-                {selectionHiddenByFilters ? (
-                  <p className="text-informative">
-                    Este documento no aparece en la lista filtrada; el detalle sigue disponible. Ajusta tipo, ejercicio o búsqueda para verlo en el listado.
-                  </p>
-                ) : null}
-                {detailQuery.isLoading ? (
-                  <p className="text-informative">Abriendo documento...</p>
-                ) : detailQuery.error ? (
-                  <p className="text-sm text-danger">{(detailQuery.error as Error).message || "No se pudo abrir el documento."}</p>
-                ) : openedDocument ? (
-              <>
-                <div className="min-w-0 rounded-md border p-3 text-sm">
-                  <p className="break-all"><strong>recordId:</strong> {selectedRecordId}</p>
-                  {documentProfileSummary ? (
-                    <p><strong>Emisor:</strong> {documentProfileSummary}</p>
-                  ) : null}
-                  {String(openedDocument.templateLayout || "").trim() ? (
-                    <p><strong>Plantilla / layout:</strong> {String(openedDocument.templateLayout).trim()}</p>
-                  ) : null}
-                  <p><strong>Tipo:</strong> {openedDocument.type}</p>
-                  <p><strong>Número:</strong> {openedDocument.number || "-"}</p>
-                  <p><strong>Estado contable:</strong> {formatAccountingStatusLabel(openedDocument.accounting.status)}</p>
-                  <p><strong>Fecha:</strong> {formatDate(openedDocument.issueDate)}</p>
-                  <p><strong>Cliente:</strong> {openedDocument.client.name || "-"}</p>
-                  <p><strong>Líneas:</strong> {openedDocument.items.length}</p>
-                  <p><strong>Subtotal:</strong> {formatCurrency(openedDocument.computedTotals.subtotal)}</p>
-                  <p><strong>Total:</strong> {formatCurrency(openedDocument.computedTotals.total)}</p>
-                </div>
-                <HistoryInlinePreview recordId={selectedRecordId} />
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      const profileId = String(openedDocument.templateProfileId || "").trim();
-                      const query = profileId
-                        ? `recordId=${encodeURIComponent(selectedRecordId)}&templateProfileId=${encodeURIComponent(profileId)}`
-                        : `recordId=${encodeURIComponent(selectedRecordId)}`;
-                      navigate(`/facturar?${query}`);
-                    }}
-                  >
-                    {getDocLabels(openedDocument.type).editAction}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => openOfficialOutput("html")}
-                    disabled={officialOutputLoading !== null}
-                  >
-                    {officialOutputLoading === "html" ? "Abriendo HTML..." : "Ver HTML oficial"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => openOfficialOutput("pdf")}
-                    disabled={officialOutputLoading !== null}
-                  >
-                    {officialOutputLoading === "pdf" ? "Abriendo PDF..." : "Abrir PDF oficial"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => archiveDocumentMutation.mutate(selectedRecordId)}
-                    disabled={archiveDocumentMutation.isPending || !isAdmin}
-                  >
-                    {archiveDocumentMutation.isPending ? "Archivando..." : "Archivar documento"}
-                  </Button>
-                  {selectedRecordId && gmailConfigured && !gmailConnected ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={async () => {
-                        setOutputFeedback(null);
-                        try {
-                          const { authUrl } = await fetchGmailOAuthStartUrl(gmailProfileId);
-                          await openGmailOAuthPopupAndWait(authUrl);
-                          await queryClient.invalidateQueries({ queryKey: ["gmail-status", gmailProfileId] });
-                        } catch (err) {
-                          setOutputFeedback({ text: getErrorMessageFromUnknown(err), tone: "error" });
-                        }
-                      }}
-                    >
-                      Conectar Gmail
-                    </Button>
-                  ) : null}
-                  {selectedRecordId && gmailConfigured && gmailConnected ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setGmailTo(String(openedDocument.client.email || "").trim());
-                        setGmailBodyText("");
-                        setGmailSentMessage("");
-                        setGmailDialog(true);
-                      }}
-                    >
-                      Enviar por Gmail
-                    </Button>
-                  ) : null}
-                </div>
-                {outputFeedback ? (
-                  <p className="text-sm text-danger">{outputFeedback.text}</p>
-                ) : null}
-              </>
-                ) : (
-                  <EmptyState>Sin datos de documento.</EmptyState>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-  );
-
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8">
       <PageHeader
@@ -755,7 +609,7 @@ export function HistoryPage() {
         <InfoCallout>Tu sesión no tiene emisores asignados para operar en Historial. Contacta con un administrador.</InfoCallout>
       ) : null}
 
-      {sessionScope.hasEmitterScope ? <section className="grid gap-6">
+      {sessionScope.hasEmitterScope ? <section className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
         <Card>
           <CardHeader>
             <CardTitle>Listado de documentos</CardTitle>
@@ -999,13 +853,13 @@ export function HistoryPage() {
                   {(historyQuery.error as Error).message || "No se pudo cargar el historial. Revisa la conexión y vuelve a entrar en la página."}
                 </p>
               ) : filteredItems.length ? (
-                <ul className="grid gap-2 p-2">
+                <ul className="divide-y">
                   {filteredItems.map((item) => {
                     const isActive = item.recordId === selectedRecordId;
                     const atSelectionLimit = selectedRecordIds.size >= 20 && !selectedRecordIds.has(item.recordId);
                     const qNorm = resolveCalendarQuarter("", String(item.issueDate || ""));
                     return (
-                      <li key={item.recordId} className="flex flex-wrap overflow-hidden rounded-lg border border-border">
+                      <li key={item.recordId} className="flex">
                         {item.type === "factura" ? (
                           <div
                             className="flex shrink-0 items-start border-r border-border px-2 py-2"
@@ -1028,15 +882,7 @@ export function HistoryPage() {
                           className={`min-w-0 flex-1 px-3 py-2 text-left text-sm transition-colors ${workbookQuarterRowToneClass(qNorm)} ${
                             isActive ? "bg-primary text-primary-foreground" : "hover:bg-accent"
                           }`}
-                          onClick={() => {
-                            if (item.recordId === expandedRecordId) {
-                              setExpandedRecordId("");
-                              selectRecord("");
-                            } else {
-                              setExpandedRecordId(item.recordId);
-                              selectRecord(item.recordId);
-                            }
-                          }}
+                          onClick={() => selectRecord(item.recordId)}
                         >
                           <p className="flex flex-wrap items-center gap-2 font-medium">
                             <QuarterBadge
@@ -1091,11 +937,6 @@ export function HistoryPage() {
                             className={isActive ? "text-primary-foreground hover:text-primary-foreground" : undefined}
                           />
                         </div>
-                        {expandedRecordId === item.recordId ? (
-                          <div className="w-full border-t border-border bg-muted/10 p-3">
-                            {renderRecordPanel()}
-                          </div>
-                        ) : null}
                       </li>
                     );
                   })}
@@ -1166,7 +1007,144 @@ export function HistoryPage() {
           </CardContent>
         </Card>
 
-
+        <Card>
+          <CardHeader>
+            <CardTitle>Documento abierto</CardTitle>
+            <CardDescription>Detalle cargado con `GET /api/documents/detail`.</CardDescription>
+            {selectedRecordId ? (
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="min-w-0 text-informative">
+                    Seleccionado: <span className="font-mono break-all">{selectedRecordId}</span>
+                  </p>
+                  <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => void copySelectedRecordId()}>
+                    Copiar recordId
+                  </Button>
+                </div>
+                {recordIdCopyFeedback ? (
+                  <p
+                    className={`text-xs ${recordIdCopyFeedback.tone === "success" ? "text-success" : "text-danger"}`}
+                  >
+                    {recordIdCopyFeedback.text}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {!selectedRecordId ? (
+              <EmptyState>Selecciona un documento del listado para abrirlo.</EmptyState>
+            ) : (
+              <>
+                {selectionHiddenByFilters ? (
+                  <p className="text-informative">
+                    Este documento no aparece en la lista filtrada; el detalle sigue disponible. Ajusta tipo, ejercicio o búsqueda para verlo en el listado.
+                  </p>
+                ) : null}
+                {detailQuery.isLoading ? (
+                  <p className="text-informative">Abriendo documento...</p>
+                ) : detailQuery.error ? (
+                  <p className="text-sm text-danger">{(detailQuery.error as Error).message || "No se pudo abrir el documento."}</p>
+                ) : openedDocument ? (
+              <>
+                <div className="rounded-md border p-3 text-sm">
+                  <p><strong>recordId:</strong> {selectedRecordId}</p>
+                  {documentProfileSummary ? (
+                    <p><strong>Emisor:</strong> {documentProfileSummary}</p>
+                  ) : null}
+                  {String(openedDocument.templateLayout || "").trim() ? (
+                    <p><strong>Plantilla / layout:</strong> {String(openedDocument.templateLayout).trim()}</p>
+                  ) : null}
+                  <p><strong>Tipo:</strong> {openedDocument.type}</p>
+                  <p><strong>Número:</strong> {openedDocument.number || "-"}</p>
+                  <p><strong>Estado contable:</strong> {formatAccountingStatusLabel(openedDocument.accounting.status)}</p>
+                  <p><strong>Fecha:</strong> {formatDate(openedDocument.issueDate)}</p>
+                  <p><strong>Cliente:</strong> {openedDocument.client.name || "-"}</p>
+                  <p><strong>Líneas:</strong> {openedDocument.items.length}</p>
+                  <p><strong>Subtotal:</strong> {formatCurrency(openedDocument.computedTotals.subtotal)}</p>
+                  <p><strong>Total:</strong> {formatCurrency(openedDocument.computedTotals.total)}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      const profileId = String(openedDocument.templateProfileId || "").trim();
+                      const query = profileId
+                        ? `recordId=${encodeURIComponent(selectedRecordId)}&templateProfileId=${encodeURIComponent(profileId)}`
+                        : `recordId=${encodeURIComponent(selectedRecordId)}`;
+                      navigate(`/facturar?${query}`);
+                    }}
+                  >
+                    {getDocLabels(openedDocument.type).editAction}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openOfficialOutput("html")}
+                    disabled={officialOutputLoading !== null}
+                  >
+                    {officialOutputLoading === "html" ? "Abriendo HTML..." : "Ver HTML oficial"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => openOfficialOutput("pdf")}
+                    disabled={officialOutputLoading !== null}
+                  >
+                    {officialOutputLoading === "pdf" ? "Abriendo PDF..." : "Abrir PDF oficial"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => archiveDocumentMutation.mutate(selectedRecordId)}
+                    disabled={archiveDocumentMutation.isPending || !isAdmin}
+                  >
+                    {archiveDocumentMutation.isPending ? "Archivando..." : "Archivar documento"}
+                  </Button>
+                  {selectedRecordId && gmailConfigured && !gmailConnected ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={async () => {
+                        setOutputFeedback(null);
+                        try {
+                          const { authUrl } = await fetchGmailOAuthStartUrl(gmailProfileId);
+                          await openGmailOAuthPopupAndWait(authUrl);
+                          await queryClient.invalidateQueries({ queryKey: ["gmail-status", gmailProfileId] });
+                        } catch (err) {
+                          setOutputFeedback({ text: getErrorMessageFromUnknown(err), tone: "error" });
+                        }
+                      }}
+                    >
+                      Conectar Gmail
+                    </Button>
+                  ) : null}
+                  {selectedRecordId && gmailConfigured && gmailConnected ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setGmailTo(String(openedDocument.client.email || "").trim());
+                        setGmailBodyText("");
+                        setGmailSentMessage("");
+                        setGmailDialog(true);
+                      }}
+                    >
+                      Enviar por Gmail
+                    </Button>
+                  ) : null}
+                </div>
+                {outputFeedback ? (
+                  <p className="text-sm text-danger">{outputFeedback.text}</p>
+                ) : null}
+              </>
+                ) : (
+                  <EmptyState>Sin datos de documento.</EmptyState>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
       </section> : null}
 
       {sessionScope.hasEmitterScope ? <Card>
@@ -1327,90 +1305,5 @@ export function HistoryPage() {
         </div>
       </dialog>
     </main>
-  );
-}
-
-
-function HistoryInlinePreview({ recordId }: { recordId: string }) {
-  const [src, setSrc] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const urlRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const id = String(recordId || "").trim();
-    if (!id) {
-      return;
-    }
-    const ac = new AbortController();
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    if (urlRef.current) {
-      URL.revokeObjectURL(urlRef.current);
-      urlRef.current = null;
-    }
-    setSrc(null);
-
-    void (async () => {
-      try {
-        const blob = await loadInvoiceHtmlBlob(id, ac.signal);
-        if (cancelled || ac.signal.aborted) {
-          return;
-        }
-        const url = URL.createObjectURL(blob);
-        urlRef.current = url;
-        setSrc(url);
-      } catch (err) {
-        if (ac.signal.aborted || cancelled) {
-          return;
-        }
-        setError(getErrorMessageFromUnknown(err));
-      } finally {
-        if (!cancelled && !ac.signal.aborted) {
-          setLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      ac.abort();
-      if (urlRef.current) {
-        URL.revokeObjectURL(urlRef.current);
-        urlRef.current = null;
-      }
-    };
-  }, [recordId]);
-
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">Vista previa</span>
-        <Button type="button" variant="outline" size="sm" onClick={() => setModalOpen(true)}>
-          Ampliar
-        </Button>
-      </div>
-      {loading ? (
-        <p className="text-informative">Cargando vista previa...</p>
-      ) : error ? (
-        <p className="text-sm text-danger">{error}</p>
-      ) : src ? (
-        <div className="overflow-hidden rounded-md border bg-white">
-          <ScaledHtmlPreview
-            src={src}
-            boxClassName="h-[min(55dvh,720px)] w-full"
-            zoomSteps={0}
-            blockIframePointer={false}
-          />
-        </div>
-      ) : null}
-      <InvoiceHtmlPreviewModal
-        open={modalOpen}
-        recordId={modalOpen ? recordId : null}
-        onOpenChange={setModalOpen}
-      />
-    </div>
   );
 }
