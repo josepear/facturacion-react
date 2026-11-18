@@ -449,6 +449,13 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     const hasClientName = Boolean(String(watched.client?.name || "").trim());
     const clientComplete = hasClientName;
 
+    const manualGross = Number(watched.manualGrossSubtotal ?? 0);
+    const isManualGrossMode = watched.totalsBasis === "gross" && manualGross > 0;
+
+    const hasConceptText = (watched.items ?? []).some((item) =>
+      Boolean(String(item.description || item.concept || "").trim()),
+    );
+
     const hasValidConceptLine = (watched.items ?? []).some((item) => {
       const description = String(item.description || item.concept || "").trim();
       const quantity = Number(item.quantity ?? 0);
@@ -464,7 +471,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         lineAmount > 0,
       );
     });
-    const conceptsComplete = hasValidConceptLine;
+    // En modo por bruto basta un concepto: el importe va en el bruto manual.
+    const conceptsComplete = isManualGrossMode ? hasConceptText : hasValidConceptLine;
 
     const taxRateNumber = Number(watched.taxRate ?? 0);
     const taxRateValid = Number.isFinite(taxRateNumber) && taxRateNumber >= 0;
@@ -496,8 +504,12 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       concepts: {
         complete: conceptsComplete,
         tip: conceptsComplete
-          ? "Conceptos listos (hay al menos una línea con descripción e importe válido)."
-          : "Añade al menos una línea con descripción e importe válido.",
+          ? isManualGrossMode
+            ? "Conceptos listos (modo por bruto: el importe va en el bruto manual)."
+            : "Conceptos listos (hay al menos una línea con descripción e importe válido)."
+          : isManualGrossMode
+            ? "Escribe al menos un concepto."
+            : "Añade al menos una línea con descripción e importe válido.",
       },
       fiscal: {
         complete: fiscalComplete,
@@ -525,6 +537,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     watched.items,
     watched.number,
     watched.taxRate,
+    watched.totalsBasis,
+    watched.manualGrossSubtotal,
     watched.templateProfileId,
     watched.templateLayout,
     clientHistoryOptions.length,
