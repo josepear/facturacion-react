@@ -185,6 +185,78 @@ describe("useFacturarForm regression", () => {
     });
   });
 
+  it("guarda en modo por bruto con conceptos sin cifras", async () => {
+    saveDocumentMock.mockClear();
+    const document = createEmptyDocument();
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "User", email: "u@test", role: "admin", tenantId: "default" },
+    });
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-main",
+      templateProfiles: [
+        {
+          id: "perfil-main",
+          label: "Perfil Main",
+          defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
+          business: { bankAccount: "ES00..." },
+          design: { layout: "pear" },
+        },
+      ],
+    });
+    fetchClientsMock.mockResolvedValue([]);
+    fetchHistoryInvoicesMock.mockResolvedValue([]);
+    saveDocumentMock.mockImplementation(async (doc: typeof document) => ({
+      recordId: "docs/2026/doc-gross.json",
+      document: doc,
+    }));
+    fetchDocumentDetailMock.mockResolvedValue({ recordId: "docs/2026/doc-gross.json", document });
+    getNextNumberMock.mockResolvedValue("1");
+    validateNumberAvailabilityMock.mockResolvedValue({ available: true });
+
+    const { result } = renderHook(() => useFacturarForm(), { wrapper: createHookWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.profileOptions.length).toBeGreaterThan(0);
+    });
+
+    act(() => {
+      result.current.form.setValue("issueDate", "2026-05-05", { shouldValidate: true });
+      result.current.form.setValue("client.name", "Cliente Bruto", { shouldValidate: true });
+      result.current.form.setValue("client.taxId", "B12345678", { shouldValidate: true });
+      result.current.confirmClientModule();
+      result.current.form.setValue("type", "factura", { shouldValidate: true });
+      result.current.form.setValue("accounting.status", "ENVIADA", { shouldValidate: true });
+      result.current.form.setValue("templateProfileId", "perfil-main", { shouldValidate: true });
+      result.current.form.setValue("templateLayout", "pear", { shouldValidate: true });
+      result.current.form.setValue("totalsBasis", "gross", { shouldValidate: true });
+      result.current.form.setValue("manualGrossSubtotal", 1000, { shouldValidate: true });
+      result.current.form.setValue("items.0.concept", "Solo concepto", { shouldValidate: true });
+      result.current.form.setValue("items.0.quantity", 1, { shouldValidate: true });
+      result.current.form.setValue("items.0.unitPrice", 0, { shouldValidate: true });
+      result.current.form.setValue("taxRate", 7, { shouldValidate: true });
+      result.current.applyWithholdingMode("irpf_15");
+    });
+
+    await waitFor(() => {
+      expect(result.current.totals.subtotal).toBe(1000);
+      expect(result.current.totals.taxAmount).toBe(70);
+      expect(result.current.totals.withholdingAmount).toBe(150);
+      expect(result.current.totals.total).toBe(920);
+    });
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(saveDocumentMock).toHaveBeenCalledTimes(1);
+    const saved = saveDocumentMock.mock.calls[0][0] as typeof document;
+    expect(saved.totalsBasis).toBe("gross");
+    expect(saved.manualGrossSubtotal).toBe(1000);
+    expect(saved.subtotal).toBe(1000);
+    expect(saved.total).toBe(920);
+  });
+
   it("editor restringido puede guardar con emisor permitido", async () => {
     const document = createEmptyDocument();
     fetchSessionMock.mockResolvedValue({
