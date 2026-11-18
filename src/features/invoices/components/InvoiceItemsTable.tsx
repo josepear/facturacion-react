@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { BookOpen, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Control, FieldErrors, UseFormGetValues, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import { useWatch } from "react-hook-form";
@@ -13,6 +13,8 @@ import {
 } from "@/domain/document/perPersonPricing";
 import type { InvoiceDocument } from "@/domain/document/types";
 import { formatCurrency } from "@/lib/utils";
+import { ConceptLibraryDialog } from "@/features/invoices/components/ConceptLibraryDialog";
+import type { LibraryConcept } from "@/features/invoices/lib/conceptLibrary";
 
 type SimpleInvoiceItem = {
   concept: string;
@@ -180,6 +182,41 @@ export function InvoiceItemsTable({
   const [expandedIndex, setExpandedIndex] = useState(0);
   const [bulkText, setBulkText] = useState("");
   const [bulkFeedback, setBulkFeedback] = useState("");
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryManageOpen, setLibraryManageOpen] = useState(false);
+  /** Índice donde insertar el concepto elegido de la biblioteca (-1 = al final). */
+  const [libraryInsertAfterIndex, setLibraryInsertAfterIndex] = useState(-1);
+
+  function handlePickConcept(concept: LibraryConcept) {
+    const newItem: SimpleInvoiceItem = {
+      concept: concept.concept,
+      description: concept.description,
+      quantity: 1,
+      unitPrice: concept.unitPrice ?? 0,
+      unitLabel: "",
+      hidePerPersonSubtotalInBudget: false,
+    };
+    if (libraryInsertAfterIndex >= 0) {
+      // Reemplazar la línea actual si está vacía, o insertar después
+      const current = items[libraryInsertAfterIndex];
+      const isEmpty = !current?.concept?.trim() && !current?.description?.trim() && (current?.unitPrice ?? 0) === 0;
+      if (isEmpty) {
+        setValue(`items.${libraryInsertAfterIndex}.concept`, newItem.concept, { shouldDirty: true });
+        setValue(`items.${libraryInsertAfterIndex}.description`, newItem.description, { shouldDirty: true });
+        setValue(`items.${libraryInsertAfterIndex}.unitPrice`, newItem.unitPrice, { shouldDirty: true });
+        return;
+      }
+    }
+    onBulkImport([...items.map((it) => ({
+      concept: it?.concept ?? "",
+      description: it?.description ?? "",
+      quantity: it?.quantity ?? 1,
+      unitPrice: it?.unitPrice ?? 0,
+      unitLabel: it?.unitLabel ?? "",
+      hidePerPersonSubtotalInBudget: it?.hidePerPersonSubtotalInBudget ?? false,
+    })), newItem]);
+    setExpandedIndex(items.length);
+  }
 
   useEffect(() => {
     setExpandedIndex((current) => {
@@ -237,18 +274,39 @@ export function InvoiceItemsTable({
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">Lineas</h2>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            onAddItem(itemCount - 1);
-            setExpandedIndex(itemCount);
-          }}
-        >
-          Anadir linea
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => {
+              setLibraryInsertAfterIndex(-1);
+              setLibraryOpen(true);
+            }}
+          >
+            <BookOpen className="h-4 w-4" /> Biblioteca
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-xs text-muted-foreground"
+            onClick={() => setLibraryManageOpen(true)}
+          >
+            Gestionar
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              onAddItem(itemCount - 1);
+              setExpandedIndex(itemCount);
+            }}
+          >
+            Anadir linea
+          </Button>
+        </div>
       </div>
 
       <div className="mb-1 hidden gap-3 px-1 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-12 sm:items-end">
@@ -321,7 +379,22 @@ export function InvoiceItemsTable({
                   <div className="sm:col-span-5">
                     <label className="grid gap-1 text-xs">
                       <span className="sm:sr-only">Concepto</span>
-                      <Input placeholder="Servicio" {...register(`items.${index}.concept`)} />
+                      <div className="flex gap-1">
+                        <Input className="min-w-0 flex-1" placeholder="Servicio" {...register(`items.${index}.concept`)} />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
+                          title="Elegir de la biblioteca"
+                          onClick={() => {
+                            setLibraryInsertAfterIndex(index);
+                            setLibraryOpen(true);
+                          }}
+                        >
+                          <BookOpen className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </label>
                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
                       <label className="flex cursor-pointer items-center gap-2 text-xs">
@@ -441,6 +514,18 @@ export function InvoiceItemsTable({
           En modo bruto, los importes se calculan a partir de estas lineas (detalle y vista previa).
         </p>
       ) : null}
+
+      <ConceptLibraryDialog
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        mode="pick"
+        onPickConcept={handlePickConcept}
+      />
+      <ConceptLibraryDialog
+        open={libraryManageOpen}
+        onClose={() => setLibraryManageOpen(false)}
+        mode="manage"
+      />
     </section>
   );
 }

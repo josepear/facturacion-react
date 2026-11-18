@@ -20,6 +20,7 @@ import { getAuthToken } from "@/infrastructure/api/httpClient";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { fetchDocumentDetail, fetchRuntimeConfig, saveDocument } from "@/infrastructure/api/documentsApi";
+import { clearDraft, loadDraft, loadDraftMeta, saveDraft, type DraftMeta } from "@/features/invoices/lib/draftStorage";
 import {
   openOfficialDocumentInNewTab,
   type OfficialDocumentOutputKind,
@@ -254,6 +255,56 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     () => applyTotals(mapLegacyDocumentToForm(watched)),
     [watched],
   );
+
+  // ── Borrador: auto-guardado cada 5 s si hay contenido ──
+  const [draftMeta, setDraftMeta] = useState<DraftMeta | null>(() => loadDraftMeta());
+  const [draftRestored, setDraftRestored] = useState(false);
+  const draftAutoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    draftAutoSaveRef.current = setInterval(() => {
+      const vals = form.getValues();
+      // Solo guardar si hay algo mínimo (tipo o algún concepto)
+      const hasContent =
+        Boolean(vals.type) ||
+        Boolean(vals.client?.name?.trim()) ||
+        (Array.isArray(vals.items) && vals.items.some((it) => String(it.concept || it.description || "").trim()));
+      if (hasContent) {
+        const doc = applyTotals(mapFormToLegacyDocument(vals as InvoiceDocument));
+        saveDraft(doc);
+        setDraftMeta(loadDraftMeta());
+      }
+    }, 5000);
+    return () => {
+      if (draftAutoSaveRef.current) clearInterval(draftAutoSaveRef.current);
+    };
+  }, [form]);
+
+  /** Restaurar borrador guardado. */
+  const restoreDraft = useCallback(() => {
+    const saved = loadDraft();
+    if (!saved) return;
+    const mapped = applyTotals(mapLegacyDocumentToForm(saved.document));
+    form.reset(mapped);
+    setServerRecordId("");
+    lastSavedSnapshotRef.current = null;
+    setDraftRestored(true);
+    // Marcar opciones si tiene datos
+    if (mapped.client?.name?.trim()) {
+      setClientModuleConfirmed(true);
+    }
+    if (mapped.withholdingRate !== undefined) {
+      setFiscalIrpfChoiceAcknowledged(true);
+    }
+  }, [form]);
+
+  /** Descartar borrador. */
+  const discardDraft = useCallback(() => {
+    clearDraft();
+    setDraftMeta(null);
+    setDraftRestored(false);
+  }, []);
+
   const totals = useMemo(
     () =>
       calculateTotals({
@@ -758,6 +809,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       setFiscalIrpfChoiceAcknowledged(true);
       setClientModuleConfirmed(true);
       setWorkflowLayoutResetVersion((v) => v + 1);
+      // Limpiar borrador tras guardado exitoso
+      clearDraft();
+      setDraftMeta(null);
     },
   });
 
@@ -1075,5 +1129,10 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     isDirty: form.formState.isDirty,
     sessionScope,
     sessionScopePending,
+    // Borradores
+    draftMeta,
+    draftRestored,
+    restoreDraft,
+    discardDraft,
   };
 }

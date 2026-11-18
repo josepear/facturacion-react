@@ -133,6 +133,10 @@ export function FacturarPage() {
     isDirty,
     sessionScope,
     sessionScopePending,
+    draftMeta,
+    draftRestored,
+    restoreDraft,
+    discardDraft,
   } = useFacturarForm(initialRecordId, initialTemplateProfileId, initialDuplicateFromRecordId);
 
   const autoOpenModuleId = useMemo(
@@ -532,6 +536,32 @@ export function FacturarPage() {
         Tenant: <span className="font-medium text-foreground">{sessionScope.tenantId || "-"}</span> · Emisores visibles:{" "}
         <span className="font-medium text-foreground">{sessionScope.visibleTemplateProfileIds.length}</span>
       </p>
+
+      {/* Banner de borrador guardado */}
+      {draftMeta && !draftRestored && !initialRecordId ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+          <span className="flex-1 text-amber-900 dark:text-amber-200">
+            Hay un borrador guardado
+            {draftMeta.type ? ` (${draftMeta.type})` : ""}
+            {draftMeta.clientName ? ` · ${draftMeta.clientName}` : ""}
+            {draftMeta.number ? ` · Nº ${draftMeta.number}` : ""}
+            {draftMeta.savedAt
+              ? ` · ${new Date(draftMeta.savedAt).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+              : ""}
+          </span>
+          <Button type="button" variant="outline" size="sm" onClick={restoreDraft}>
+            Recuperar borrador
+          </Button>
+          <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={discardDraft}>
+            Descartar
+          </Button>
+        </div>
+      ) : null}
+      {draftRestored ? (
+        <p className="text-xs text-muted-foreground">
+          Borrador recuperado. Los cambios se guardan automáticamente.
+        </p>
+      ) : null}
 
       <form
         className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
