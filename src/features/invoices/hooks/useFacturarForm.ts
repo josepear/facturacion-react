@@ -108,7 +108,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const bootstrappedDuplicateFromRef = useRef("");
   const duplicatedFromRef = useRef(false);
   const lastSavedSnapshotRef = useRef<InvoiceDocument | null>(null);
-  const previousTotalsBasisRef = useRef<InvoiceDocument["totalsBasis"] | undefined>(undefined);
 
   const form = useForm<InvoiceDocument>({
     resolver: zodResolver(invoiceDocumentSchema),
@@ -176,15 +175,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
   const watched = useWatch({ control: form.control });
   const { dirtyFields } = useFormState({ control: form.control });
-
-  useEffect(() => {
-    const b = watched.totalsBasis === "gross" ? "gross" : "items";
-    const prev = previousTotalsBasisRef.current;
-    previousTotalsBasisRef.current = b;
-    if (prev !== undefined && b === "gross" && prev !== "gross") {
-      form.setValue("manualGrossSubtotal", 0, { shouldDirty: true, shouldValidate: true });
-    }
-  }, [watched.totalsBasis, form]);
 
   useEffect(() => {
     if (String(serverRecordId || "").trim()) {
@@ -782,8 +772,15 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       if (!normalized.client.name.trim()) {
         throw new Error("Cliente obligatorio.");
       }
-      if (
-        !normalized.items.some((item) => {
+      const usesManualGross =
+        normalized.totalsBasis === "gross" && Number(normalized.manualGrossSubtotal ?? 0) > 0;
+
+      if (!normalized.items.some((item) => String(item.description || item.concept || "").trim())) {
+        throw new Error("Añade al menos una línea con concepto o descripción.");
+      }
+
+      if (!usesManualGross) {
+        const hasAmountLine = normalized.items.some((item) => {
           const description = String(item.description || item.concept || "").trim();
           const quantity = Number(item.quantity ?? 0);
           const unitPrice = Number(item.unitPrice ?? 0);
@@ -797,9 +794,10 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
             Number.isFinite(lineAmount) &&
             lineAmount > 0,
           );
-        })
-      ) {
-        throw new Error("Añade al menos una línea con descripción e importe válido.");
+        });
+        if (!hasAmountLine) {
+          throw new Error("Añade al menos una línea con descripción e importe válido, o usa el modo por bruto con un importe manual.");
+        }
       }
       if (!totalsAreConsistent(normalized, calculateTotals(normalized))) {
         throw new Error("Los totales no son coherentes. Revisa líneas e impuestos.");

@@ -6,7 +6,7 @@ const isoDatePattern = /^\d{4}-\d{2}-\d{2}$/;
 export const invoiceItemSchema = z.object({
   concept: z.string().trim(),
   description: z.string().trim(),
-  quantity: z.number().positive("La cantidad debe ser mayor que 0."),
+  quantity: z.number().nonnegative("La cantidad no puede ser negativa."),
   unitPrice: z.number(),
   lineTotal: z.number().optional(),
   unitLabel: z.string().trim().optional(),
@@ -78,6 +78,13 @@ export const invoiceDocumentSchema = z.object({
         code: z.ZodIssueCode.custom,
         message: "Elige un estado contable.",
         path: ["accounting", "status"],
+      });
+    }
+    if (data.totalsBasis === "gross" && !(Number(data.manualGrossSubtotal) > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Indica el importe bruto sobre el que aplicar IGIC e IRPF.",
+        path: ["manualGrossSubtotal"],
       });
     }
   });

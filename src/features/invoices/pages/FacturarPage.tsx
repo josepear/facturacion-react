@@ -1026,16 +1026,30 @@ export function FacturarPage() {
               )}
               <Field
                 label="Modo cálculo conceptos"
-                hint="'Por concepto' y 'Por bruto' calculan el total a partir de las líneas; en bruto las líneas siguen sirviendo para detalle y vista previa."
+                hint="«Por concepto» suma cantidad × precio de cada línea. «Por bruto» usa el importe bruto manual: escribe solo los conceptos y las cifras por línea no se usan."
               >
                 <Select
                   className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
                   {...register("totalsBasis")}
                 >
                   <option value="items">Por concepto (suma líneas)</option>
-                  <option value="gross">Por bruto (totales desde líneas)</option>
+                  <option value="gross">Por bruto (importe manual)</option>
                 </Select>
               </Field>
+              {liveDocument.totalsBasis === "gross" ? (
+                <Field
+                  label="Importe bruto (base)"
+                  hint="IGIC e IRPF se calculan sobre este importe. El neto se muestra en Fiscalidad y en la vista previa."
+                >
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    className="h-10 w-full max-w-[12rem]"
+                    {...register("manualGrossSubtotal", { valueAsNumber: true })}
+                  />
+                </Field>
+              ) : null}
               <InvoiceItemsTable
                 register={register}
                 control={control}
