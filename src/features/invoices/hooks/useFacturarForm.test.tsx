@@ -185,6 +185,56 @@ describe("useFacturarForm regression", () => {
     });
   });
 
+  it("en modo por bruto el checklist de conceptos se completa con solo un concepto", async () => {
+    const document = createEmptyDocument();
+    fetchSessionMock.mockResolvedValue({
+      authenticated: true,
+      user: { id: "u1", name: "User", email: "u@test", role: "admin", tenantId: "default" },
+    });
+    fetchRuntimeConfigMock.mockResolvedValue({
+      activeTemplateProfileId: "perfil-main",
+      templateProfiles: [
+        {
+          id: "perfil-main",
+          label: "Perfil Main",
+          defaults: { paymentMethod: "Transferencia", taxRate: 7, withholdingRate: 15 },
+          business: { bankAccount: "ES00..." },
+          design: { layout: "pear" },
+        },
+      ],
+    });
+    fetchClientsMock.mockResolvedValue([]);
+    fetchHistoryInvoicesMock.mockResolvedValue([]);
+    saveDocumentMock.mockImplementation(async (doc: typeof document) => ({ recordId: "r.json", document: doc }));
+    fetchDocumentDetailMock.mockResolvedValue({ recordId: "r.json", document });
+    getNextNumberMock.mockResolvedValue("1");
+    validateNumberAvailabilityMock.mockResolvedValue({ available: true });
+
+    const { result } = renderHook(() => useFacturarForm(), { wrapper: createHookWrapper() });
+    await waitFor(() => {
+      expect(result.current.profileOptions.length).toBeGreaterThan(0);
+    });
+
+    act(() => {
+      result.current.form.setValue("templateProfileId", "perfil-main", { shouldValidate: true });
+      result.current.form.setValue("templateLayout", "pear", { shouldValidate: true });
+      result.current.form.setValue("type", "factura", { shouldValidate: true });
+      result.current.form.setValue("number", "1", { shouldValidate: true });
+      result.current.form.setValue("issueDate", "2026-05-05", { shouldValidate: true });
+      result.current.form.setValue("client.name", "Cliente Bruto", { shouldValidate: true });
+      result.current.form.setValue("totalsBasis", "gross", { shouldValidate: true });
+      result.current.form.setValue("manualGrossSubtotal", 1000, { shouldValidate: true });
+      result.current.form.setValue("items.0.concept", "Solo concepto", { shouldValidate: true });
+      result.current.form.setValue("items.0.quantity", 1, { shouldValidate: true });
+      result.current.form.setValue("items.0.unitPrice", 0, { shouldValidate: true });
+      result.current.form.setValue("taxRate", 7, { shouldValidate: true });
+    });
+
+    await waitFor(() => {
+      expect(result.current.workflowChecklist.concepts.complete).toBe(true);
+    });
+  });
+
   it("guarda en modo por bruto con conceptos sin cifras", async () => {
     saveDocumentMock.mockClear();
     const document = createEmptyDocument();
