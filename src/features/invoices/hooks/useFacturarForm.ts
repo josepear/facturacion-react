@@ -264,16 +264,22 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
   useEffect(() => {
     draftAutoSaveRef.current = setInterval(() => {
-      const vals = form.getValues();
-      // Solo guardar si hay algo mínimo (tipo o algún concepto)
-      const hasContent =
-        Boolean(vals.type) ||
-        Boolean(vals.client?.name?.trim()) ||
-        (Array.isArray(vals.items) && vals.items.some((it) => String(it.concept || it.description || "").trim()));
-      if (hasContent) {
+      try {
+        const vals = form.getValues();
+        // Solo guardar si hay algo mínimo (tipo o algún concepto)
+        const hasContent =
+          Boolean(vals.type) ||
+          Boolean(vals.client?.name?.trim()) ||
+          (Array.isArray(vals.items) && vals.items.some((it) => String(it.concept || it.description || "").trim()));
+        if (!hasContent) {
+          return;
+        }
         const doc = applyTotals(mapFormToLegacyDocument(vals as InvoiceDocument));
         saveDraft(doc);
         setDraftMeta(loadDraftMeta());
+      } catch {
+        // Borrador incompleto (p. ej. falta el estado contable): se reintenta
+        // en el siguiente ciclo sin lanzar errores en consola.
       }
     }, 5000);
     return () => {
@@ -287,6 +293,14 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     if (!saved) return;
     const mapped = applyTotals(mapLegacyDocumentToForm(saved.document));
     form.reset(mapped);
+    // reset() limpia dirtyFields: el efecto de auto-numerado creería que el
+    // número no se ha tocado y lo sustituiría por el siguiente. Si el borrador
+    // ya trae número, se marca como tocado para conservarlo; si viene vacío se
+    // deja que el servidor sugiera uno.
+    const restoredNumber = String(mapped.number || "").trim();
+    if (restoredNumber) {
+      form.setValue("number", restoredNumber, { shouldDirty: true, shouldValidate: true });
+    }
     setServerRecordId("");
     lastSavedSnapshotRef.current = null;
     setDraftRestored(true);
