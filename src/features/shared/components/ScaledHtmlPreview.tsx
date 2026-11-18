@@ -19,7 +19,9 @@ function readIframeIntrinsicSize(iframe: HTMLIFrameElement): IntrinsicSize | nul
     }
     const w = Math.max(root.scrollWidth, body?.scrollWidth ?? 0, root.clientWidth);
     const h = Math.max(root.scrollHeight, body?.scrollHeight ?? 0, root.clientHeight);
-    if (!Number.isFinite(w) || !Number.isFinite(h) || w < 100 || h < 100) {
+    // El HTML legacy es A4 (794x1123 px). Una medida mucho menor suele ser
+    // un iframe aún sin maquetar o sin fuentes: se ignora para no sobrescalar.
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w < 700 || h < 900) {
       return null;
     }
     return { w, h };
@@ -99,17 +101,32 @@ export function ScaledHtmlPreview({
     if (!iframe) {
       return;
     }
-    const next = readIframeIntrinsicSize(iframe);
-    if (next) {
-      setIntrinsic(next);
+
+    // El HTML legacy puede terminar de maquetarse (y cargar fuentes) después
+    // del evento load; remedimos un par de veces para que la escala sea estable.
+    const remeasure = () => {
+      const next = readIframeIntrinsicSize(iframe);
+      if (next) {
+        setIntrinsic(next);
+      }
+    };
+
+    remeasure();
+    requestAnimationFrame(remeasure);
+    const timer = window.setTimeout(remeasure, 400);
+    try {
+      iframe.contentDocument?.fonts?.ready.then(remeasure).catch(() => {});
+    } catch {
+      // iframe de otro origen: no se puede medir
     }
+    return () => window.clearTimeout(timer);
   };
 
   return (
     <div
       ref={wrapRef}
       className={cn(
-        "relative w-full min-w-0 overflow-auto bg-muted/20",
+        "relative w-full min-w-0 max-w-full overflow-auto bg-muted/20",
         boxClassName,
         onSurfaceClick && "cursor-zoom-in",
       )}
@@ -127,6 +144,7 @@ export function ScaledHtmlPreview({
       tabIndex={onSurfaceClick ? 0 : undefined}
       aria-label={onSurfaceClick ? getDocLabels(docType || "").expandedPreviewLabel : undefined}
     >
+      {box.w > 32 && box.h > 32 ? (
       <div
         className="relative mx-auto"
         style={{
@@ -149,6 +167,11 @@ export function ScaledHtmlPreview({
           onLoad={handleIframeLoad}
         />
       </div>
+      ) : (
+        <div className="grid h-full w-full place-items-center text-xs text-muted-foreground">
+          Preparando vista previa…
+        </div>
+      )}
     </div>
   );
 }
