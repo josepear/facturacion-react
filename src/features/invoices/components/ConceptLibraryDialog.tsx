@@ -87,7 +87,7 @@ export function ConceptLibraryDialog({ open, onClose, onPickConcept, mode = "man
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className="fixed inset-0 z-50 m-auto flex max-h-[85dvh] w-[calc(100vw-1rem)] max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-background p-0 shadow-xl backdrop:bg-black/40"
+      className="fixed inset-0 z-50 m-auto w-[calc(100vw-1rem)] max-w-2xl overflow-hidden rounded-xl border border-border bg-background p-0 shadow-xl backdrop:bg-black/40 open:flex open:max-h-[85dvh] open:flex-col"
     >
       <div className="flex min-h-0 flex-1 flex-col">
         {/* Header */}
