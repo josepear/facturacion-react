@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { InvoiceDocument } from "@/domain/document/types";
 import { ScaledHtmlPreview } from "@/features/shared/components/ScaledHtmlPreview";
+import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
 import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { fetchDocumentLegacyPreviewBlob } from "@/infrastructure/api/documentsApi";
 import { fetchWithAuth } from "@/infrastructure/api/httpClient";
@@ -224,7 +225,7 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
         onClose={() => setModalOpen(false)}
       >
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 sm:px-4">
-          <h4 className="text-sm font-semibold">Vista de factura</h4>
+          <h4 className="text-sm font-semibold">{getDocLabels(liveDocument.type).previewTitle}</h4>
           <div className="flex flex-wrap items-center gap-1">
             <Button
               type="button"

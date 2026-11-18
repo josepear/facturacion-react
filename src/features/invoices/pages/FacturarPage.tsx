@@ -13,6 +13,7 @@ import { InvoiceItemsTable } from "@/features/invoices/components/InvoiceItemsTa
 import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotalsPanel";
 import { WorkflowModule } from "@/features/invoices/components/WorkflowModule";
 import { useFacturarForm } from "@/features/invoices/hooks/useFacturarForm";
+import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
 import {
   FACTURAR_CLIENT_HISTORY_EMPTY_LIST,
   FACTURAR_CLIENT_HISTORY_NEED_CONFIRM,
@@ -256,6 +257,8 @@ export function FacturarPage() {
     getValues,
     formState: { errors, isSubmitting },
   } = form;
+  const typeWatched = watch("type");
+  const docLabels = getDocLabels(typeWatched);
   const taxRateWatched = watch("taxRate");
   const withholdingRateWatched = watch("withholdingRate");
   const templateProfileIdWatched = watch("templateProfileId");
@@ -434,7 +437,7 @@ export function FacturarPage() {
         bodyText: gmailBodyText || undefined,
       }),
     onSuccess: async () => {
-      setGmailSentMessage("Factura enviada por Gmail.");
+      setGmailSentMessage(docLabels.gmailSentMessage);
       setGmailDialog(false);
       await queryClient.invalidateQueries({ queryKey: ["gmail-status", templateProfileIdForGmail] });
     },
@@ -723,7 +726,7 @@ export function FacturarPage() {
               </Field>
               <Field label="Número">
                 <>
-                  <Input placeholder="Número factura" {...register("number")} />
+                  <Input placeholder={docLabels.numberPlaceholder} {...register("number")} />
                   {numberConflict ? (
                     <p className="mt-0.5 text-xs text-warning">
                       Este número ya está en uso
@@ -1222,7 +1225,7 @@ export function FacturarPage() {
                     </p>
                   ) : null}
                   <p className="text-pretty text-sm text-informative sm:max-w-xl sm:text-right">
-                    Revise la factura en la vista previa HTML antes de guardar (panel de previsualización del documento).
+                    {docLabels.reviewHint}
                   </p>
                   <div className="flex flex-wrap gap-2 sm:justify-end">
                     <Button
@@ -1243,7 +1246,7 @@ export function FacturarPage() {
                     </Button>
                     {hasLastSetup ? (
                       <Button type="button" variant="outline" onClick={repeatLastSetup}>
-                        Repetir última factura
+                        {docLabels.repeatLast}
                       </Button>
                     ) : null}
                     {canOpenOfficialOutput ? (
@@ -1355,7 +1358,7 @@ export function FacturarPage() {
         onClose={() => setGmailDialog(false)}
         style={{ borderRadius: 8, padding: 24, maxWidth: 480, width: "90vw", border: "1px solid #ccc" }}
       >
-        <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar factura por Gmail</SectionTitle>
+        <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>{docLabels.gmailDialogTitle}</SectionTitle>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
             Para (email)
