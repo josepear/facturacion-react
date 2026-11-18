@@ -87,9 +87,9 @@ export function ConceptLibraryDialog({ open, onClose, onPickConcept, mode = "man
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className="fixed inset-0 z-50 m-auto max-h-[85vh] w-[95vw] max-w-2xl overflow-hidden rounded-xl border border-border bg-background p-0 shadow-xl backdrop:bg-black/40"
+      className="fixed inset-0 z-50 m-auto max-h-[85dvh] w-[calc(100vw-1rem)] max-w-2xl overflow-hidden rounded-xl border border-border bg-background p-0 shadow-xl backdrop:bg-black/40"
     >
-      <div className="flex h-full max-h-[85vh] flex-col">
+      <div className="flex h-full max-h-[85dvh] flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h2 className="text-lg font-semibold">
@@ -173,10 +173,10 @@ export function ConceptLibraryDialog({ open, onClose, onPickConcept, mode = "man
               {filtered.map((c) => (
                 <div
                   key={c.id}
-                  className="group flex items-start gap-3 rounded-lg border border-border/60 p-3 transition-colors hover:bg-muted/30"
+                  className="group flex flex-col gap-2 rounded-lg border border-border/60 p-3 transition-colors hover:bg-muted/30 sm:flex-row sm:items-start sm:gap-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2">
+                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span className="font-medium text-foreground">{c.concept}</span>
                       {c.unitPrice !== null ? (
                         <span className="shrink-0 text-xs text-muted-foreground">
@@ -188,7 +188,7 @@ export function ConceptLibraryDialog({ open, onClose, onPickConcept, mode = "man
                       <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{c.description}</p>
                     ) : null}
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex w-full shrink-0 items-center justify-end gap-1 sm:w-auto">
                     {mode === "pick" && onPickConcept ? (
                       <Button
                         type="button"
@@ -207,7 +207,7 @@ export function ConceptLibraryDialog({ open, onClose, onPickConcept, mode = "man
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100"
+                      className="h-8 w-8 text-muted-foreground opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                       title="Editar"
                       onClick={() =>
                         setEditing({
@@ -224,7 +224,7 @@ export function ConceptLibraryDialog({ open, onClose, onPickConcept, mode = "man
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100"
+                      className="h-8 w-8 text-muted-foreground opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
                       title="Eliminar"
                       onClick={() => handleDelete(c.id)}
                     >

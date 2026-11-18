@@ -1339,7 +1339,7 @@ export function FacturarPage() {
           </div>
         </div>
 
-        <div className="order-first flex min-h-0 flex-col gap-4 lg:order-none lg:sticky lg:top-4 lg:max-h-[calc(100dvh-1.5rem)] lg:overflow-y-auto lg:min-w-0">
+        <div className="order-first flex w-full min-w-0 min-h-0 flex-col gap-4 lg:order-none lg:sticky lg:top-4 lg:max-h-[calc(100dvh-1.5rem)] lg:overflow-y-auto lg:min-w-0">
           <FacturarLegacyHtmlPane
             liveDocument={liveDocument}
             serverRecordId={serverRecordId.trim()}
