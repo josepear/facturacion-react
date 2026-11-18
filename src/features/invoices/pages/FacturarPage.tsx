@@ -1339,7 +1339,7 @@ export function FacturarPage() {
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col gap-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-1.5rem)] lg:overflow-y-auto lg:min-w-0">
+        <div className="order-first flex min-h-0 flex-col gap-4 lg:order-none lg:sticky lg:top-4 lg:max-h-[calc(100dvh-1.5rem)] lg:overflow-y-auto lg:min-w-0">
           <FacturarSaveSummary
             document={liveDocument}
             profileLabel={selectedTemplateProfile?.label || String(watch("templateProfileId") || "").trim()}
