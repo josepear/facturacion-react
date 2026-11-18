@@ -87,9 +87,9 @@ export function ConceptLibraryDialog({ open, onClose, onPickConcept, mode = "man
     <dialog
       ref={dialogRef}
       onClose={onClose}
-      className="fixed inset-0 z-50 m-auto max-h-[85dvh] w-[calc(100vw-1rem)] max-w-2xl overflow-hidden rounded-xl border border-border bg-background p-0 shadow-xl backdrop:bg-black/40"
+      className="fixed inset-0 z-50 m-auto flex max-h-[85dvh] w-[calc(100vw-1rem)] max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-background p-0 shadow-xl backdrop:bg-black/40"
     >
-      <div className="flex h-full max-h-[85dvh] flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h2 className="text-lg font-semibold">
@@ -163,7 +163,7 @@ export function ConceptLibraryDialog({ open, onClose, onPickConcept, mode = "man
         ) : null}
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto px-5 py-3">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
           {filtered.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               {search ? "Sin resultados para esta búsqueda." : "La biblioteca está vacía. Añade tu primer concepto."}
