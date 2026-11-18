@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { BarChart2, BookOpen, FileSpreadsheet, LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
+import { BarChart2, BookOpen, FileSpreadsheet, FlaskConical, LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
@@ -43,9 +43,17 @@ type SidebarContentProps = {
 function SidebarContent({ collapsed, isDark, toggle, sandbox, toggleSandbox, onNavigate, onLogout, onOpenConceptLibrary }: SidebarContentProps) {
   return (
     <div className="flex h-full flex-col gap-4 p-3">
-      <div className={cn("rounded-lg border bg-card px-3 py-3", collapsed ? "text-center" : "")}>
-        <p className="text-informative uppercase tracking-wide">Facturación</p>
-        {!collapsed ? <p className="mt-1 text-sm font-semibold">App React</p> : null}
+      <div className={cn("rounded-lg border bg-card", collapsed ? "flex items-center justify-center px-1 py-3" : "px-3 py-3")}>
+        {collapsed ? (
+          <span className="text-xs font-semibold tracking-tight" title="Facturación">
+            P&Co
+          </span>
+        ) : (
+          <>
+            <p className="text-informative uppercase tracking-wide">Facturación</p>
+            <p className="mt-1 text-sm font-semibold">App React</p>
+          </>
+        )}
       </div>
 
       <nav className="grid gap-1">
@@ -102,7 +110,7 @@ function SidebarContent({ collapsed, isDark, toggle, sandbox, toggleSandbox, onN
           onClick={toggleSandbox}
           title="Modo prueba (sandbox)"
         >
-          {collapsed ? "S" : sandbox ? "Prueba ON" : "Prueba OFF"}
+          {collapsed ? <FlaskConical className="h-4 w-4" aria-hidden="true" /> : sandbox ? "Prueba ON" : "Prueba OFF"}
         </Button>
         <Button
           type="button"
