@@ -52,7 +52,9 @@ export function updateConcept(id: string, updates: Partial<Omit<LibraryConcept, 
   const lib = loadConceptLibrary();
   const idx = lib.findIndex((c) => c.id === id);
   if (idx < 0) return;
-  lib[idx] = { ...lib[idx], ...updates };
+  const existing = lib[idx];
+  if (!existing) return;
+  lib[idx] = { ...existing, ...updates };
   persistLibrary(lib);
 }
 
