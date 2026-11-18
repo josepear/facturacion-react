@@ -24,6 +24,20 @@ export type DocLabels = {
   repeatLast: string;
   /** "Vista de factura" / "Vista de presupuesto" */
   previewTitle: string;
+  /** "Duplicar esta factura" / "Duplicar este presupuesto" */
+  duplicateTitle: string;
+  /** "Editar factura" / "Editar presupuesto" */
+  editAction: string;
+  /** "Seleccionar factura X" / "Seleccionar presupuesto X" */
+  selectLabel: (id: string) => string;
+  /** "Vista previa de la factura X" / "Vista previa del presupuesto X" */
+  previewLabel: (id: string) => string;
+  /** "Abrir vista ampliada de la factura" / "… del presupuesto" */
+  expandedPreviewLabel: string;
+  /** "Factura (plantilla legacy)" / "Presupuesto (plantilla legacy)" */
+  legacyPaneTitle: string;
+  /** "Factura repetitiva lista. Revisa y guarda." / "Presupuesto repetitivo…" */
+  repeatReady: string;
 };
 
 const FACTURA_LABELS: DocLabels = {
@@ -36,6 +50,13 @@ const FACTURA_LABELS: DocLabels = {
   reviewHint: "Revise la factura en la vista previa HTML antes de guardar (panel de previsualización del documento).",
   repeatLast: "Repetir última factura",
   previewTitle: "Vista de factura",
+  duplicateTitle: "Duplicar esta factura",
+  editAction: "Editar factura",
+  selectLabel: (id) => `Seleccionar factura ${id}`,
+  previewLabel: (id) => `Vista previa de la factura ${id}`,
+  expandedPreviewLabel: "Abrir vista ampliada de la factura",
+  legacyPaneTitle: "Factura (plantilla legacy)",
+  repeatReady: "Factura repetitiva lista. Revisa y guarda.",
 };
 
 const PRESUPUESTO_LABELS: DocLabels = {
@@ -48,6 +69,13 @@ const PRESUPUESTO_LABELS: DocLabels = {
   reviewHint: "Revise el presupuesto en la vista previa HTML antes de guardar (panel de previsualización del documento).",
   repeatLast: "Repetir último presupuesto",
   previewTitle: "Vista de presupuesto",
+  duplicateTitle: "Duplicar este presupuesto",
+  editAction: "Editar presupuesto",
+  selectLabel: (id) => `Seleccionar presupuesto ${id}`,
+  previewLabel: (id) => `Vista previa del presupuesto ${id}`,
+  expandedPreviewLabel: "Abrir vista ampliada del presupuesto",
+  legacyPaneTitle: "Presupuesto (plantilla legacy)",
+  repeatReady: "Presupuesto repetitivo listo. Revisa y guarda.",
 };
 
 /** Devuelve los textos adaptados al tipo. Por defecto usa factura. */

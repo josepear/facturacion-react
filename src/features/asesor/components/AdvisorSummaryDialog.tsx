@@ -472,12 +472,12 @@ export function AdvisorSummaryDialog({
               </select>
             </label>
             <label className="grid gap-1 text-sm sm:col-span-2 xl:col-span-1">
-              <span className="font-medium text-foreground">Estado de factura</span>
+              <span className="font-medium text-foreground">Estado del documento</span>
               <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 value={invoiceStatus}
                 onChange={(e) => setInvoiceStatus(e.target.value as AdvisorInvoiceStatusFilter)}
-                aria-label="Estado factura resumen asesor"
+                aria-label="Estado documento resumen asesor"
               >
                 <option value="all">Todas</option>
                 <option value="COBRADA">Cobrada</option>
@@ -548,7 +548,7 @@ export function AdvisorSummaryDialog({
                     <span className="font-semibold">{formatCurrency(invoiceTotalFiltered)}</span>
                     <span className="text-informative">
                       {" "}
-                      · {invoicePreview.length} {invoicePreview.length === 1 ? "factura" : "facturas"}
+                      · {invoicePreview.length} {invoicePreview.length === 1 ? "documento" : "documentos"}
                     </span>
                   </p>
                 </div>
@@ -605,7 +605,7 @@ export function AdvisorSummaryDialog({
                               </td>
                               <td className={`${workbookDataTdTight} text-right tabular-nums`}>{formatCurrency(Number(i.total || 0))}</td>
                               <td className="p-2 text-center align-middle">
-                                <InvoicePreviewListTrigger recordId={i.recordId} label={i.number || i.recordId} />
+                                <InvoicePreviewListTrigger recordId={i.recordId} label={i.number || i.recordId} docType={i.type} />
                               </td>
                             </tr>
                           );

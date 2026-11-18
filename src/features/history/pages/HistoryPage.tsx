@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InfoCallout } from "@/components/ui/info-callout";
 import { SectionTitle } from "@/components/ui/section-title";
 import { Select } from "@/components/ui/select";
+import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
 import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
@@ -312,7 +313,7 @@ export function HistoryPage() {
         bodyText: gmailBodyText || undefined,
       }),
     onSuccess: async () => {
-      setGmailSentMessage("Factura enviada por Gmail.");
+      setGmailSentMessage(getDocLabels(openedDocument?.type || "").gmailSentMessage);
       setGmailDialog(false);
       await queryClient.invalidateQueries({ queryKey: ["gmail-status", gmailProfileId] });
     },
@@ -872,7 +873,7 @@ export function HistoryPage() {
                               checked={selectedRecordIds.has(item.recordId)}
                               disabled={atSelectionLimit}
                               onChange={() => toggleRecordSelection(item.recordId, item.type)}
-                              aria-label={`Seleccionar factura ${item.number || item.recordId}`}
+                              aria-label={getDocLabels(item.type).selectLabel(item.number || item.recordId)}
                             />
                           </div>
                         ) : null}
@@ -919,21 +920,20 @@ export function HistoryPage() {
                           onKeyDown={(e) => e.stopPropagation()}
                           role="presentation"
                         >
-                          {item.type === "factura" ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => navigate(`/facturar?duplicateFrom=${item.recordId}`)}
-                              title="Duplicar esta factura"
-                              className={isActive ? "text-primary-foreground hover:text-primary-foreground/85" : undefined}
-                            >
-                              Duplicar
-                            </Button>
-                          ) : null}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/facturar?duplicateFrom=${item.recordId}`)}
+                            title={getDocLabels(item.type).duplicateTitle}
+                            className={isActive ? "text-primary-foreground hover:text-primary-foreground/85" : undefined}
+                          >
+                            Duplicar
+                          </Button>
                           <InvoicePreviewListTrigger
                             recordId={item.recordId}
                             label={item.number || item.recordId}
+                            docType={item.type}
                             className={isActive ? "text-primary-foreground hover:text-primary-foreground" : undefined}
                           />
                         </div>
@@ -1075,7 +1075,7 @@ export function HistoryPage() {
                       navigate(`/facturar?${query}`);
                     }}
                   >
-                    Editar en Facturar
+                    {getDocLabels(openedDocument.type).editAction}
                   </Button>
                   <Button
                     type="button"
@@ -1257,7 +1257,7 @@ export function HistoryPage() {
         onClose={() => setGmailDialog(false)}
         style={{ borderRadius: 8, padding: 24, maxWidth: 480, width: "90vw", border: "1px solid #ccc" }}
       >
-        <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar factura por Gmail</SectionTitle>
+        <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>{getDocLabels(openedDocument?.type || "").gmailDialogTitle}</SectionTitle>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
             Para (email)

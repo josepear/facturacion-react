@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
 import { cn } from "@/lib/utils";
 
 const ZOOM_STEP = 1.22;
@@ -37,6 +38,8 @@ export type ScaledHtmlPreviewProps = {
   blockIframePointer: boolean;
   /** Clic en el área de previsualización (p. ej. abrir modal en vista incrustada). */
   onSurfaceClick?: () => void;
+  /** Tipo de documento para aria-labels contextuales. */
+  docType?: string;
 };
 
 /**
@@ -48,6 +51,7 @@ export function ScaledHtmlPreview({
   zoomSteps,
   blockIframePointer,
   onSurfaceClick,
+  docType,
 }: ScaledHtmlPreviewProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -121,7 +125,7 @@ export function ScaledHtmlPreview({
           : undefined
       }
       tabIndex={onSurfaceClick ? 0 : undefined}
-      aria-label={onSurfaceClick ? "Abrir vista ampliada de la factura" : undefined}
+      aria-label={onSurfaceClick ? getDocLabels(docType || "").expandedPreviewLabel : undefined}
     >
       <div
         className="relative mx-auto"

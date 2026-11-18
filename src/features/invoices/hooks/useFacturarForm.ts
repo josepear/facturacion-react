@@ -20,6 +20,7 @@ import { getAuthToken } from "@/infrastructure/api/httpClient";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { fetchDocumentDetail, fetchRuntimeConfig, saveDocument } from "@/infrastructure/api/documentsApi";
+import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
 import { clearDraft, loadDraft, loadDraftMeta, saveDraft, type DraftMeta } from "@/features/invoices/lib/draftStorage";
 import {
   openOfficialDocumentInNewTab,
@@ -1066,7 +1067,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     form.reset(copy);
     setFiscalIrpfChoiceAcknowledged(true);
     setClientModuleConfirmed(true);
-    setNumberAvailabilityText("Factura repetitiva lista. Revisa y guarda.");
+    setNumberAvailabilityText(getDocLabels(snap.type).repeatReady);
     setNumberAvailabilityTone("neutral");
   };
 

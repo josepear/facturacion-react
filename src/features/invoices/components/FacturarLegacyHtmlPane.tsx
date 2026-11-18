@@ -172,7 +172,7 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
   return (
     <div className="grid gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-900 dark:bg-sky-950/20">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground">Factura (plantilla legacy)</h3>
+        <h3 className="text-sm font-semibold text-foreground">{getDocLabels(liveDocument.type).legacyPaneTitle}</h3>
         {loading ? <span className="text-xs text-muted-foreground">Actualizando…</span> : null}
       </div>
       {useSavedOnDisk ? (
@@ -195,6 +195,7 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
             zoomSteps={0}
             blockIframePointer
             onSurfaceClick={() => setModalOpen(true)}
+            docType={liveDocument.type}
           />
           <Button
             type="button"

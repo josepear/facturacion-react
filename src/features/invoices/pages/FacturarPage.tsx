@@ -1014,6 +1014,7 @@ export function FacturarPage() {
                   <InvoicePreviewListTrigger
                     recordId={String(serverRecordId || "").trim()}
                     label={String(watch("number") || "").trim() || undefined}
+                    docType={typeWatched}
                   />
                 </div>
               ) : (
@@ -1154,7 +1155,7 @@ export function FacturarPage() {
                                 {row.totalAmount !== null ? formatCurrency(row.totalAmount) : "—"}
                               </td>
                               <td className="p-1 text-center align-middle">
-                                <InvoicePreviewListTrigger recordId={row.recordId} label={row.label} />
+                                <InvoicePreviewListTrigger recordId={row.recordId} label={row.label} docType={row.type} />
                               </td>
                               <td className={cn(workbookDataTdTight, "pr-3")}>
                                 <Button
