@@ -260,6 +260,11 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         if (!hasContent) {
           return;
         }
+        // No re-crear el borrador si el formulario corresponde a un documento ya guardado
+        // sin cambios: tras guardar se limpia el borrador y el autoguardado no debe resucitarlo.
+        if (serverRecordId && !form.formState.isDirty) {
+          return;
+        }
         const doc = applyTotals(mapFormToLegacyDocument(vals as InvoiceDocument));
         saveDraft(doc);
         setDraftMeta(loadDraftMeta());
@@ -271,7 +276,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     return () => {
       if (draftAutoSaveRef.current) clearInterval(draftAutoSaveRef.current);
     };
-  }, [form]);
+  }, [form, serverRecordId]);
 
   /** Restaurar borrador guardado. */
   const restoreDraft = useCallback(() => {
