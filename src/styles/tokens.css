@@ -1,14 +1,14 @@
 :root {
   --background: 0 0% 100%;
-  --foreground: 224 71% 4%;
+  --foreground: 0 0% 11.76%;
   --card: 0 0% 100%;
-  --card-foreground: 224 71% 4%;
+  --card-foreground: 0 0% 11.76%;
   --primary: 222 47% 11%;
   --primary-foreground: 210 40% 98%;
   --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
+  --muted-foreground: 0 0% 11.76%;
   --accent: 210 40% 96%;
-  --accent-foreground: 222 47% 11%;
+  --accent-foreground: 0 0% 11.76%;
   /* Borde base UI: #1e1e1e (equiv. HSL sin función; consumo en hsl(var(--border))) */
   --border: 0 0% 11.76%;
   --input: 0 0% 11.76%;
