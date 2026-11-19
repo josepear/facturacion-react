@@ -753,16 +753,10 @@ export function DesignPage() {
                   <CardTitle>Proyecto</CardTitle>
                   <CardDescription>
                     Caja con el nombre del proyecto del documento (campo «Nombre del proyecto» en Facturar).
-                    0 mm = se ajusta al texto.
+                    La caja se ajusta al texto: solo eliges tamaño y alineación.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
-                  <RangeField
-                    designKey="projectBoxWidthMm"
-                    value={draft.design.projectBoxWidthMm}
-                    disabled={!canEdit}
-                    onChange={(next) => updateDesign({ projectBoxWidthMm: next })}
-                  />
                   <RangeField
                     designKey="projectNameSizePt"
                     value={draft.design.projectNameSizePt}

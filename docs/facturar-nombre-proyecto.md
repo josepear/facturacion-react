@@ -30,17 +30,18 @@ muestra el HTML resultante.
 
 | Layout | Dónde aparece |
 | --- | --- |
-| `pear` / `reference` (`invoice-sheet-reference`) | **Caja bajo la cabecera** (`reference-project-strip` + `reference-project-row`), con ancho, tamaño de texto y alineación configurables en Diseño. Por defecto se ajusta al texto (0 mm) a 9 pt, alineada a la izquierda. |
+| `pear` / `reference` (`invoice-sheet-reference`) | **Caja bajo la cabecera** (`reference-project-strip` + `reference-project-row`), siempre ajustada al texto. Solo se configuran tamaño de texto y alineación en Diseño. |
 | `voulita` (`invoice-sheet-voulita`) | Tarjeta `voulita-info-card` con etiqueta **PROYECTO**. |
 | `editorial` (`invoice-sheet-editorial`) | Fila **Proyecto** en el detalle. |
 
 En la plantilla por defecto ya **no** se imprime dentro de las cajas estrechas de 44 mm
-(`issue-boxes`): los nombres largos se cortaban y no se leían. La caja usa `overflow-wrap:
-anywhere`, así que cualquier longitud se ve completa. Su aspecto se controla desde **Diseño**:
-`projectBoxWidthMm` (0 = ajustar al texto, hasta 190 mm), `projectNameSizePt` (6–18 pt) y
-`projectAlignX` (izquierda/centro/derecha). El estilo vive en `public/print.css`
-(`.reference-project-strip`, `.reference-project-row`, `.reference-project-label`,
-`.reference-project-value`), con ajuste para las densidades `compact-4` y `compact-5`.
+(`issue-boxes`): los nombres largos se cortaban y no se leían. La caja se **ajusta siempre al
+texto** (sin anchura manual) y usa `overflow-wrap: anywhere`, así que cualquier longitud se ve
+completa. Su aspecto se controla desde **Diseño**: `projectNameSizePt` (6–18 pt, por defecto 9) y
+`projectAlignX` (izquierda/centro/derecha, por defecto izquierda). El estilo vive en
+`public/print.css` (`.reference-project-strip`, `.reference-project-row`,
+`.reference-project-label`, `.reference-project-value`), con ajuste para las densidades
+`compact-4` y `compact-5`.
 
 Se normaliza en `document-core.mjs` (`projectName`) y, por tanto, aparece en la **vista previa**,
 el **HTML oficial**, el **PDF** y el **PDF adjunto por Gmail** (mismo HTML del servidor).
@@ -52,7 +53,7 @@ Tests backend en `tests/document-project-name.test.mjs`:
 - `normalizeDocument` recorta el nombre.
 - Se imprime en las 3 plantillas.
 - En `pear` va en `reference-project-row` (dentro de `reference-project-strip`) y **no** dentro de `issue-boxes`.
-- La caja respeta ancho/tamaño/alineación; sin ancho fijo se ajusta al texto y a 9 pt.
+- La caja se ajusta al texto; solo se configuran tamaño (por defecto 9 pt) y alineación.
 - Sin nombre no se imprime la franja.
 - El formulario legacy tiene el input y lo carga/guarda.
 

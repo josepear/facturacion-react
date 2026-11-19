@@ -16,7 +16,7 @@ solo gestionaba `layout`, `colorKey` y `fontFamily`; el resto de controles no ex
 | Logo | Ancho (mm), justificación horizontal y vertical. |
 | Servicios | Fuente Google, peso, tamaño (pt), alineaciones, texto del bloque superior y visibilidad. |
 | Título | Fuente Google, peso, ancho/alto de la caja (mm), alineaciones. |
-| Proyecto | Caja del nombre del proyecto: anchura (0 mm = ajustada al texto, hasta 190 mm), tamaño del texto (6–18 pt) y alineación horizontal. |
+| Proyecto | Caja del nombre del proyecto **ajustada al texto** (sin anchura manual): tamaño del texto (6–18 pt) y alineación horizontal. |
 | Ajustes finos | Datos superiores (tamaño fecha/número, alineaciones emisor/fecha/cliente), lateral y contenido (columna izquierda, textos base/detalle/título/concepto, alineaciones), pie y cobro (slogan, peso del número de cuenta, alineaciones del pie y del bloque de cobro), pie y cierre (URL, slogans y nota). |
 
 Los valores por defecto (`DEFAULT_DESIGN`) y los clamps son una **copia exacta** de

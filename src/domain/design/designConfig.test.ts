@@ -45,14 +45,12 @@ describe("mergeDesign", () => {
     expect(design.itemDetailAlignX).toBe("left");
   });
 
-  it("acota la caja del proyecto y normaliza su alineación", () => {
-    const design = mergeDesign({ projectBoxWidthMm: 999, projectNameSizePt: 2, projectAlignX: "otra" });
-    expect(design.projectBoxWidthMm).toBe(190);
+  it("acota el tamaño del texto del proyecto y normaliza su alineación", () => {
+    const design = mergeDesign({ projectNameSizePt: 2, projectAlignX: "otra" });
     expect(design.projectNameSizePt).toBe(6);
     expect(design.projectAlignX).toBe("left");
 
-    const centered = mergeDesign({ projectBoxWidthMm: 0, projectNameSizePt: 12, projectAlignX: "center" });
-    expect(centered.projectBoxWidthMm).toBe(0);
+    const centered = mergeDesign({ projectNameSizePt: 12, projectAlignX: "center" });
     expect(centered.projectNameSizePt).toBe(12);
     expect(centered.projectAlignX).toBe("center");
   });
