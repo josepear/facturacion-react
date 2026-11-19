@@ -1,6 +1,6 @@
 import type { InvoiceDocument } from "@/domain/document/types";
 import { buildLegacyPreviewModel } from "@/features/invoices/adapters/renderLegacyPreview";
-import { getProfileAccentColor } from "@/components/ui/ProfileBadge";
+import { getProfileAccentColor } from "@/components/ui/profileBadgePalette";
 import "@/features/invoices/components/document-live-preview.css";
 
 type DocumentLivePreviewProps = {

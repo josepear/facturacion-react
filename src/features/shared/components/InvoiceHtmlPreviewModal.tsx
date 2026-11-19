@@ -41,20 +41,16 @@ export function InvoiceHtmlPreviewModal({ open, recordId, subtitle, onOpenChange
 
   useEffect(() => {
     if (!open || !recordId) {
-      revoke();
-      setError(null);
-      setLoading(false);
-      setZoomSteps(0);
       return;
     }
 
     const ac = new AbortController();
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-    revoke();
 
     void (async () => {
+      setLoading(true);
+      setError(null);
+      revoke();
       try {
         const blob = await loadInvoiceHtmlBlob(recordId, ac.signal);
         if (cancelled || ac.signal.aborted) {
@@ -82,6 +78,14 @@ export function InvoiceHtmlPreviewModal({ open, recordId, subtitle, onOpenChange
       setLoading(false);
     };
   }, [open, recordId, revoke]);
+
+  // Cada apertura (o cambio de documento) empieza sin zoom.
+  const zoomKey = open && recordId ? String(recordId) : "";
+  const [zoomKeyState, setZoomKeyState] = useState(zoomKey);
+  if (zoomKeyState !== zoomKey) {
+    setZoomKeyState(zoomKey);
+    setZoomSteps(0);
+  }
 
   useEffect(() => {
     const el = dialogRef.current;

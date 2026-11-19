@@ -14,6 +14,7 @@ import {
   formatAdvisorSectionTitle,
   normalizeAdvisorQuarterSelection,
 } from "@/features/data/lib/advisorShareFilters";
+import { PublicInvoiceHtmlDialog } from "@/features/asesor/components/PublicInvoiceHtmlDialog";
 import { resolveCalendarQuarter, workbookQuarterRowToneClass } from "@/features/shared/lib/quarterVisual";
 import { workbookDataTableBase, workbookDataTdTight, workbookDataTdVariable } from "@/features/shared/lib/workbookTableText";
 import type { PublicShareReportPayload } from "@/infrastructure/api/exportReportsApi";
@@ -25,22 +26,19 @@ import {
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 import { cn, formatCurrency } from "@/lib/utils";
 
+import { PickableTotalButton, ShareReportPickSumDock } from "@/pages/sharedReportPickSum";
 import {
-  PickableTotalButton,
-  ShareReportPickSumDock,
   pickIdExpense,
   pickIdInvoice,
   useShareReportPickSum,
-} from "@/pages/sharedReportPickSum";
-
-const PUBLIC_SHARE_QUARTERS = ["T1", "T2", "T3", "T4"] as const;
+} from "@/pages/sharedReportPickSumState";
 
 type PublicShareViewMode = "all" | "documents" | "invoices" | "quotes" | "expenses";
 
 function scopeLabel(scope: string): string {
   const s = String(scope || "").trim().toLowerCase();
   if (s === "invoices") {
-    return "Documentos";
+    return "Facturas";
   }
   if (s === "expenses") {
     return "Solo gastos";
@@ -48,14 +46,41 @@ function scopeLabel(scope: string): string {
   return "Todo";
 }
 
-function metaSummaryLine(report: PublicShareReportPayload): string {
-  const meta = report.meta || {};
-  const yearLabel = meta.year === "all" || !meta.year ? "Todos los ejercicios" : String(meta.year);
-  const quarterLabel = formatAdvisorQuarterSelectionLabel(
-    normalizeAdvisorQuarterSelection(meta.quarters ?? (meta.quarter ? [meta.quarter] : [])),
+function MetaChip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-3 py-1 text-xs">
+      <span className="font-medium uppercase tracking-wide text-informative">{label}</span>
+      <span className="font-semibold text-foreground">{value}</span>
+    </span>
   );
-  const profile = String(meta.profileLabel || meta.templateProfileId || "—").trim() || "—";
-  return `${yearLabel} · ${quarterLabel} · ${profile} · ${scopeLabel(String(meta.scope || "both"))}`;
+}
+
+function SummaryStat({
+  label,
+  value,
+  hint,
+  accent = "neutral",
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  accent?: "neutral" | "primary" | "danger";
+}) {
+  const valueClass =
+    accent === "primary"
+      ? "text-primary"
+      : accent === "danger"
+        ? "text-red-600 dark:text-red-400"
+        : "text-foreground";
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="space-y-1 p-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-informative">{label}</p>
+        <p className={cn("text-2xl font-semibold tabular-nums tracking-tight", valueClass)}>{value}</p>
+        {hint ? <p className="text-xs text-informative">{hint}</p> : null}
+      </CardContent>
+    </Card>
+  );
 }
 
 function normalizePublicSearchText(raw: string): string {
@@ -135,21 +160,16 @@ function deriveExportDocumentKind(viewMode: PublicShareViewMode): "all" | "factu
   return "all";
 }
 
-function buildVisibleScopeKey(viewMode: PublicShareViewMode, invoicesCount: number, expensesCount: number): "both" | "invoices" | "expenses" {
-  if (expensesCount > 0 && invoicesCount === 0) {
-    return "expenses";
-  }
-  if (invoicesCount > 0 && expensesCount === 0) {
-    return "invoices";
-  }
-  return viewMode === "expenses" ? "expenses" : viewMode === "documents" || viewMode === "invoices" || viewMode === "quotes" ? "invoices" : "both";
-}
-
-function visibleSummaryLine(viewMode: PublicShareViewMode, quarters: string[], searchText: string): string {
+function visibleSummaryLine(
+  viewMode: PublicShareViewMode,
+  invoiceQuarters: string[],
+  expenseQuarters: string[],
+  searchText: string,
+): string {
   const parts: string[] = [];
   parts.push(`Vista: ${
     viewMode === "documents"
-      ? "Documentos"
+      ? "Facturas"
       : viewMode === "invoices"
         ? "Solo facturas"
         : viewMode === "quotes"
@@ -158,8 +178,11 @@ function visibleSummaryLine(viewMode: PublicShareViewMode, quarters: string[], s
             ? "Solo gastos"
             : "Todo"
   }`);
-  if (quarters.length) {
-    parts.push(`Trimestres: ${quarters.map((quarter) => formatQuarterShortLabel(quarter) || quarter).join(" + ")}`);
+  if (invoiceQuarters.length) {
+    parts.push(`Trim. facturas: ${invoiceQuarters.map((quarter) => formatQuarterShortLabel(quarter) || quarter).join(" + ")}`);
+  }
+  if (expenseQuarters.length) {
+    parts.push(`Trim. gastos: ${expenseQuarters.map((quarter) => formatQuarterShortLabel(quarter) || quarter).join(" + ")}`);
   }
   if (searchText.trim()) {
     parts.push(`Buscar: ${searchText.trim()}`);
@@ -172,7 +195,7 @@ function filteredTotalsLabel(viewMode: PublicShareViewMode): string {
     return "Total gastos filtrados";
   }
   if (viewMode === "documents" || viewMode === "invoices" || viewMode === "quotes") {
-    return "Total documentos filtrados";
+    return "Total facturas filtradas";
   }
   return "Total de los totales filtrados";
 }
@@ -226,8 +249,10 @@ export function SharedReportPublicPage() {
   const [searchParams] = useSearchParams();
   const token = useMemo(() => normalizeShareReportToken(String(searchParams.get("t") || "")), [searchParams]);
   const [searchText, setSearchText] = useState("");
-  const [selectedQuarters, setSelectedQuarters] = useState<string[]>([]);
+  const [invoiceQuarters, setInvoiceQuarters] = useState<string[]>([]);
+  const [expenseQuarters, setExpenseQuarters] = useState<string[]>([]);
   const [isExporting, setIsExporting] = useState(false);
+  const [viewInvoice, setViewInvoice] = useState<{ ref: string; label: string } | null>(null);
 
   const reportQuery = useQuery({
     queryKey: ["public-share-report", token],
@@ -237,10 +262,9 @@ export function SharedReportPublicPage() {
   });
 
   const report = reportQuery.data;
-  const totals = report?.totals;
   const meta = report?.meta;
-  const invoices = report?.invoices ?? [];
-  const expenses = report?.expenses ?? [];
+  const invoices = useMemo(() => report?.invoices ?? [], [report]);
+  const expenses = useMemo(() => report?.expenses ?? [], [report]);
   const scope = String(meta?.scope || "both").toLowerCase();
   const viewMode: PublicShareViewMode =
     scope === "expenses" ? "expenses" : scope === "invoices" ? "documents" : "all";
@@ -251,10 +275,17 @@ export function SharedReportPublicPage() {
     clear();
   }, [report, clear]);
 
-  useEffect(() => {
+  // Al cambiar de enlace (token) o de alcance del informe se descartan los filtros locales.
+  // Se ajusta el estado durante el render (patrón recomendado por React) para no renderizar
+  // una primera pasada con los filtros del informe anterior.
+  const filtersResetKey = `${token}|${scope}`;
+  const [filtersResetKeyState, setFiltersResetKeyState] = useState(filtersResetKey);
+  if (filtersResetKeyState !== filtersResetKey) {
+    setFiltersResetKeyState(filtersResetKey);
     setSearchText("");
-    setSelectedQuarters([]);
-  }, [scope, token]);
+    setInvoiceQuarters([]);
+    setExpenseQuarters([]);
+  }
 
   const normalizedSearch = useMemo(() => normalizePublicSearchText(searchText), [searchText]);
 
@@ -264,7 +295,7 @@ export function SharedReportPublicPage() {
         return false;
       }
       const quarter = normalizeQuarterValue("", String(row.issueDate || ""));
-      if (selectedQuarters.length && !selectedQuarters.includes(quarter)) {
+      if (invoiceQuarters.length && !invoiceQuarters.includes(quarter)) {
         return false;
       }
       if (normalizedSearch && !buildInvoiceSearchText(row).includes(normalizedSearch)) {
@@ -272,7 +303,7 @@ export function SharedReportPublicPage() {
       }
       return true;
     });
-  }, [invoices, normalizedSearch, selectedQuarters, viewMode]);
+  }, [invoices, normalizedSearch, invoiceQuarters, viewMode]);
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter((row) => {
@@ -280,7 +311,7 @@ export function SharedReportPublicPage() {
         return false;
       }
       const quarter = normalizeQuarterValue(String(row.quarter || ""), String(row.issueDate || ""));
-      if (selectedQuarters.length && !selectedQuarters.includes(quarter)) {
+      if (expenseQuarters.length && !expenseQuarters.includes(quarter)) {
         return false;
       }
       if (normalizedSearch && !buildExpenseSearchText(row).includes(normalizedSearch)) {
@@ -288,7 +319,7 @@ export function SharedReportPublicPage() {
       }
       return true;
     });
-  }, [expenses, normalizedSearch, selectedQuarters, viewMode]);
+  }, [expenses, normalizedSearch, expenseQuarters, viewMode]);
 
   const invoiceQuarterGroups = useMemo(
     () =>
@@ -312,7 +343,7 @@ export function SharedReportPublicPage() {
 
   useEffect(() => {
     clear();
-  }, [clear, normalizedSearch, selectedQuarters, viewMode]);
+  }, [clear, normalizedSearch, invoiceQuarters, expenseQuarters, viewMode]);
 
   const filteredInvoiceCount = filteredInvoices.length;
   const filteredExpenseCount = filteredExpenses.length;
@@ -337,10 +368,6 @@ export function SharedReportPublicPage() {
   const invTitle = formatAdvisorSectionTitle("FACTURACIÓN", String(meta?.year || "all"), String(meta?.quarter || "all"), metaQuarters);
   const expTitle = formatAdvisorSectionTitle("GASTOS", String(meta?.year || "all"), String(meta?.quarter || "all"), metaQuarters);
 
-  const hasPickableRows =
-    filteredInvoiceCount > 0 || filteredExpenseCount > 0;
-  const visibleScopeKey = buildVisibleScopeKey(viewMode, filteredInvoiceCount, filteredExpenseCount);
-
   async function handleExportWorkbook() {
     if (!token) {
       return;
@@ -352,7 +379,8 @@ export function SharedReportPublicPage() {
         scope: deriveExportScope(viewMode),
         documentKind: deriveExportDocumentKind(viewMode),
         searchText,
-        quarters: selectedQuarters,
+        invoiceQuarters,
+        expenseQuarters,
       });
     } catch (error) {
       window.alert(getErrorMessageFromUnknown(error));
@@ -361,15 +389,22 @@ export function SharedReportPublicPage() {
     }
   }
 
-  function toggleQuarter(quarter: string) {
-    setSelectedQuarters((current) =>
+  function toggleInvoiceQuarter(quarter: string) {
+    setInvoiceQuarters((current) =>
+      current.includes(quarter) ? current.filter((item) => item !== quarter) : [...current, quarter].sort(),
+    );
+  }
+
+  function toggleExpenseQuarter(quarter: string) {
+    setExpenseQuarters((current) =>
       current.includes(quarter) ? current.filter((item) => item !== quarter) : [...current, quarter].sort(),
     );
   }
 
   function resetTools() {
     setSearchText("");
-    setSelectedQuarters([]);
+    setInvoiceQuarters([]);
+    setExpenseQuarters([]);
   }
 
   if (!token) {
@@ -401,30 +436,73 @@ export function SharedReportPublicPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 bg-background px-4 py-8 pb-36 text-foreground sm:px-6">
-      <header className="space-y-2 border-b border-border pb-6">
-        <p className="text-xs font-medium uppercase tracking-wide text-informative">Solo lectura · sin sesión</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Resumen para asesoría</h1>
-        <p className="text-sm text-informative">{metaSummaryLine(report!)}</p>
-        <p className="text-xs text-informative">{visibleSummaryLine(viewMode, selectedQuarters, searchText)}</p>
-        {report?.expiresAt ? (
+    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 bg-background px-4 py-8 pb-44 text-foreground sm:px-6">
+      <header className="overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-background to-background shadow-sm">
+        <div className="space-y-4 p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 space-y-2">
+              <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                Solo lectura · sin sesión
+              </span>
+              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Resumen para Celia</h1>
+            </div>
+            <div className="flex flex-wrap gap-2 print:hidden">
+              <Button type="button" variant="outline" onClick={() => window.print()}>
+                Imprimir
+              </Button>
+              <Button type="button" onClick={handleExportWorkbook} disabled={isExporting}>
+                {isExporting ? "Preparando Excel..." : "Exportar Excel"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <MetaChip label="Ejercicio" value={String(meta?.year === "all" || !meta?.year ? "Todos" : meta?.year)} />
+            <MetaChip label="Periodo" value={formatAdvisorQuarterSelectionLabel(metaQuarters) || "Todos"} />
+            <MetaChip label="Emisor" value={String(meta?.profileLabel || meta?.templateProfileId || "—")} />
+            <MetaChip label="Alcance" value={scopeLabel(String(meta?.scope || "both"))} />
+          </div>
+
           <p className="text-xs text-informative">
-            Caducidad del enlace:{" "}
-            {new Date(report.expiresAt).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" })}
+            {visibleSummaryLine(viewMode, invoiceQuarters, expenseQuarters, searchText)}
+            {report?.expiresAt ? (
+              <>
+                {" · "}Caduca el{" "}
+                {new Date(report.expiresAt).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" })}
+              </>
+            ) : null}
           </p>
-        ) : null}
+        </div>
       </header>
 
-      <Card className="border-primary/20 bg-muted/20">
-        <CardHeader>
-          <CardTitle className="text-base">Herramientas para asesoría</CardTitle>
-          <CardDescription>
-            Puedes filtrar esta vista, imprimirla o descargar un Excel con exactamente lo que estás viendo.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid gap-4">
-            <label className="space-y-2">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Totales del informe">
+        <SummaryStat
+          label="Facturas"
+          value={String(filteredInvoiceCount)}
+          hint={`Total bruto ${formatCurrency(filteredInvoicesTotal)}`}
+        />
+        <SummaryStat
+          label="Gastos"
+          value={String(filteredExpenseCount)}
+          hint={`Total ${formatCurrency(filteredExpensesTotal)}`}
+        />
+        <SummaryStat
+          label="Ingresos vigentes"
+          value={formatCurrency(filteredInvoicesVigente)}
+          hint="Excluye canceladas"
+        />
+        <SummaryStat
+          label="Resultado aprox."
+          value={margin !== null ? formatCurrency(margin) : "—"}
+          hint={margin !== null ? "Ingresos vigentes − gastos" : "Disponible con facturas y gastos"}
+          accent={margin !== null && margin < 0 ? "danger" : "primary"}
+        />
+      </section>
+
+      <Card className="print:hidden">
+        <CardContent className="space-y-4 pt-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <label className="min-w-0 flex-1 space-y-2">
               <span className="text-sm font-medium">Buscar</span>
               <input
                 className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition focus:border-ring focus:ring-2 focus:ring-ring/30"
@@ -433,106 +511,24 @@ export function SharedReportPublicPage() {
                 onChange={(event) => setSearchText(event.target.value)}
               />
             </label>
-          </div>
-
-          <div className="rounded-xl border border-border/70 bg-background/80 p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="mr-2 text-sm font-medium">Trimestres</span>
-              {PUBLIC_SHARE_QUARTERS.map((quarter) => {
-                const active = selectedQuarters.includes(quarter);
-                return (
-                  <Button
-                    key={quarter}
-                    type="button"
-                    variant={active ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleQuarter(quarter)}
-                  >
-                    {formatQuarterShortLabel(quarter) || quarter}
-                  </Button>
-                );
-              })}
-              <Button type="button" variant="outline" size="sm" onClick={() => setSelectedQuarters([...PUBLIC_SHARE_QUARTERS])}>
-                Todos
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => setSelectedQuarters([])}>
-                Ninguno
-              </Button>
-            </div>
-            <p className="mt-3 text-xs text-informative">
-              Si no marcas ninguno, se muestran todos. Puedes combinar, por ejemplo, 1T y 4T.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button type="button" variant="outline" onClick={resetTools}>
+            <Button type="button" variant="outline" className="shrink-0" onClick={resetTools}>
               Limpiar filtros
-            </Button>
-            <Button type="button" variant="outline" onClick={() => window.print()}>
-              Imprimir
-            </Button>
-            <Button type="button" onClick={handleExportWorkbook} disabled={isExporting}>
-              {isExporting ? "Preparando Excel..." : "Exportar Excel de esta vista"}
             </Button>
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-informative text-sm font-medium">Documentos visibles</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">{filteredInvoiceCount}</p>
-            <p className="mt-1 text-xs text-informative">Total bruto: {formatCurrency(filteredInvoicesTotal)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-informative text-sm font-medium">Gastos visibles</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">{filteredExpenseCount}</p>
-            <p className="mt-1 text-xs text-informative">Total: {formatCurrency(filteredExpensesTotal)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-informative text-sm font-medium">Ingresos vigentes visibles</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">{formatCurrency(filteredInvoicesVigente)}</p>
-            <p className="mt-1 text-xs text-informative">Excluye facturas canceladas</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {margin !== null ? (
-        <Card className="border-primary/25 bg-muted/30">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Resultado aproximado</CardTitle>
-            <CardDescription>Ingresos vigentes visibles menos gastos visibles.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className={`text-2xl font-semibold tabular-nums ${margin >= 0 ? "text-green-700 dark:text-green-400" : "text-red-600"}`}>
-              {formatCurrency(margin)}
-            </p>
-          </CardContent>
-        </Card>
-      ) : null}
 
       {viewMode !== "expenses" ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{invTitle}</CardTitle>
             <CardDescription>
-              Documentos incluidos en el enlace. Los totales de fila siguen siendo sumables abajo.
+              Facturas incluidas en el enlace. Los totales de fila siguen siendo sumables abajo.
             </CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto p-0 sm:p-6">
             {filteredInvoices.length === 0 ? (
-              <p className="p-4 text-sm text-informative">Sin documentos en este criterio.</p>
+              <p className="p-4 text-sm text-informative">Sin facturas en este criterio.</p>
             ) : (
               <table className={cn(workbookDataTableBase, "min-w-[44rem]")}>
                 <thead>
@@ -545,6 +541,7 @@ export function SharedReportPublicPage() {
                     <th className="p-2 font-medium">Estado</th>
                     <th className="p-2 font-medium">Emisor</th>
                     <th className="p-2 text-right font-medium">Total</th>
+                    <th className="p-2 text-center font-medium">Ver</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -554,7 +551,7 @@ export function SharedReportPublicPage() {
                         key={`invoice-quarter-${group.quarter}-${groupIndex}`}
                         className={`border-y-2 ${quarterSectionBorderClass(group.quarter)} ${quarterSectionSurfaceClass(group.quarter)}`}
                       >
-                        <td colSpan={8} className="px-3 py-4">
+                        <td colSpan={9} className="px-3 py-4">
                           <div className="flex flex-wrap items-end justify-between gap-3">
                             <div className="space-y-1">
                               <p className="text-xs font-semibold uppercase tracking-[0.24em] opacity-75">Cambio de trimestre</p>
@@ -615,6 +612,21 @@ export function SharedReportPublicPage() {
                                 picked={isPicked(pid)}
                                 onPick={handlePick}
                               />
+                            </td>
+                            <td className="p-2 text-center align-middle">
+                              {row.ref ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="whitespace-nowrap"
+                                  onClick={() =>
+                                    setViewInvoice({ ref: String(row.ref || ""), label: row.number || "" })
+                                  }
+                                >
+                                  Ver factura
+                                </Button>
+                              ) : null}
                             </td>
                           </tr>
                         );
@@ -725,50 +737,34 @@ export function SharedReportPublicPage() {
         </Card>
       ) : null}
 
-      {hasPickableRows ? (
-        <div className={`fixed right-4 z-40 w-[min(26rem,calc(100vw-2rem))] ${hasPickableRows ? "bottom-32" : "bottom-6"}`}>
-          <div className="rounded-2xl border border-primary/30 bg-background/95 px-4 py-3 shadow-[0_12px_32px_rgba(0,0,0,0.14)] backdrop-blur">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-informative">
-              {filteredTotalsLabel(viewMode)}
-            </p>
-            <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-primary">
-              {formatCurrency(filteredCombinedTotal)}
-            </p>
-            <p className="mt-1 text-xs text-informative">
-              Documentos: {formatCurrency(filteredInvoicesTotal)} · Gastos: {formatCurrency(filteredExpensesTotal)}
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="fixed bottom-6 right-4 z-40 w-[min(26rem,calc(100vw-2rem))]">
-          <div className="rounded-2xl border border-primary/30 bg-background/95 px-4 py-3 shadow-[0_12px_32px_rgba(0,0,0,0.14)] backdrop-blur">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-informative">
-              {filteredTotalsLabel(viewMode)}
-            </p>
-            <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-primary">
-              {formatCurrency(filteredCombinedTotal)}
-            </p>
-            <p className="mt-1 text-xs text-informative">
-              Documentos: {formatCurrency(filteredInvoicesTotal)} · Gastos: {formatCurrency(filteredExpensesTotal)}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {hasPickableRows ? (
-        <ShareReportPickSumDock
-          scope={visibleScopeKey}
-          invoices={filteredInvoices}
-          expenses={filteredExpenses}
-          aggregates={aggregates}
-          onSelectAll={(mode) => selectAll(mode, filteredInvoices, filteredExpenses)}
-          onClear={clear}
-        />
-      ) : null}
+      <ShareReportPickSumDock
+        scope={deriveExportScope(viewMode)}
+        invoices={filteredInvoices}
+        expenses={filteredExpenses}
+        aggregates={aggregates}
+        totalsLabel={filteredTotalsLabel(viewMode)}
+        invoicesTotal={filteredInvoicesTotal}
+        expensesTotal={filteredExpensesTotal}
+        combinedTotal={filteredCombinedTotal}
+        onSelectAll={(mode) => selectAll(mode, filteredInvoices, filteredExpenses)}
+        onClear={clear}
+        invoiceQuarters={invoiceQuarters}
+        expenseQuarters={expenseQuarters}
+        onToggleInvoiceQuarter={toggleInvoiceQuarter}
+        onToggleExpenseQuarter={toggleExpenseQuarter}
+      />
 
       <footer className="border-t border-border pt-6 text-center text-xs text-informative">
         Vista generada desde Facturación · el enlace sigue siendo seguro y solo añade herramientas de trabajo para revisar mejor la información.
       </footer>
+
+      <PublicInvoiceHtmlDialog
+        key={viewInvoice?.ref ?? "closed"}
+        token={token}
+        invoiceRef={viewInvoice?.ref ?? null}
+        subtitle={viewInvoice?.label}
+        onClose={() => setViewInvoice(null)}
+      />
     </main>
   );
 }

@@ -333,8 +333,14 @@ export function SettingsPage() {
     return "Sin logo";
   }, [editingDraft.brandImage]);
 
-  useEffect(() => {
+  // Al cambiar de emisor se limpia el error del logo (ajuste durante render); el input file se limpia en su efecto.
+  const [brandImageErrorKey, setBrandImageErrorKey] = useState(effectiveEditingProfileId);
+  if (brandImageErrorKey !== effectiveEditingProfileId) {
+    setBrandImageErrorKey(effectiveEditingProfileId);
     setBrandImageFileError("");
+  }
+
+  useEffect(() => {
     if (brandImageFileInputRef.current) {
       brandImageFileInputRef.current.value = "";
     }

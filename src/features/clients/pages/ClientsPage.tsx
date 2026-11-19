@@ -199,12 +199,12 @@ export function ClientsPage() {
       return;
     }
     const target = allClients.find((client) => String(client.recordId || "").trim() === initialRecordId);
-    if (!target) {
-      setStatusMessage("Ese cliente no está en tu alcance, no existe o aún no se ha cargado el listado.");
-      setStatusTone("error");
-      return;
-    }
     const timeoutId = globalThis.setTimeout(() => {
+      if (!target) {
+        setStatusMessage("Ese cliente no está en tu alcance, no existe o aún no se ha cargado el listado.");
+        setStatusTone("error");
+        return;
+      }
       setSelectedRecordId(initialRecordId);
       setDraft(normalizeClientDraft(target));
       setStatusMessage("Cliente cargado desde URL.");

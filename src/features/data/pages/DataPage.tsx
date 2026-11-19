@@ -1,6 +1,6 @@
 import { BarChart2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -172,8 +172,8 @@ export function DataPage() {
     Boolean(sessionQuery.data?.authenticated) &&
     String(sessionQuery.data?.user?.role || "").trim().toLowerCase() === "admin";
 
-  const historyItemsRaw = historyQuery.data ?? [];
-  const expenseItemsRaw = expensesQuery.data?.items ?? [];
+  const historyItemsRaw = useMemo(() => historyQuery.data ?? [], [historyQuery.data]);
+  const expenseItemsRaw = useMemo(() => expensesQuery.data?.items ?? [], [expensesQuery.data?.items]);
 
   const historyItems = useMemo(
     () =>
@@ -205,11 +205,14 @@ export function DataPage() {
     return Array.from(new Set([...invoiceYears, ...expenseYears].filter(Boolean))).sort().reverse();
   }, [historyItems, expenseItems]);
 
+  const effectiveFilterProfile =
+    filterProfile && isTemplateProfileInScope(filterProfile, sessionScope) ? filterProfile : "";
+
   const filteredDocumentRows = useMemo(() => {
     const normalizedSearch = normalizeSearchText(searchText);
     return historyItems
       .filter((i) => !filterYear || String(i.issueDate || "").startsWith(filterYear))
-      .filter((i) => !filterProfile || i.templateProfileId === filterProfile)
+      .filter((i) => !effectiveFilterProfile || i.templateProfileId === effectiveFilterProfile)
       .filter(
         (i) =>
           !filterQuarters.length ||
@@ -226,7 +229,7 @@ export function DataPage() {
         }
         return String(left.number || "").localeCompare(String(right.number || ""), undefined, { numeric: true });
       });
-  }, [historyItems, filterYear, filterProfile, filterQuarters, searchText]);
+  }, [historyItems, filterYear, effectiveFilterProfile, filterQuarters, searchText]);
 
   const filteredInvoices = useMemo(
     () => filteredDocumentRows.filter((i) => String(i.type || "").trim().toLowerCase() === "factura"),
@@ -244,11 +247,11 @@ export function DataPage() {
       filterQuarter: filterQuarters.length === 1 ? filterQuarters[0]! : "all",
       filterDeductible: "all",
       searchText,
-      selectedProfile: filterProfile || "__all__",
+      selectedProfile: effectiveFilterProfile || "__all__",
     }).filter((item) =>
       !filterQuarters.length || filterQuarters.includes(resolveCalendarQuarter(String(item.quarter || ""), String(item.issueDate || ""))),
     );
-  }, [expenseItems, filterYear, filterProfile, filterQuarters, searchText]);
+  }, [expenseItems, filterYear, effectiveFilterProfile, filterQuarters, searchText]);
 
   const invoiceMonthGroups = useMemo(() => groupInvoicesByMonth(filteredInvoices), [filteredInvoices]);
   const budgetMonthGroups = useMemo(() => groupInvoicesByMonth(filteredBudgets), [filteredBudgets]);
@@ -270,22 +273,13 @@ export function DataPage() {
   const showBudgets = contentFilter === "all" || contentFilter === "documents" || contentFilter === "budgets";
   const showExpenses = contentFilter === "all" || contentFilter === "expenses";
 
-  const hasActiveFilters = Boolean(filterYear || filterQuarters.length || filterProfile || String(searchText || "").trim() || contentFilter !== "all");
+  const hasActiveFilters = Boolean(filterYear || filterQuarters.length || effectiveFilterProfile || String(searchText || "").trim() || contentFilter !== "all");
 
   const toggleQuarterFilter = (quarter: string) => {
     setFilterQuarters((prev) =>
       prev.includes(quarter) ? prev.filter((value) => value !== quarter) : [...prev, quarter].sort(),
     );
   };
-
-  useEffect(() => {
-    if (!filterProfile) {
-      return;
-    }
-    if (!isTemplateProfileInScope(filterProfile, sessionScope)) {
-      setFilterProfile("");
-    }
-  }, [filterProfile, sessionScope]);
 
   return (
     <main className="app-page-shell mx-auto flex w-full max-w-[1680px] flex-col gap-8 px-4 py-5 sm:px-6 lg:px-8 xl:px-10 2xl:px-12">
@@ -366,7 +360,7 @@ export function DataPage() {
               <select
                 id="data-filter-profile"
                 className="flex h-10 min-h-[44px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:min-h-10"
-                value={filterProfile}
+                value={effectiveFilterProfile}
                 onChange={(e) => setFilterProfile(e.target.value)}
                 disabled={!sessionScope.hasEmitterScope}
               >

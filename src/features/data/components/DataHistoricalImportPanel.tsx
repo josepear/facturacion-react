@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,9 +18,6 @@ import {
   type HistoricalImportScanResponse,
   type HistoricalImportUploadResponse,
   type HistoricalExpensePreviewRow,
-  type FiscalRule,
-  fetchFiscalRules,
-  saveFiscalRules,
 } from "@/infrastructure/api/historicalImportApi";
 import { getErrorMessageFromUnknown } from "@/infrastructure/api/httpClient";
 
@@ -112,28 +109,6 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
 
   const [message, setMessage] = useState<{ text: string; tone: "success" | "error" } | null>(null);
-  const [fiscalRuleDraft, setFiscalRuleDraft] = useState<{ field: FiscalRule["field"]; matchText: string; decision: FiscalRule["decision"] }>({
-    field: "vendor",
-    matchText: "",
-    decision: "possible",
-  });
-
-  const fiscalRulesQuery = useQuery({
-    queryKey: ["fiscal-rules"],
-    queryFn: fetchFiscalRules,
-    staleTime: 60_000,
-  });
-
-  const saveFiscalRulesMutation = useMutation({
-    mutationFn: (rules: FiscalRule[]) => saveFiscalRules(rules),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["fiscal-rules"] });
-      setMessage({ text: "Diccionario fiscal guardado.", tone: "success" });
-    },
-    onError: (err) => {
-      setMessage({ text: getErrorMessageFromUnknown(err), tone: "error" });
-    },
-  });
 
   const invalidateAfterImport = useCallback(async () => {
     await Promise.all([
@@ -214,7 +189,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
         sourceDir: scanResult.sourceDir,
         personCode: serverPersonCode,
         year: serverYear,
-        templateProfileId: serverProfileId,
+        templateProfileId: effectiveServerProfileId,
       });
     },
     onSuccess: async (data) => {
@@ -240,7 +215,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
         uploadId: uid,
         personCode: excelPersonCode,
         year: excelYear,
-        templateProfileId: excelProfileId,
+        templateProfileId: effectiveExcelProfileId,
         selectedExpenseRowKeys: excelSelectedExpenseRowKeys,
       });
     },
@@ -264,7 +239,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
       }
       const body: Parameters<typeof runHistoricalPdfImport>[0] = {
         uploadId: uid,
-        templateProfileId: pdfProfileId,
+        templateProfileId: effectivePdfProfileId,
       };
       if (pdfSendReviewRows && pdfResult?.previewRows?.length) {
         body.reviewRows = mergePdfReviewRows(pdfResult.previewRows, pdfRowEdits);
@@ -283,20 +258,11 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
     },
   });
 
-  useEffect(() => {
-    if (!templateProfiles.length) {
-      return;
-    }
-    if (!serverProfileId) {
-      setServerProfileId(templateProfiles[0]!.id);
-    }
-    if (!excelProfileId) {
-      setExcelProfileId(templateProfiles[0]!.id);
-    }
-    if (!pdfProfileId) {
-      setPdfProfileId(templateProfiles[0]!.id);
-    }
-  }, [templateProfiles, serverProfileId, excelProfileId, pdfProfileId]);
+  // Perfiles por defecto: el primero disponible, sin esperar a un efecto.
+  const defaultTemplateProfileId = String(templateProfiles[0]?.id || "").trim();
+  const effectiveServerProfileId = serverProfileId || defaultTemplateProfileId;
+  const effectiveExcelProfileId = excelProfileId || defaultTemplateProfileId;
+  const effectivePdfProfileId = pdfProfileId || defaultTemplateProfileId;
 
   const serverPerson: HistoricalImportScanPerson | undefined = useMemo(
     () => scanResult?.persons.find((p) => p.code === serverPersonCode),
@@ -318,11 +284,16 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
     [excelYearBucket],
   );
 
-  useEffect(() => {
-    const keys = excelExpensePreviewRows.map((row) => String(row.rowKey || "").trim()).filter(Boolean);
-    setExcelSelectedExpenseRowKeys(keys);
+  // Al cambiar de año/persona se reinicia la selección de gastos a importar (ajuste durante render).
+  const excelRowsSelectionKey = excelExpensePreviewRows.map((row) => String(row.rowKey || "").trim()).join("|");
+  const [excelRowsSelectionKeyState, setExcelRowsSelectionKeyState] = useState(excelRowsSelectionKey);
+  if (excelRowsSelectionKeyState !== excelRowsSelectionKey) {
+    setExcelRowsSelectionKeyState(excelRowsSelectionKey);
+    setExcelSelectedExpenseRowKeys(
+      excelExpensePreviewRows.map((row) => String(row.rowKey || "").trim()).filter(Boolean),
+    );
     setExcelReviewConfirmed(false);
-  }, [excelExpensePreviewRows, excelPersonCode, excelYear]);
+  }
 
   const excelSelectedExpenseKeySet = useMemo(
     () => new Set(excelSelectedExpenseRowKeys.map((key) => String(key || "").trim()).filter(Boolean)),
@@ -366,36 +337,6 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
       excelExpensePreviewRows.map((row) => String(row.rowKey || "").trim()).filter(Boolean),
     );
   }, [excelExpensePreviewRows]);
-
-  const addFiscalRule = useCallback(() => {
-    const matchText = String(fiscalRuleDraft.matchText || "").trim();
-    if (!matchText) {
-      setMessage({ text: "Escribe un texto para el diccionario fiscal.", tone: "error" });
-      return;
-    }
-    const existing = fiscalRulesQuery.data ?? [];
-    const next: FiscalRule[] = [
-      ...existing.filter((rule) => !(rule.field === fiscalRuleDraft.field && rule.decision === fiscalRuleDraft.decision && String(rule.matchText || "").trim().toLowerCase() === matchText.toLowerCase())),
-      {
-        id: `rule-${Date.now()}`,
-        field: fiscalRuleDraft.field,
-        matchText,
-        decision: fiscalRuleDraft.decision,
-      },
-    ];
-    saveFiscalRulesMutation.mutate(next);
-    setFiscalRuleDraft((prev) => ({ ...prev, matchText: "" }));
-  }, [fiscalRuleDraft, fiscalRulesQuery.data, saveFiscalRulesMutation]);
-
-  const deleteFiscalRule = useCallback((ruleId: string) => {
-    const existing = fiscalRulesQuery.data ?? [];
-    saveFiscalRulesMutation.mutate(existing.filter((rule) => rule.id !== ruleId));
-  }, [fiscalRulesQuery.data, saveFiscalRulesMutation]);
-
-  const loadFiscalRuleDraftFromRow = useCallback((row: HistoricalExpensePreviewRow, field: FiscalRule["field"]) => {
-    const matchText = field === "vendor" ? String(row.vendor || "").trim() : field === "category" ? String(row.category || "").trim() : String(row.vendor || row.category || "").trim();
-    setFiscalRuleDraft((prev) => ({ ...prev, field, matchText }));
-  }, []);
 
   const copyText = async (value: string, okMsg: string) => {
     const v = String(value || "").trim();
@@ -515,7 +456,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                   <span className="text-informative">Emisor destino</span>
                   <select
                     className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
-                    value={serverProfileId}
+                    value={effectiveServerProfileId}
                     onChange={(e) => setServerProfileId(e.target.value)}
                   >
                     {templateProfiles.map((p) => (
@@ -528,7 +469,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
               </div>
               <Button
                 type="button"
-                disabled={busy || !serverPersonCode || !serverYear || !serverProfileId}
+                disabled={busy || !serverPersonCode || !serverYear || !effectiveServerProfileId}
                 onClick={() => runServerMutation.mutate()}
               >
                 {runServerMutation.isPending ? "Importando…" : "Importar Excel desde servidor"}
@@ -615,7 +556,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                   <span className="text-informative">Emisor destino</span>
                   <select
                     className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
-                    value={excelProfileId}
+                    value={effectiveExcelProfileId}
                     onChange={(e) => setExcelProfileId(e.target.value)}
                   >
                     {templateProfiles.map((p) => (
@@ -649,7 +590,6 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                               <th className="p-2 font-medium">Cliente</th>
                               <th className="p-2 font-medium">Concepto</th>
                               <th className="p-2 text-right font-medium">Total</th>
-                                <th className="p-2 font-medium">Aprender</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -725,12 +665,6 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                                     <td className="p-2 text-right tabular-nums">
                                       {typeof row.total === "number" ? row.total.toFixed(2) : "—"}
                                     </td>
-                                    <td className="p-2">
-                                      <div className="flex flex-wrap gap-1">
-                                        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => loadFiscalRuleDraftFromRow(row, "vendor")}>Proveedor</Button>
-                                        <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={() => loadFiscalRuleDraftFromRow(row, "category")}>Categoria</Button>
-                                      </div>
-                                    </td>
                                   </tr>
                                 );
                               })}
@@ -754,7 +688,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
               </div>
               <Button
                 type="button"
-                disabled={busy || !excelPersonCode || !excelYear || !excelProfileId || !excelReviewConfirmed || excelSelectedExpenseCount === 0}
+                disabled={busy || !excelPersonCode || !excelYear || !effectiveExcelProfileId || !excelReviewConfirmed || excelSelectedExpenseCount === 0}
                 onClick={() => runExcelMutation.mutate()}
               >
                 {runExcelMutation.isPending ? "Importando…" : "Confirmar importación del Excel"}
@@ -802,7 +736,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                 <span className="text-informative">Emisor destino</span>
                 <select
                   className="flex h-9 rounded-md border border-input bg-background px-2 py-1"
-                  value={pdfProfileId}
+                  value={effectivePdfProfileId}
                   onChange={(e) => setPdfProfileId(e.target.value)}
                 >
                   {templateProfiles.map((p) => (
@@ -907,7 +841,7 @@ export function DataHistoricalImportPanel({ templateProfiles }: DataHistoricalIm
                   </tbody>
                 </table>
               </div>
-              <Button type="button" disabled={busy || !pdfProfileId} onClick={() => pdfRunMutation.mutate()}>
+              <Button type="button" disabled={busy || !effectivePdfProfileId} onClick={() => pdfRunMutation.mutate()}>
                 {pdfRunMutation.isPending ? "Importando PDF…" : "Importar PDF"}
               </Button>
             </div>

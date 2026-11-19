@@ -1,5 +1,5 @@
 import { Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Control, FieldErrors, UseFormGetValues, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import { useWatch } from "react-hook-form";
 
@@ -66,32 +66,6 @@ function parseEuroNumber(rawValue: string): number | null {
 
   const numeric = Number(normalized);
   return Number.isFinite(numeric) ? numeric : null;
-}
-
-function parseChunkAmountAndText(chunkLines: string[]): { description: string; amount: number | null } {
-  if (!chunkLines.length) {
-    return { description: "", amount: null };
-  }
-
-  const lastLine = chunkLines[chunkLines.length - 1] || "";
-  const lastOnlyAmount = lastLine.match(/^(-?\d[\d\s.,]*)\s*(€|eur)?\s*$/iu);
-
-  if (lastOnlyAmount) {
-    const amount = parseEuroNumber(lastOnlyAmount[1] || "");
-    const description = chunkLines.slice(0, -1).join(" ").trim();
-    return { description, amount };
-  }
-
-  const fullText = chunkLines.join(" ").trim();
-  const endAmount = fullText.match(/(-?\d[\d\s.,]*)\s*(€|eur)?\s*$/iu);
-
-  if (!endAmount || typeof endAmount.index !== "number") {
-    return { description: fullText, amount: null };
-  }
-
-  const amount = parseEuroNumber(endAmount[1] || "");
-  const description = fullText.slice(0, endAmount.index).replace(/[\s;,:-]+$/gu, "").trim();
-  return { description, amount };
 }
 
 function parseBulkLines(rawText: string): { items: SimpleInvoiceItem[]; invalidCount: number } {
@@ -177,18 +151,11 @@ export function InvoiceItemsTable({
   onBulkImport,
 }: InvoiceItemsTableProps) {
   const items = useWatch({ control, name: "items" }) ?? [];
-  const [expandedIndex, setExpandedIndex] = useState(0);
+  const [expandedIndexState, setExpandedIndex] = useState(0);
   const [bulkText, setBulkText] = useState("");
   const [bulkFeedback, setBulkFeedback] = useState("");
 
-  useEffect(() => {
-    setExpandedIndex((current) => {
-      if (itemCount <= 0) {
-        return 0;
-      }
-      return current >= itemCount ? itemCount - 1 : current;
-    });
-  }, [itemCount]);
+  const expandedIndex = itemCount <= 0 ? 0 : Math.min(expandedIndexState, itemCount - 1);
 
   function handleAddItemAfter(index: number) {
     onAddItem(index);
@@ -438,7 +405,8 @@ export function InvoiceItemsTable({
       {errors.items?.message ? <p className="text-sm text-red-600">{errors.items.message}</p> : null}
       {totalsBasis === "gross" ? (
         <p className="text-informative">
-          En modo bruto, los importes se calculan a partir de estas lineas (detalle y vista previa).
+          En modo bruto, si indicas un importe manual se usa para los totales; estas líneas siguen saliendo en la vista
+          previa como detalle.
         </p>
       ) : null}
     </section>

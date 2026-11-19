@@ -58,13 +58,14 @@ function LoginFormOnly() {
     if (searchParams.get("logged_out") !== "1") {
       return;
     }
-    resetOAuthState();
+    // Al cerrar sesión se navega a esta página con `?logged_out=1` y se recarga completa:
+    // el estado OAuth ya nace limpio. Aquí solo se limpia el parámetro de la URL.
     const cleaned = new URLSearchParams(searchParams);
     cleaned.delete("logged_out");
     const nextQuery = cleaned.toString();
     const nextUrl = `${globalThis.location.pathname}${nextQuery ? `?${nextQuery}` : ""}${globalThis.location.hash || ""}`;
     globalThis.history.replaceState(globalThis.history.state, "", nextUrl);
-  }, [searchParams, resetOAuthState]);
+  }, [searchParams]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();

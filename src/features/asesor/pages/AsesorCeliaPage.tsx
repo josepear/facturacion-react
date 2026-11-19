@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -115,8 +115,8 @@ export function AsesorCeliaPage() {
 
   const isAdmin = sessionScope.isAdmin;
 
-  const historyItemsRaw = historyQuery.data ?? [];
-  const expenseItemsRaw = expensesQuery.data?.items ?? [];
+  const historyItemsRaw = useMemo(() => historyQuery.data ?? [], [historyQuery.data]);
+  const expenseItemsRaw = useMemo(() => expensesQuery.data?.items ?? [], [expensesQuery.data?.items]);
 
   const historyItemsScoped = useMemo(
     () =>
@@ -148,16 +148,18 @@ export function AsesorCeliaPage() {
     return Array.from(new Set([...invoiceYears, ...expenseYears].filter(Boolean))).sort().reverse();
   }, [historyItemsScoped, expenseItemsScoped]);
 
-  useEffect(() => {
+  // Emisor efectivo: un admin puede dejar «Todos»/«Sin emisor»; el resto siempre cae al primero de su alcance.
+  const defaultScopedProfileId = String(scopedProfileOptions[0]?.id || "").trim();
+  const effectiveExportProfile = useMemo(() => {
     if (isAdmin) {
-      return;
+      return exportProfile;
     }
     const pid = String(exportProfile || "").trim();
-    if (!pid || pid === "__unassigned__" || !isTemplateProfileInScope(pid, sessionScope)) {
-      const next = String(scopedProfileOptions[0]?.id || "").trim();
-      setExportProfile(next);
+    if (pid && pid !== "__unassigned__" && isTemplateProfileInScope(pid, sessionScope)) {
+      return pid;
     }
-  }, [isAdmin, exportProfile, sessionScope, scopedProfileOptions]);
+    return defaultScopedProfileId;
+  }, [isAdmin, exportProfile, sessionScope, defaultScopedProfileId]);
 
   const accountingExportMutation = useMutation({
     mutationFn: () => {
@@ -165,7 +167,7 @@ export function AsesorCeliaPage() {
       if (!/^\d{4}$/u.test(y)) {
         throw new Error("Selecciona un ejercicio (AAAA) para exportar el Excel Celia.");
       }
-      const pid = String(exportProfile || "").trim();
+      const pid = String(effectiveExportProfile || "").trim();
       return runAccountingExportDownload({
         year: y,
         templateProfileId:
@@ -175,18 +177,18 @@ export function AsesorCeliaPage() {
   });
 
   const celiaScopeExpenses = useMemo(
-    () => filterExpensesForCeliaScope(expenseItemsScoped, exportYear, exportProfile),
-    [expenseItemsScoped, exportProfile, exportYear],
+    () => filterExpensesForCeliaScope(expenseItemsScoped, exportYear, effectiveExportProfile),
+    [expenseItemsScoped, effectiveExportProfile, exportYear],
   );
 
   const gastosFilteredHref = useMemo(
-    () => buildGastosWorkbenchSearch(exportYear, exportProfile),
-    [exportProfile, exportYear],
+    () => buildGastosWorkbenchSearch(exportYear, effectiveExportProfile),
+    [effectiveExportProfile, exportYear],
   );
 
   const exportBlocked =
     !sessionScope.hasEmitterScope ||
-    (!isAdmin && !String(exportProfile || "").trim());
+    (!isAdmin && !String(effectiveExportProfile || "").trim());
 
   return (
     <div className="flex flex-col gap-6">
@@ -227,7 +229,7 @@ export function AsesorCeliaPage() {
               <span className="font-medium text-foreground">Emisor</span>
               <select
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={exportProfile}
+                value={effectiveExportProfile}
                 onChange={(e) => setExportProfile(e.target.value)}
                 disabled={!sessionScope.hasEmitterScope}
                 aria-label="Emisor para Excel Celia"
@@ -315,7 +317,7 @@ export function AsesorCeliaPage() {
                     {celiaScopeExpenses.map((e) => {
                       const rid = String(e.recordId || e.id || "").trim();
                       const key = rid || `${e.issueDate}-${e.vendor}-${e.total}`;
-                      const editHref = rid ? buildGastosExpenseEditLink(rid, exportYear, exportProfile) : gastosFilteredHref;
+                      const editHref = rid ? buildGastosExpenseEditLink(rid, exportYear, effectiveExportProfile) : gastosFilteredHref;
                       const vendor = e.vendor || "—";
                       return (
                         <tr key={key} className="border-b border-border/60">

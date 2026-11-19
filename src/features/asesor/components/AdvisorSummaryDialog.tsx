@@ -422,114 +422,139 @@ export function AdvisorSummaryDialog({
           </Button>
         </header>
 
-        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto overscroll-contain px-4 py-4 sm:gap-5 sm:px-5 sm:py-5">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <label className="grid gap-1 text-sm">
-              <span className="font-medium text-foreground">Ejercicio</span>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                aria-label="Ejercicio resumen asesor"
-              >
-                <option value="all">Todos</option>
-                {availableYears.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span className="font-medium text-foreground">Usuario o emisor</span>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={profileId}
-                onChange={(e) => setProfileId(e.target.value)}
-                aria-label="Emisor resumen asesor"
-              >
-                {includeAllProfilesOption ? (
-                  <option value={ADVISOR_PROFILE_ALL}>Todos los emisores</option>
-                ) : null}
-                {profileOptions.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label || p.id}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm">
-              <span className="font-medium text-foreground">Qué incluir en el enlace</span>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={scope}
-                onChange={(e) => setScope(e.target.value as AdvisorShareScope)}
-                aria-label="Alcance facturación o gastos"
-              >
-                <option value="both">Todo</option>
-                <option value="invoices">Documentos</option>
-                <option value="expenses">Solo gastos</option>
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm sm:col-span-2 xl:col-span-1">
-              <span className="font-medium text-foreground">Estado de factura</span>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                value={invoiceStatus}
-                onChange={(e) => setInvoiceStatus(e.target.value as AdvisorInvoiceStatusFilter)}
-                aria-label="Estado factura resumen asesor"
-              >
-                <option value="all">Todas</option>
-                <option value="COBRADA">Cobrada</option>
-                <option value="ENVIADA">Enviada (pendiente de cobro)</option>
-                <option value="CANCELADA">Cancelada</option>
-                <option value="pending_any">No cobrada (incluye enviada y cancelada)</option>
-              </select>
-            </label>
-          </div>
-
-          <div className="grid gap-3 rounded-md border border-border/60 bg-muted/10 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="text-sm font-medium text-foreground">Trimestres</span>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => setSelectedQuarters([...ADVISOR_QUARTERS])}>
-                  Todos
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => setSelectedQuarters([])}>
-                  Ninguno
-                </Button>
-              </div>
+        <div className="grid min-h-0 flex-1 gap-5 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5">
+          <section className="grid gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold tracking-wide text-foreground">Criterios del informe</h3>
+              <Button type="button" variant="ghost" size="sm" onClick={resetWorkbenchFilters}>
+                Restablecer
+              </Button>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {ADVISOR_QUARTERS.map((quarter) => {
-                const active = selectedQuarters.includes(quarter);
-                return (
-                  <Button
-                    key={quarter}
-                    type="button"
-                    size="sm"
-                    variant={active ? "default" : "outline"}
-                    onClick={() => toggleQuarterFilter(quarter)}
-                  >
-                    {quarter.replace("T", "") + "T"}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-foreground">Ejercicio</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                  aria-label="Ejercicio resumen asesor"
+                >
+                  <option value="all">Todos</option>
+                  {availableYears.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-foreground">Usuario o emisor</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={profileId}
+                  onChange={(e) => setProfileId(e.target.value)}
+                  aria-label="Emisor resumen asesor"
+                >
+                  {includeAllProfilesOption ? (
+                    <option value={ADVISOR_PROFILE_ALL}>Todos los emisores</option>
+                  ) : null}
+                  {profileOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label || p.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-foreground">Qué incluir en el enlace</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={scope}
+                  onChange={(e) => setScope(e.target.value as AdvisorShareScope)}
+                  aria-label="Alcance facturación o gastos"
+                >
+                  <option value="both">Todo</option>
+                  <option value="invoices">Documentos</option>
+                  <option value="expenses">Solo gastos</option>
+                </select>
+              </label>
+              <label className="grid gap-1 text-sm">
+                <span className="font-medium text-foreground">Estado de factura</span>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={invoiceStatus}
+                  onChange={(e) => setInvoiceStatus(e.target.value as AdvisorInvoiceStatusFilter)}
+                  aria-label="Estado factura resumen asesor"
+                >
+                  <option value="all">Todas</option>
+                  <option value="COBRADA">Cobrada</option>
+                  <option value="ENVIADA">Enviada (pendiente de cobro)</option>
+                  <option value="CANCELADA">Cancelada</option>
+                  <option value="pending_any">No cobrada (incluye enviada y cancelada)</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="grid gap-3 rounded-lg border border-border/60 bg-background/70 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm font-medium text-foreground">Trimestres</span>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setSelectedQuarters([...ADVISOR_QUARTERS])}>
+                    Todos
                   </Button>
-                );
-              })}
+                  <Button type="button" size="sm" variant="outline" onClick={() => setSelectedQuarters([])}>
+                    Ninguno
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {ADVISOR_QUARTERS.map((quarter) => {
+                  const active = selectedQuarters.includes(quarter);
+                  return (
+                    <Button
+                      key={quarter}
+                      type="button"
+                      size="sm"
+                      variant={active ? "default" : "outline"}
+                      onClick={() => toggleQuarterFilter(quarter)}
+                    >
+                      {quarter.replace("T", "") + "T"}
+                    </Button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-informative">
+                Si no marcas ninguno, se muestran todos. Puedes combinar, por ejemplo, 1T y 4T a la vez.
+              </p>
             </div>
-            <p className="text-xs text-informative">
-              Si no marcas ninguno, se muestran todos. Puedes combinar, por ejemplo, 1T y 4T a la vez.
-            </p>
-          </div>
+          </section>
 
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={resetWorkbenchFilters}>
-              Restablecer filtros
-            </Button>
-          </div>
-
-          <p className="text-sm text-informative" role="status">
-            {periodLine}
-          </p>
+          <section
+            className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3"
+            role="status"
+            title={periodLine}
+          >
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-3 py-1 text-xs">
+              <span className="font-medium uppercase tracking-wide text-informative">Ejercicio</span>
+              <span className="font-semibold text-foreground">{year === "all" ? "Todos" : year}</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-3 py-1 text-xs">
+              <span className="font-medium uppercase tracking-wide text-informative">Periodo</span>
+              <span className="font-semibold text-foreground">{formatAdvisorQuarterSelectionLabel(selectedQuarters) || "Todos"}</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-3 py-1 text-xs">
+              <span className="font-medium uppercase tracking-wide text-informative">Emisor</span>
+              <span className="font-semibold text-foreground">{profileLabelFromId(profileId, profileOptions)}</span>
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/70 px-3 py-1 text-xs">
+              <span className="font-medium uppercase tracking-wide text-informative">Alcance</span>
+              <span className="font-semibold text-foreground">{scopeLabel(scope)}</span>
+            </span>
+            <span className="ml-auto text-sm font-medium text-foreground">
+              {invoicePreview.length} {invoicePreview.length === 1 ? "factura" : "facturas"} · {expensePreview.length}{" "}
+              {expensePreview.length === 1 ? "gasto" : "gastos"}
+            </span>
+          </section>
 
           <div
             className={cn(
@@ -540,15 +565,15 @@ export function AdvisorSummaryDialog({
             )}
           >
             {scope !== "expenses" ? (
-              <section className="grid min-w-0 gap-2">
-                <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-4">
+              <section className="grid min-w-0 gap-2 rounded-xl border border-border bg-background p-3 sm:p-4">
+                <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4">
                   <h3 className="text-sm font-semibold tracking-wide text-foreground">{invTitle}</h3>
-                  <p className="text-sm tabular-nums text-foreground" aria-label="Total facturación con filtros actuales">
-                    <span className="text-informative">Total (filtro): </span>
-                    <span className="font-semibold">{formatCurrency(invoiceTotalFiltered)}</span>
+                  <p className="flex flex-wrap items-center gap-2 text-sm tabular-nums" aria-label="Total facturación con filtros actuales">
+                    <span className="rounded-full border border-primary/25 bg-primary/5 px-2.5 py-0.5 font-semibold text-primary">
+                      {formatCurrency(invoiceTotalFiltered)}
+                    </span>
                     <span className="text-informative">
-                      {" "}
-                      · {invoicePreview.length} {invoicePreview.length === 1 ? "factura" : "facturas"}
+                      {invoicePreview.length} {invoicePreview.length === 1 ? "factura" : "facturas"}
                     </span>
                   </p>
                 </div>
@@ -618,15 +643,15 @@ export function AdvisorSummaryDialog({
             ) : null}
 
             {scope !== "invoices" ? (
-              <section className="grid min-w-0 gap-2">
-                <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:justify-between sm:gap-x-4">
+              <section className="grid min-w-0 gap-2 rounded-xl border border-border bg-background p-3 sm:p-4">
+                <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-4">
                   <h3 className="text-sm font-semibold tracking-wide text-foreground">{expTitle}</h3>
-                  <p className="text-sm tabular-nums text-foreground" aria-label="Total gastos con filtros actuales">
-                    <span className="text-informative">Total (filtro): </span>
-                    <span className="font-semibold">{formatCurrency(expenseTotalFiltered)}</span>
+                  <p className="flex flex-wrap items-center gap-2 text-sm tabular-nums" aria-label="Total gastos con filtros actuales">
+                    <span className="rounded-full border border-primary/25 bg-primary/5 px-2.5 py-0.5 font-semibold text-primary">
+                      {formatCurrency(expenseTotalFiltered)}
+                    </span>
                     <span className="text-informative">
-                      {" "}
-                      · {expensePreview.length} {expensePreview.length === 1 ? "gasto" : "gastos"}
+                      {expensePreview.length} {expensePreview.length === 1 ? "gasto" : "gastos"}
                     </span>
                   </p>
                 </div>
@@ -694,49 +719,94 @@ export function AdvisorSummaryDialog({
           </div>
 
           {margin !== null ? (
-            <section className="rounded-md border border-border bg-muted/20 p-3" aria-live="polite">
-              <p className="text-xs font-medium text-informative">Resultado aproximado (ingresos vigentes − gastos del listado)</p>
-              <p className="text-lg font-semibold tabular-nums">{formatCurrency(margin)}</p>
+            <section className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3" aria-live="polite">
+              <p className="text-xs font-medium uppercase tracking-wide text-informative">
+                Resultado aproximado (ingresos vigentes − gastos)
+              </p>
+              <p className="text-2xl font-semibold tabular-nums text-primary">{formatCurrency(margin)}</p>
             </section>
           ) : null}
 
-          <div className="grid gap-2" aria-live="polite">
+          <section className="grid gap-2 rounded-xl border border-border bg-muted/20 p-4" aria-live="polite">
+            <h3 className="text-sm font-semibold tracking-wide text-foreground">Avisos</h3>
             {alerts.length ? (
               alerts.map((a) => (
-                <p key={a.text} className="rounded-md border border-border bg-background px-3 py-2 text-sm text-informative">
+                <p
+                  key={a.text}
+                  className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100"
+                >
                   {a.text}
                 </p>
               ))
             ) : (
-              <p className="rounded-md border border-border bg-background px-3 py-2 text-sm text-informative">
-                No detectamos incidencias obvias en los datos de este periodo.
-              </p>
+              <p className="text-sm text-informative">No detectamos incidencias obvias en los datos de este periodo.</p>
             )}
-          </div>
+          </section>
 
-          <p className="text-sm text-muted-foreground">
-            Para generar el enlace o el Excel elige un emisor concreto (no «Todos los emisores»); el servidor exige un perfil válido.
-          </p>
+          <section className="grid gap-3 rounded-xl border border-border bg-background p-4 sm:p-5">
+            <div className="space-y-1">
+              <h3 className="text-base font-semibold tracking-tight text-foreground">Compartir con el asesor</h3>
+              <p className="text-sm text-informative">
+                Genera un enlace de <strong>solo lectura</strong>: quien lo abra ve esta misma información (facturas y gastos)
+                sin acceso al resto de la aplicación. Para el enlace o el Excel elige un emisor concreto (no «Todos los emisores»).
+              </p>
+            </div>
 
-          <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:flex-wrap sm:items-center">
-            <Button type="button" disabled={shareMutation.isPending} onClick={handleGenerate}>
-              {shareMutation.isPending ? "Generando enlace…" : "Generar enlace"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={excelMutation.isPending}
-              onClick={handleWorkbookDownload}
-            >
-              {excelMutation.isPending ? "Generando Excel…" : "Descargar Excel"}
-            </Button>
-            <Input readOnly className="min-w-0 sm:min-w-[12rem] sm:flex-1" value={shareUrl} placeholder="URL pública (solo lectura)" aria-label="URL de vista compartida" />
-            <Button type="button" variant="outline" onClick={() => void copyShareUrl()}>
-              Copiar enlace
-            </Button>
-          </div>
-          {urlStatus ? <p className="text-sm text-informative">{urlStatus}</p> : null}
-          {excelStatus ? <p className="text-sm text-informative">{excelStatus}</p> : null}
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" disabled={shareMutation.isPending} onClick={handleGenerate}>
+                {shareMutation.isPending ? "Generando enlace…" : "Generar enlace"}
+              </Button>
+              <Button type="button" variant="outline" disabled={excelMutation.isPending} onClick={handleWorkbookDownload}>
+                {excelMutation.isPending ? "Generando Excel…" : "Descargar Excel"}
+              </Button>
+            </div>
+
+            {shareUrl ? (
+              <div className="grid gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-informative">Enlace para el asesor</p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    readOnly
+                    className="min-w-0 flex-1"
+                    value={shareUrl}
+                    onFocus={(event) => event.currentTarget.select()}
+                    aria-label="URL de vista compartida"
+                  />
+                  <div className="flex shrink-0 gap-2">
+                    <Button type="button" variant="outline" onClick={() => void copyShareUrl()}>
+                      Copiar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => window.open(shareUrl, "_blank", "noopener,noreferrer")}
+                    >
+                      Abrir
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <Input
+                readOnly
+                className="min-w-0"
+                value=""
+                placeholder="Aún no hay enlace. Pulsa «Generar enlace»."
+                aria-label="URL de vista compartida"
+              />
+            )}
+
+            {urlStatus ? (
+              <p className="text-sm text-informative" role="status">
+                {urlStatus}
+              </p>
+            ) : null}
+            {excelStatus ? (
+              <p className="text-sm text-informative" role="status">
+                {excelStatus}
+              </p>
+            ) : null}
+          </section>
         </div>
       </div>
     </dialog>

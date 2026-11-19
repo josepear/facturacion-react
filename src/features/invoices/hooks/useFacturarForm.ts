@@ -6,7 +6,6 @@ import { useFieldArray, useForm, useFormState, useWatch } from "react-hook-form"
 import { calculateTotals } from "@/domain/document/calculateTotals";
 import {
   FACTURAR_CLIENT_HISTORY_EMPTY_LIST,
-  FACTURAR_CLIENT_HISTORY_NEED_CONFIRM,
   FACTURAR_CLIENT_HISTORY_NEED_NAME,
   facturarClientHistoryCountTip,
 } from "@/features/invoices/lib/facturarClientHistoryCopy";
@@ -82,16 +81,19 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const [numberAvailabilityTone, setNumberAvailabilityTone] = useState<"neutral" | "success" | "error">("neutral");
   const [selectedClientOptionId, setSelectedClientOptionId] = useState("");
   const [selectedHistoryRecordId, setSelectedHistoryRecordId] = useState("");
-  const [withoutWithholding, setWithoutWithholding] = useState(true);
   /** Hasta que el usuario elija IRPF o SIN IRPF, Fiscalidad sigue «Pendiente» (IGIC 7% por defecto). */
   const [fiscalIrpfChoiceAcknowledged, setFiscalIrpfChoiceAcknowledged] = useState(false);
   const fiscalIrpfChoiceAcknowledgedRef = useRef(false);
-  fiscalIrpfChoiceAcknowledgedRef.current = fiscalIrpfChoiceAcknowledged;
+  useEffect(() => {
+    fiscalIrpfChoiceAcknowledgedRef.current = fiscalIrpfChoiceAcknowledged;
+  }, [fiscalIrpfChoiceAcknowledged]);
 
   /** Tras rellenar cliente, «Completo» solo al pulsar Seleccionar (País). */
   const [clientModuleConfirmed, setClientModuleConfirmed] = useState(false);
   const clientModuleConfirmedRef = useRef(false);
-  clientModuleConfirmedRef.current = clientModuleConfirmed;
+  useEffect(() => {
+    clientModuleConfirmedRef.current = clientModuleConfirmed;
+  }, [clientModuleConfirmed]);
 
   const [clientMoreDetailsOpen, setClientMoreDetailsOpen] = useState(false);
   const [officialOutputError, setOfficialOutputError] = useState<string | null>(null);
@@ -144,12 +146,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     !sessionQuery.data &&
     !sessionQuery.isError &&
     sessionQuery.isPending;
-
-  useEffect(() => {
-    if (String(selectedClientOptionId || "").trim()) {
-      setClientMoreDetailsOpen(true);
-    }
-  }, [selectedClientOptionId]);
 
   const issueDateForQuarter = useWatch({ control: form.control, name: "issueDate" });
 
@@ -367,16 +363,11 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       });
   }, [historyQuery.data, watched.client?.name, sessionScope]);
 
-  useEffect(() => {
-    const sel = String(selectedHistoryRecordId || "").trim();
-    if (!sel) {
-      return;
-    }
-    const ok = clientHistoryOptions.some((o) => o.recordId === sel);
-    if (!ok) {
-      setSelectedHistoryRecordId("");
-    }
-  }, [clientHistoryOptions, selectedHistoryRecordId]);
+  const effectiveSelectedHistoryRecordId = clientHistoryOptions.some(
+    (o) => o.recordId === String(selectedHistoryRecordId || "").trim(),
+  )
+    ? String(selectedHistoryRecordId || "").trim()
+    : "";
 
   const workflowChecklist = useMemo(() => {
     const hasTemplateProfile = Boolean(String(watched.templateProfileId || "").trim());
@@ -461,8 +452,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       },
     };
   }, [
-    taxValidation.isReady,
-    taxValidation.tip,
     watched.type,
     watched.client?.name,
     watched.issueDate,
@@ -591,7 +580,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         form.setValue("templateLayout", "", { shouldDirty: true, shouldValidate: true });
       }
       form.setValue("withholdingRate", 0, { shouldDirty: true, shouldValidate: true });
-      setWithoutWithholding(true);
       setFiscalIrpfChoiceAcknowledged(false);
       return;
     }
@@ -611,20 +599,17 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
     // IGIC/IRPF no se heredan del perfil: IGIC por defecto 7% en documento vacío; IRPF hasta que el usuario elija.
     form.setValue("withholdingRate", 0, { shouldDirty: true, shouldValidate: true });
-    setWithoutWithholding(true);
     setFiscalIrpfChoiceAcknowledged(false);
   };
 
   const applyWithholdingMode = (mode: "sin_irpf" | "irpf_15" | "irpf_19" | "irpf_21") => {
     if (mode === "sin_irpf") {
-      setWithoutWithholding(true);
       form.setValue("withholdingRate", 0, { shouldDirty: true, shouldValidate: true });
       setFiscalIrpfChoiceAcknowledged(true);
       return;
     }
 
     const value = mode === "irpf_15" ? 15 : mode === "irpf_19" ? 19 : 21;
-    setWithoutWithholding(false);
     form.setValue("withholdingRate", value, { shouldDirty: true, shouldValidate: true });
     setFiscalIrpfChoiceAcknowledged(true);
   };
@@ -708,6 +693,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     }
     const matched = clientOptions.find((option) => sameClientName(option.client.name || "", safeName));
     setSelectedClientOptionId(matched?.optionId || "");
+    if (matched?.optionId) {
+      setClientMoreDetailsOpen(true);
+    }
   };
 
   const saveMutation = useMutation({
@@ -788,6 +776,20 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       setNumberAvailabilityTone("neutral");
       setFiscalIrpfChoiceAcknowledged(true);
       setClientModuleConfirmed(true);
+
+      // Duplicar tras cargar el documento origen (mismo flujo que el antiguo efecto posterior a la carga).
+      const safeDupFrom = String(initialDuplicateFromRecordId || "").trim();
+      if (safeDupFrom && !duplicatedFromRef.current && recordId === safeDupFrom) {
+        duplicatedFromRef.current = true;
+        const today = new Date().toISOString().slice(0, 10);
+        const copy = { ...mapped, number: "", issueDate: today, numberEnd: "" };
+        setServerRecordId("");
+        setRecordIdInput("");
+        setOfficialOutputError(null);
+        form.reset(copy);
+        setNumberAvailabilityText("Duplicada. Edita el número y guarda para crear nuevo documento.");
+        setNumberAvailabilityTone("neutral");
+      }
     },
   });
 
@@ -850,8 +852,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       form.setValue("bankAccount", profileBank, { shouldDirty: false, shouldValidate: true });
     }
     form.setValue("withholdingRate", 0, { shouldDirty: false, shouldValidate: true });
-    setWithoutWithholding(true);
-    setFiscalIrpfChoiceAcknowledged(false);
   }, [initialTemplateProfileId, configQuery.data, serverRecordId, form]);
 
   const replaceClientData = (selected: (typeof clientOptions)[number]["client"]) => {
@@ -884,6 +884,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const applyClientByOptionId = (optionId: string) => {
     const safeOptionId = String(optionId || "").trim();
     setSelectedClientOptionId(safeOptionId);
+    if (safeOptionId) {
+      setClientMoreDetailsOpen(true);
+    }
 
     if (!safeOptionId) {
       clearClientData();
@@ -910,6 +913,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       return;
     }
     setSelectedClientOptionId(selectedOption.optionId);
+    setClientMoreDetailsOpen(true);
     replaceClientData(selectedOption.client);
     setClientModuleConfirmed(false);
   };
@@ -924,7 +928,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   });
 
   const loadBySelectedHistory = () => {
-    const safeRecordId = String(selectedHistoryRecordId || "").trim();
+    const safeRecordId = effectiveSelectedHistoryRecordId;
     if (!safeRecordId) {
       return;
     }
@@ -967,29 +971,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     setNumberAvailabilityTone("neutral");
   };
 
-  useEffect(() => {
-    const safeDupFrom = String(initialDuplicateFromRecordId || "").trim();
-    if (!safeDupFrom || !serverRecordId) {
-      return;
-    }
-    if (duplicatedFromRef.current) {
-      return;
-    }
-    if (!loadMutation.isSuccess) {
-      return;
-    }
-    duplicatedFromRef.current = true;
-    const today = new Date().toISOString().slice(0, 10);
-    const current = form.getValues();
-    const copy = { ...current, number: "", issueDate: today, numberEnd: "" };
-    setServerRecordId("");
-    setRecordIdInput("");
-    setOfficialOutputError(null);
-    form.reset(copy);
-    setNumberAvailabilityText("Duplicada. Edita el número y guarda para crear nuevo documento.");
-    setNumberAvailabilityTone("neutral");
-  }, [initialDuplicateFromRecordId, serverRecordId, loadMutation.isSuccess, form]);
-
   const repeatLastSetup = () => {
     const snap = lastSavedSnapshotRef.current;
     if (!snap) {
@@ -1029,8 +1010,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     hasLastSetup,
     repeatLastSetup,
     taxValidation,
-    withoutWithholding,
-    setWithoutWithholding,
     applyWithholdingMode,
     commitFiscalIrpfChoiceFromInput,
     workflowChecklist,
@@ -1058,7 +1037,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     profileDocumentReloadOptions,
     historyOptions,
     clientHistoryOptions,
-    selectedHistoryRecordId,
+    selectedHistoryRecordId: effectiveSelectedHistoryRecordId,
     setSelectedHistoryRecordId,
     loadBySelectedHistory,
     loadingHistory: historyQuery.isLoading,

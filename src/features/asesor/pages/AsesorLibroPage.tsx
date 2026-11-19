@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,8 +49,8 @@ export function AsesorLibroPage() {
 
   const isAdmin = sessionScope.isAdmin;
 
-  const historyItemsRaw = historyQuery.data ?? [];
-  const expenseItemsRaw = expensesQuery.data?.items ?? [];
+  const historyItemsRaw = useMemo(() => historyQuery.data ?? [], [historyQuery.data]);
+  const expenseItemsRaw = useMemo(() => expensesQuery.data?.items ?? [], [expensesQuery.data?.items]);
 
   const historyItemsScoped = useMemo(
     () =>
@@ -82,25 +82,23 @@ export function AsesorLibroPage() {
     return Array.from(new Set([...invoiceYears, ...expenseYears].filter(Boolean))).sort().reverse();
   }, [historyItemsScoped, expenseItemsScoped]);
 
-  useEffect(() => {
+  // Emisor efectivo: un admin puede dejar «Todos»/«Sin emisor»; el resto siempre cae al primero de su alcance.
+  const defaultScopedProfileId = String(scopedProfileOptions[0]?.id || "").trim();
+  const effectiveWorkbookProfile = useMemo(() => {
     if (isAdmin) {
-      return;
+      return workbookProfile;
     }
     const raw = String(workbookProfile || "").trim();
-    const valid =
-      raw &&
-      raw !== "__unassigned__" &&
-      isTemplateProfileInScope(raw, sessionScope);
-    if (!valid) {
-      const next = String(scopedProfileOptions[0]?.id || "").trim();
-      setWorkbookProfile((prev) => (prev === next ? prev : next));
+    if (raw && raw !== "__unassigned__" && isTemplateProfileInScope(raw, sessionScope)) {
+      return raw;
     }
-  }, [isAdmin, workbookProfile, sessionScope, scopedProfileOptions]);
+    return defaultScopedProfileId;
+  }, [isAdmin, workbookProfile, sessionScope, defaultScopedProfileId]);
 
   const workbookMutation = useMutation({
     mutationFn: async () => {
       const yearToken = String(workbookYear || "").trim() || "all";
-      const rawProfile = String(workbookProfile || "").trim();
+      const rawProfile = String(effectiveWorkbookProfile || "").trim();
       let invoiceProfile = "__all__";
       let expenseProfile = "__all__";
       if (rawProfile === "__unassigned__") {
@@ -125,7 +123,7 @@ export function AsesorLibroPage() {
 
   const downloadBlocked =
     !sessionScope.hasEmitterScope ||
-    (!isAdmin && !String(workbookProfile || "").trim());
+    (!isAdmin && !String(effectiveWorkbookProfile || "").trim());
 
   return (
     <Card className="border-slate-300 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/40">
@@ -163,7 +161,7 @@ export function AsesorLibroPage() {
             <span className="font-medium text-foreground">Emisor</span>
             <select
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              value={workbookProfile}
+              value={effectiveWorkbookProfile}
               onChange={(e) => setWorkbookProfile(e.target.value)}
               disabled={!sessionScope.hasEmitterScope}
               aria-label="Emisor para libro de control"

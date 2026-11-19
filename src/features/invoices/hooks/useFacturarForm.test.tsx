@@ -186,7 +186,6 @@ describe("useFacturarForm regression", () => {
   });
 
   it("editor restringido puede guardar con emisor permitido", async () => {
-    const document = createEmptyDocument();
     fetchSessionMock.mockResolvedValue({
       authenticated: true,
       user: {
@@ -218,7 +217,7 @@ describe("useFacturarForm regression", () => {
     });
     fetchClientsMock.mockResolvedValue([]);
     fetchHistoryInvoicesMock.mockResolvedValue([]);
-    saveDocumentMock.mockImplementation(async (doc: typeof document) => ({ recordId: "docs/2026/doc-ed.json", document: doc }));
+    saveDocumentMock.mockImplementation(async (doc: ReturnType<typeof createEmptyDocument>) => ({ recordId: "docs/2026/doc-ed.json", document: doc }));
     getNextNumberMock.mockResolvedValue("1");
     validateNumberAvailabilityMock.mockResolvedValue({ available: true });
 

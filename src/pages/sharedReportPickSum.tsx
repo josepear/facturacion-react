@@ -1,91 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
-
 import { Button } from "@/components/ui/button";
 import { cn, formatCurrency } from "@/lib/utils";
-
-export type PickKind = "invoice" | "expense";
-export type PickEntry = { kind: PickKind; amount: number };
-
-export function pickIdInvoice(index: number): string {
-  return `inv:${index}`;
-}
-
-export function pickIdExpense(index: number): string {
-  return `exp:${index}`;
-}
-
-export function useShareReportPickSum() {
-  const [picked, setPicked] = useState<Map<string, PickEntry>>(() => new Map());
-
-  const clear = useCallback(() => {
-    setPicked(new Map());
-  }, []);
-
-  const handlePick = useCallback((id: string, entry: PickEntry, e: React.MouseEvent<HTMLButtonElement>) => {
-    const additive = e.ctrlKey || e.metaKey;
-    setPicked((prev) => {
-      if (!additive) {
-        if (prev.size === 1 && prev.has(id)) {
-          return new Map();
-        }
-        return new Map([[id, entry]]);
-      }
-      const next = new Map(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.set(id, entry);
-      }
-      return next;
-    });
-  }, []);
-
-  const selectAll = useCallback(
-    (mode: "invoice" | "expense" | "both", invoices: { total?: number }[], expenses: { total?: number }[]) => {
-      const next = new Map<string, PickEntry>();
-      if (mode === "invoice" || mode === "both") {
-        invoices.forEach((row, i) => {
-          next.set(pickIdInvoice(i), { kind: "invoice", amount: Number(row.total) || 0 });
-        });
-      }
-      if (mode === "expense" || mode === "both") {
-        expenses.forEach((row, i) => {
-          next.set(pickIdExpense(i), { kind: "expense", amount: Number(row.total) || 0 });
-        });
-      }
-      setPicked(next);
-    },
-    [],
-  );
-
-  const aggregates = useMemo(() => {
-    let invSum = 0;
-    let invN = 0;
-    let expSum = 0;
-    let expN = 0;
-    for (const v of picked.values()) {
-      if (v.kind === "invoice") {
-        invSum += v.amount;
-        invN += 1;
-      } else {
-        expSum += v.amount;
-        expN += 1;
-      }
-    }
-    return {
-      invSum,
-      invN,
-      expSum,
-      expN,
-      totalSum: invSum + expSum,
-      totalN: invN + expN,
-    };
-  }, [picked]);
-
-  const isPicked = useCallback((id: string) => picked.has(id), [picked]);
-
-  return { picked, handlePick, clear, selectAll, aggregates, isPicked };
-}
+import type { PickEntry, PickKind, ShareReportPickAggregates } from "@/pages/sharedReportPickSumState";
 
 type PickableTotalProps = {
   id: string;
@@ -105,10 +20,38 @@ export function PickableTotalButton({ id, kind, amount, picked, onPick }: Pickab
         picked ? "bg-primary/10 text-primary ring-2 ring-primary ring-offset-2 ring-offset-background no-underline" : "",
       )}
       aria-pressed={picked}
-      aria-label={`Importe ${formatCurrency(safe)}. Pulsa para sumar; con Control o Meta añade o quita de la suma.`}
+      aria-label={`Importe ${formatCurrency(safe)}. Pulsa para sumar; con Shift, Control o Meta añade o quita de la suma.`}
       onClick={(e) => onPick(id, { kind, amount: safe }, e)}
     >
       {formatCurrency(safe)}
+    </button>
+  );
+}
+
+const DOCK_QUARTERS = ["T1", "T2", "T3", "T4"] as const;
+
+function QuarterToggle({
+  quarter,
+  active,
+  onToggle,
+}: {
+  quarter: string;
+  active: boolean;
+  onToggle: (quarter: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={() => onToggle(quarter)}
+      className={cn(
+        "h-6 min-w-[1.75rem] rounded-full border px-2 text-[11px] font-semibold tabular-nums transition-colors",
+        active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-background text-foreground hover:bg-accent",
+      )}
+    >
+      {quarter.replace("T", "") + "T"}
     </button>
   );
 }
@@ -117,12 +60,36 @@ type DockProps = {
   scope: "both" | "invoices" | "expenses";
   invoices: { total?: number }[];
   expenses: { total?: number }[];
-  aggregates: ReturnType<typeof useShareReportPickSum>["aggregates"];
+  aggregates: ShareReportPickAggregates;
+  /** Etiqueta de los totales de la vista actual (p. ej. "Total visible"). */
+  totalsLabel: string;
+  invoicesTotal: number;
+  expensesTotal: number;
+  combinedTotal: number;
+  invoiceQuarters: string[];
+  expenseQuarters: string[];
+  onToggleInvoiceQuarter: (quarter: string) => void;
+  onToggleExpenseQuarter: (quarter: string) => void;
   onSelectAll: (mode: "invoice" | "expense" | "both") => void;
   onClear: () => void;
 };
 
-export function ShareReportPickSumDock({ scope, invoices, expenses, aggregates, onSelectAll, onClear }: DockProps) {
+export function ShareReportPickSumDock({
+  scope,
+  invoices,
+  expenses,
+  aggregates,
+  totalsLabel,
+  invoicesTotal,
+  expensesTotal,
+  combinedTotal,
+  invoiceQuarters,
+  expenseQuarters,
+  onToggleInvoiceQuarter,
+  onToggleExpenseQuarter,
+  onSelectAll,
+  onClear,
+}: DockProps) {
   const showInv = scope !== "expenses";
   const showExp = scope !== "invoices";
   const showBothKinds = showInv && showExp;
@@ -130,75 +97,117 @@ export function ShareReportPickSumDock({ scope, invoices, expenses, aggregates, 
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur supports-[padding:max(0px)]:pb-[max(12px,env(safe-area-inset-bottom))]"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur supports-[padding:max(0px)]:pb-[max(12px,env(safe-area-inset-bottom))] print:hidden"
       role="region"
-      aria-label="Suma de importes seleccionados"
+      aria-label="Totales de la vista y suma de importes seleccionados"
     >
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-3">
-        <div className="text-sm text-foreground">
-          {totalN === 0 ? (
-            <p className="text-informative">
-              Pulsa un <strong>total</strong> de fila para sumarlo (como en la vista legacy). Con <strong>Ctrl</strong> o{" "}
-              <strong>⌘</strong> añades o quitas importes sin borrar el resto.
-            </p>
-          ) : showBothKinds ? (
-            <div className="grid gap-1.5 sm:grid-cols-3">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          {showInv ? (
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-informative">Facturas</span>
+              {DOCK_QUARTERS.map((q) => (
+                <QuarterToggle
+                  key={q}
+                  quarter={q}
+                  active={invoiceQuarters.includes(q)}
+                  onToggle={onToggleInvoiceQuarter}
+                />
+              ))}
+            </div>
+          ) : null}
+          {showExp ? (
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-informative">Gastos</span>
+              {DOCK_QUARTERS.map((q) => (
+                <QuarterToggle
+                  key={q}
+                  quarter={q}
+                  active={expenseQuarters.includes(q)}
+                  onToggle={onToggleExpenseQuarter}
+                />
+              ))}
+            </div>
+          ) : null}
+          <span className="text-[11px] text-informative">Sin marcar = todos</span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/60 pb-2">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-informative">{totalsLabel}</span>
+          <span className="text-xl font-semibold tabular-nums tracking-tight text-primary">
+            {formatCurrency(combinedTotal)}
+          </span>
+          <span className="text-xs text-informative">
+            Facturas {formatCurrency(invoicesTotal)} · Gastos {formatCurrency(expensesTotal)}
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-foreground">
+            {totalN === 0 ? (
+              <p className="text-informative">
+                Pulsa un <strong>total</strong> de fila para sumarlo. Con <strong>Shift</strong>, <strong>Ctrl</strong> o{" "}
+                <strong>⌘</strong> añades o quitas importes sin borrar el resto.
+              </p>
+            ) : showBothKinds ? (
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <p>
+                  <span className="text-informative">Facturas</span>{" "}
+                  <span className="font-semibold text-primary">{invN}</span> ·{" "}
+                  <strong className="tabular-nums">{formatCurrency(invSum)}</strong>
+                </p>
+                <p>
+                  <span className="text-informative">Gastos</span>{" "}
+                  <span className="font-semibold text-primary">{expN}</span> ·{" "}
+                  <strong className="tabular-nums">{formatCurrency(expSum)}</strong>
+                </p>
+                <p>
+                  <span className="text-informative">Total selección</span>{" "}
+                  <span className="font-semibold text-primary">{totalN}</span> ·{" "}
+                  <strong className="tabular-nums">{formatCurrency(totalSum)}</strong>
+                </p>
+              </div>
+            ) : showInv ? (
               <p>
-                <span className="text-informative">Facturas seleccionadas</span>{" "}
+                <span className="text-informative">Suma seleccionada</span>{" "}
                 <span className="font-semibold text-primary">{invN}</span> ·{" "}
                 <strong className="tabular-nums">{formatCurrency(invSum)}</strong>
               </p>
+            ) : (
               <p>
-                <span className="text-informative">Gastos seleccionados</span>{" "}
+                <span className="text-informative">Suma seleccionada</span>{" "}
                 <span className="font-semibold text-primary">{expN}</span> ·{" "}
                 <strong className="tabular-nums">{formatCurrency(expSum)}</strong>
               </p>
-              <p>
-                <span className="text-informative">Total selección</span>{" "}
-                <span className="font-semibold text-primary">{totalN}</span> importe(s) ·{" "}
-                <strong className="tabular-nums">{formatCurrency(totalSum)}</strong>
-              </p>
-            </div>
-          ) : showInv ? (
-            <p>
-              <span className="text-informative">Suma seleccionada</span>{" "}
-              <span className="font-semibold text-primary">{invN}</span> importe(s) ·{" "}
-              <strong className="tabular-nums">{formatCurrency(invSum)}</strong>
-            </p>
-          ) : (
-            <p>
-              <span className="text-informative">Suma seleccionada</span>{" "}
-              <span className="font-semibold text-primary">{expN}</span> importe(s) ·{" "}
-              <strong className="tabular-nums">{formatCurrency(expSum)}</strong>
-            </p>
-          )}
-        </div>
+            )}
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {showBothKinds ? (
-            <>
-              <Button type="button" size="sm" variant="outline" onClick={() => onSelectAll("both")}>
-                Seleccionar todos (facturas + gastos)
-              </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {showBothKinds ? (
+              <>
+                <Button type="button" size="sm" variant="outline" onClick={() => onSelectAll("both")}>
+                  Seleccionar todos (facturas + gastos)
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => onSelectAll("invoice")}>
+                  Solo facturas
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => onSelectAll("expense")}>
+                  Solo gastos
+                </Button>
+              </>
+            ) : showInv && invoices.length > 0 ? (
               <Button type="button" size="sm" variant="outline" onClick={() => onSelectAll("invoice")}>
-                Solo facturas
+                Seleccionar todas las facturas
               </Button>
+            ) : showExp && expenses.length > 0 ? (
               <Button type="button" size="sm" variant="outline" onClick={() => onSelectAll("expense")}>
-                Solo gastos
+                Seleccionar todos los gastos
               </Button>
-            </>
-          ) : showInv && invoices.length > 0 ? (
-            <Button type="button" size="sm" variant="outline" onClick={() => onSelectAll("invoice")}>
-              Seleccionar todas las facturas
+            ) : null}
+            <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={onClear}>
+              Limpiar
             </Button>
-          ) : showExp && expenses.length > 0 ? (
-            <Button type="button" size="sm" variant="outline" onClick={() => onSelectAll("expense")}>
-              Seleccionar todos los gastos
-            </Button>
-          ) : null}
-          <Button type="button" size="sm" variant="ghost" className="text-muted-foreground" onClick={onClear}>
-            Limpiar
-          </Button>
+          </div>
         </div>
       </div>
     </div>

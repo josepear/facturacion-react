@@ -70,11 +70,16 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
       }
     };
 
-    if (useSavedOnDisk) {
-      setLoading(true);
-      setError(null);
-      setSrc(null);
+    // El estado de «cargando» se activa en el siguiente tick (evita renders en cascada desde el efecto).
+    const startTimer = globalThis.setTimeout(() => {
+      if (!cancelled) {
+        setLoading(true);
+        setError(null);
+        setSrc(null);
+      }
+    }, 0);
 
+    if (useSavedOnDisk) {
       const path = `/api/documents/rendered-html?recordId=${encodeURIComponent(savedId)}`;
 
       void (async () => {
@@ -104,15 +109,12 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
 
       return () => {
         cancelled = true;
+        globalThis.clearTimeout(startTimer);
         revokeIfNeeded();
         setSrc(null);
         setLoading(false);
       };
     }
-
-    setLoading(true);
-    setError(null);
-    setSrc(null);
 
     debounceTimerRef.current = setTimeout(() => {
       debounceTimerRef.current = null;
@@ -141,6 +143,7 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
 
     return () => {
       cancelled = true;
+      globalThis.clearTimeout(startTimer);
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;
@@ -161,12 +164,16 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
       return;
     }
     if (modalOpen) {
-      setModalZoomSteps(0);
       d.showModal();
     } else {
       d.close();
     }
   }, [modalOpen]);
+
+  const openModal = () => {
+    setModalZoomSteps(0);
+    setModalOpen(true);
+  };
 
   return (
     <div className="grid gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-900 dark:bg-sky-950/20">
@@ -193,7 +200,7 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
             boxClassName="h-[min(55vh,720px)] min-h-[220px]"
             zoomSteps={0}
             blockIframePointer
-            onSurfaceClick={() => setModalOpen(true)}
+            onSurfaceClick={openModal}
           />
           <Button
             type="button"
@@ -202,7 +209,7 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
             className="pointer-events-auto absolute bottom-2 right-2 z-10 bg-background/95 shadow-md"
             onClick={(e) => {
               e.stopPropagation();
-              setModalOpen(true);
+              openModal();
             }}
           >
             Ampliar

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,7 @@ export function TrashSection({ canEdit }: { canEdit: boolean }) {
     queryFn: fetchTrash,
     enabled: canEdit,
   });
-  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+  const [selectedPathsState, setSelectedPaths] = useState<string[]>([]);
   const [status, setStatus] = useState<{ text: string; tone: "success" | "error" | "neutral" } | null>(null);
 
   const items = trashQuery.data?.items ?? EMPTY_TRASH_ITEMS;
@@ -27,14 +27,14 @@ export function TrashSection({ canEdit }: { canEdit: boolean }) {
     byFileType: {},
   };
 
-  useEffect(() => {
+  // Solo cuenta lo que sigue existiendo en la papelera (sin sincronizaciones por efecto).
+  const selectedPaths = useMemo(() => {
     if (!items.length) {
-      setSelectedPaths([]);
-      return;
+      return [];
     }
     const available = new Set(items.map((item) => item.path));
-    setSelectedPaths((prev) => prev.filter((path) => available.has(path)));
-  }, [items]);
+    return selectedPathsState.filter((path) => available.has(path));
+  }, [items, selectedPathsState]);
 
   const groupedItems = useMemo(() => {
     const groups: Record<string, TrashItem[]> = {

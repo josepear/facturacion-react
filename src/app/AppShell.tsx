@@ -142,7 +142,10 @@ export function AppShell() {
   const { isDark, toggle } = useTheme();
   const { sandbox, toggleSandbox } = useSandbox();
   const wizardDialogRef = useRef<HTMLDialogElement>(null);
-  const [wizardVisible, setWizardVisible] = useState(false);
+  const [wizardVisible, setWizardVisible] = useState(
+    () => !hasFirstUseWizardBeenDismissed() && Boolean(getAuthToken()),
+  );
+  const [wizardAuthVersion, setWizardAuthVersion] = useState(authVersion);
   const [wizardStep, setWizardStep] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -187,15 +190,13 @@ export function AppShell() {
     })();
   }, [location.pathname, location.search, navigate, queryClient]);
 
-  useEffect(() => {
-    if (hasFirstUseWizardBeenDismissed()) {
-      return;
+  // Al cambiar la sesión (login) se reevalúa si toca mostrar el asistente de primer uso.
+  if (wizardAuthVersion !== authVersion) {
+    setWizardAuthVersion(authVersion);
+    if (!hasFirstUseWizardBeenDismissed() && getAuthToken()) {
+      setWizardVisible(true);
     }
-    if (!getAuthToken()) {
-      return;
-    }
-    setWizardVisible(true);
-  }, [authVersion]);
+  }
 
   useEffect(() => {
     const el = wizardDialogRef.current;

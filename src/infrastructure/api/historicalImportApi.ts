@@ -268,7 +268,7 @@ export async function runHistoricalPdfImport(
 export function normalizeHistoricalPdfClientFileName(file: File): string {
   const raw = String(file.name || "").trim();
   const leaf = raw ? (raw.split(/[/\\]/u).pop() ?? raw).replace(/\0/g, "") : "";
-  let name = leaf || "documento.pdf";
+  const name = leaf || "documento.pdf";
   if (/\.pdf$/iu.test(name)) {
     return name;
   }

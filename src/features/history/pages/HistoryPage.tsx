@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -85,19 +85,22 @@ export function HistoryPage() {
   const [gmailBatchMessage, setGmailBatchMessage] = useState("");
   const gmailBatchDialogRef = useRef<HTMLDialogElement>(null);
 
-  const selectRecord = (recordId: string) => {
-    setSelectedRecordId(recordId);
-    const next = new URLSearchParams(searchParams);
-    const safeRecordId = String(recordId || "").trim();
-    if (safeRecordId) {
-      next.set("recordId", safeRecordId);
-    } else {
-      next.delete("recordId");
-    }
-    setSearchParams(next, { replace: true });
-    setOutputFeedback(null);
-    setRecordIdCopyFeedback(null);
-  };
+  const selectRecord = useCallback(
+    (recordId: string) => {
+      setSelectedRecordId(recordId);
+      const next = new URLSearchParams(searchParams);
+      const safeRecordId = String(recordId || "").trim();
+      if (safeRecordId) {
+        next.set("recordId", safeRecordId);
+      } else {
+        next.delete("recordId");
+      }
+      setSearchParams(next, { replace: true });
+      setOutputFeedback(null);
+      setRecordIdCopyFeedback(null);
+    },
+    [searchParams, setSearchParams],
+  );
 
   const historyQuery = useQuery({
     queryKey: ["history-invoices"],
@@ -150,10 +153,12 @@ export function HistoryPage() {
         String(item.recordId || "").trim() === safeSelected &&
         isTemplateProfileInScope(String(item.templateProfileId || "").trim(), sessionScope),
     );
-    if (!inScope) {
-      selectRecord("");
+    if (inScope) {
+      return;
     }
-  }, [historyQuery.data, selectedRecordId, sessionScope]);
+    const timeoutId = globalThis.setTimeout(() => selectRecord(""), 0);
+    return () => globalThis.clearTimeout(timeoutId);
+  }, [historyQuery.data, selectedRecordId, sessionScope, selectRecord]);
 
   const toggleRecordSelection = (recordId: string, docType: string) => {
     if (docType !== "factura") {
@@ -174,6 +179,19 @@ export function HistoryPage() {
 
   const clearSelection = () => setSelectedRecordIds(new Set());
 
+  // Valores efectivos (fuera del alcance del usuario => se ignoran).
+  const effectiveFilterProfile =
+    filterProfile && isTemplateProfileInScope(filterProfile, sessionScope) ? filterProfile : "";
+  const effectiveArchiveProfileId =
+    archiveProfileId && isTemplateProfileInScope(archiveProfileId, sessionScope) ? archiveProfileId : "";
+  const effectiveShareProfileId = (() => {
+    const preferred = String(shareProfileId || "").trim();
+    if (preferred && isTemplateProfileInScope(preferred, sessionScope)) {
+      return preferred;
+    }
+    return effectiveFilterProfile;
+  })();
+
   const filteredItems = useMemo(() => {
     const term = String(searchTerm || "").trim().toLowerCase();
     let items: HistoryInvoice[] = (historyQuery.data ?? []).filter((item) =>
@@ -188,8 +206,8 @@ export function HistoryPage() {
     if (filterStatus) {
       items = items.filter((item) => String(item.status || "").toUpperCase() === filterStatus.toUpperCase());
     }
-    if (filterProfile) {
-      items = items.filter((item) => item.templateProfileId === filterProfile);
+    if (effectiveFilterProfile) {
+      items = items.filter((item) => item.templateProfileId === effectiveFilterProfile);
     }
     if (!term) {
       return items;
@@ -210,7 +228,7 @@ export function HistoryPage() {
         profileLabel.includes(term)
       );
     });
-  }, [historyQuery.data, searchTerm, filterType, filterYear, filterStatus, filterProfile, sessionScope]);
+  }, [historyQuery.data, searchTerm, filterType, filterYear, filterStatus, effectiveFilterProfile, sessionScope]);
 
   const visibleFacturas = useMemo(() => filteredItems.filter((i) => i.type === "factura"), [filteredItems]);
 
@@ -383,7 +401,7 @@ export function HistoryPage() {
   );
 
   const rawHistoryCount = historyQuery.data?.length ?? 0;
-  const hasActiveFilters = Boolean(filterType || filterYear || filterStatus || filterProfile || String(searchTerm || "").trim());
+  const hasActiveFilters = Boolean(filterType || filterYear || filterStatus || effectiveFilterProfile || String(searchTerm || "").trim());
   const selectionHiddenByFilters = Boolean(
     selectedRecordId && !filteredItems.some((item) => item.recordId === selectedRecordId),
   );
@@ -503,7 +521,7 @@ export function HistoryPage() {
   const archiveYearMutation = useMutation({
     mutationFn: () => {
       const safeYear = String(archiveYear || "").trim();
-      const safeProfileId = String(archiveProfileId || "").trim();
+      const safeProfileId = String(effectiveArchiveProfileId || "").trim();
       if (!safeYear) {
         throw new Error("Selecciona ejercicio.");
       }
@@ -526,30 +544,9 @@ export function HistoryPage() {
     },
   });
 
-  useEffect(() => {
-    if (filterProfile) {
-      setShareProfileId(filterProfile);
-    }
-  }, [filterProfile]);
-  useEffect(() => {
-    if (filterProfile && !isTemplateProfileInScope(filterProfile, sessionScope)) {
-      setFilterProfile("");
-    }
-  }, [filterProfile, sessionScope]);
-  useEffect(() => {
-    if (archiveProfileId && !isTemplateProfileInScope(archiveProfileId, sessionScope)) {
-      setArchiveProfileId("");
-    }
-  }, [archiveProfileId, sessionScope]);
-  useEffect(() => {
-    if (shareProfileId && !isTemplateProfileInScope(shareProfileId, sessionScope)) {
-      setShareProfileId("");
-    }
-  }, [shareProfileId, sessionScope]);
-
   const shareReportMutation = useMutation({
     mutationFn: () => {
-      const pid = String(shareProfileId || "").trim();
+      const pid = String(effectiveShareProfileId || "").trim();
       if (!pid) {
         throw new Error("Elige un emisor para el enlace.");
       }
@@ -624,7 +621,7 @@ export function HistoryPage() {
                   onChange={(event) => {
                     const nextType = event.target.value as "" | "factura" | "presupuesto";
                     setFilterType(nextType);
-                    syncFiltersToUrl(searchTerm, nextType, filterYear, filterStatus, filterProfile);
+                    syncFiltersToUrl(searchTerm, nextType, filterYear, filterStatus, effectiveFilterProfile);
                   }}
                   aria-label="Filtrar por tipo de documento"
                 >
@@ -641,7 +638,7 @@ export function HistoryPage() {
                   onChange={(event) => {
                     const nextYear = event.target.value;
                     setFilterYear(nextYear);
-                    syncFiltersToUrl(searchTerm, filterType, nextYear, filterStatus, filterProfile);
+                    syncFiltersToUrl(searchTerm, filterType, nextYear, filterStatus, effectiveFilterProfile);
                   }}
                   aria-label="Filtrar por año de emisión"
                 >
@@ -661,7 +658,7 @@ export function HistoryPage() {
                   onChange={(event) => {
                     const nextStatus = event.target.value;
                     setFilterStatus(nextStatus);
-                    syncFiltersToUrl(searchTerm, filterType, filterYear, nextStatus, filterProfile);
+                    syncFiltersToUrl(searchTerm, filterType, filterYear, nextStatus, effectiveFilterProfile);
                   }}
                   aria-label="Filtrar por estado contable"
                 >
@@ -677,10 +674,13 @@ export function HistoryPage() {
                 <span className="text-informative font-medium">Emisor</span>
                 <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={filterProfile}
+                  value={effectiveFilterProfile}
                   onChange={(event) => {
                     const nextProfile = event.target.value;
                     setFilterProfile(nextProfile);
+                    if (nextProfile) {
+                      setShareProfileId(nextProfile);
+                    }
                     syncFiltersToUrl(searchTerm, filterType, filterYear, filterStatus, nextProfile);
                   }}
                   aria-label="Filtrar por emisor"
@@ -700,7 +700,7 @@ export function HistoryPage() {
               onChange={(event) => {
                 const nextSearch = event.target.value;
                 setSearchTerm(nextSearch);
-                syncFiltersToUrl(nextSearch, filterType, filterYear, filterStatus, filterProfile);
+                syncFiltersToUrl(nextSearch, filterType, filterYear, filterStatus, effectiveFilterProfile);
               }}
               aria-label="Filtrar listado de historial"
             />
@@ -728,7 +728,7 @@ export function HistoryPage() {
               <div className="grid gap-2 sm:grid-cols-2">
                 <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={shareProfileId}
+                  value={effectiveShareProfileId}
                   onChange={(event) => setShareProfileId(event.target.value)}
                   aria-label="Emisor para enlace compartido"
                 >
@@ -984,7 +984,7 @@ export function HistoryPage() {
                 </Select>
                 <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={archiveProfileId}
+                  value={effectiveArchiveProfileId}
                   onChange={(event) => setArchiveProfileId(event.target.value)}
                 >
                   <option value="">Selecciona emisor</option>

@@ -500,7 +500,7 @@ export function ExpensesPage() {
   );
 
   const availableYears = expensesQuery.data?.years ?? [];
-  const profileOptions = configQuery.data?.templateProfiles ?? [];
+  const profileOptions = useMemo(() => configQuery.data?.templateProfiles ?? [], [configQuery.data?.templateProfiles]);
   const sessionScope = useMemo(
     () => resolveSessionScope(sessionQuery.data, profileOptions),
     [sessionQuery.data, profileOptions],
@@ -518,7 +518,24 @@ export function ExpensesPage() {
     [trashQuery.data?.items],
   );
 
-  const profileControlToken = useMemo(() => mapReactExpenseProfileFilterToControl(profileFilter), [profileFilter]);
+  const effectiveProfileFilter = useMemo(() => {
+    if (!profileFilter) {
+      return profileFilter;
+    }
+    if (profileFilter === "all" || profileFilter === "__default__" || profileFilter === "__unassigned__") {
+      return profileFilter;
+    }
+    return isTemplateProfileInScope(profileFilter, sessionScope) ? profileFilter : "all";
+  }, [profileFilter, sessionScope]);
+  const effectiveArchiveProfileId = useMemo(
+    () => (archiveProfileId && !isTemplateProfileInScope(archiveProfileId, sessionScope) ? "" : archiveProfileId),
+    [archiveProfileId, sessionScope],
+  );
+  const effectiveImportProfileId = useMemo(
+    () => (importProfileId && !isTemplateProfileInScope(importProfileId, sessionScope) ? "" : importProfileId),
+    [importProfileId, sessionScope],
+  );
+  const profileControlToken = useMemo(() => mapReactExpenseProfileFilterToControl(effectiveProfileFilter), [effectiveProfileFilter]);
 
   const workbookFilteredExpenses = useMemo(() => {
     const items = (expensesQuery.data?.items ?? []).filter((item) =>
@@ -567,11 +584,11 @@ export function ExpensesPage() {
 
   const hasActiveFilters =
     yearFilter !== "all"
-    || profileFilter !== "all"
+    || effectiveProfileFilter !== "all"
     || quarterFilter !== "all"
     || deductibleFilter !== "all"
     || String(searchTerm || "").trim().length > 0;
-  const setRecordIdSearchParam = (recordId: string) => {
+  const setRecordIdSearchParam = useCallback((recordId: string) => {
     const next = new URLSearchParams(searchParams);
     if (recordId) {
       next.set("recordId", recordId);
@@ -579,7 +596,7 @@ export function ExpensesPage() {
       next.delete("recordId");
     }
     setSearchParams(next, { replace: true });
-  };
+  }, [searchParams, setSearchParams]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -632,7 +649,7 @@ export function ExpensesPage() {
   const archiveYearMutation = useMutation({
     mutationFn: () => {
       const safeYear = String(archiveYear || "").trim();
-      const safeProfileId = String(archiveProfileId || "").trim();
+      const safeProfileId = String(effectiveArchiveProfileId || "").trim();
       if (!safeYear) {
         throw new Error("Selecciona ejercicio.");
       }
@@ -768,7 +785,7 @@ export function ExpensesPage() {
 
   function handleImportExpenses(options?: { previewOnly?: boolean }) {
     const file = importFileRef.current?.files?.[0];
-    if (!importProfileId) {
+    if (!effectiveImportProfileId) {
       setStatusMessage("Selecciona el emisor destino antes de importar.");
       setStatusTone("error");
       return;
@@ -793,7 +810,7 @@ export function ExpensesPage() {
       setImportPreviewModalOpen(false);
       setImportPreparedPayload(null);
       importExpensesMutation.mutate({
-        templateProfileId: importProfileId,
+        templateProfileId: effectiveImportProfileId,
         files: [{ name: file.name, contentBase64 }],
         previewOnly,
       });
@@ -946,7 +963,7 @@ export function ExpensesPage() {
     setStatusMessage("Nuevo gasto.");
     setStatusTone("neutral");
     setExpenseFormModalOpen(true);
-  }, [activeProfileId, searchParams, setSearchParams]);
+  }, [activeProfileId, setRecordIdSearchParam]);
 
   const openEditExpenseModal = useCallback((item: ExpenseRecord, recordId: string) => {
     if (!recordId) {
@@ -962,7 +979,7 @@ export function ExpensesPage() {
     setStatusMessage("Gasto cargado para edición.");
     setStatusTone("neutral");
     setExpenseFormModalOpen(true);
-  }, [searchParams, setSearchParams]);
+  }, [setRecordIdSearchParam]);
 
   const resetExpenseDraftToNew = useCallback(() => {
     setSelectedRecordId("");
@@ -975,7 +992,7 @@ export function ExpensesPage() {
     }
     setStatusMessage("Nuevo gasto.");
     setStatusTone("neutral");
-  }, [activeProfileId, searchParams, setSearchParams]);
+  }, [activeProfileId, setRecordIdSearchParam]);
 
   useEffect(() => {
     if (!initialRecordId || selectedRecordId || !expensesQuery.data?.items?.length) {
@@ -1013,20 +1030,23 @@ export function ExpensesPage() {
     if (!selected) {
       return;
     }
-    if (!isTemplateProfileInScope(String(selected.templateProfileId || "").trim(), sessionScope)) {
+    if (isTemplateProfileInScope(String(selected.templateProfileId || "").trim(), sessionScope)) {
+      return;
+    }
+    // Se difiere al siguiente tick para no disparar renders en cascada desde el efecto.
+    const timeoutId = globalThis.setTimeout(() => {
       setSelectedRecordId("");
       setRecordIdSearchParam("");
       didHydrateDefaultTemplateProfile.current = false;
-      {
-        const emptyExpense = createEmptyExpense(activeProfileId);
-        setDraft(emptyExpense);
-        setDraftNumberText(buildExpenseDraftNumberText(emptyExpense));
-      }
+      const emptyExpense = createEmptyExpense(activeProfileId);
+      setDraft(emptyExpense);
+      setDraftNumberText(buildExpenseDraftNumberText(emptyExpense));
       setStatusMessage("Sin acceso al emisor del gasto seleccionado.");
       setStatusTone("error");
       setExpenseFormModalOpen(false);
-    }
-  }, [activeProfileId, expensesQuery.data?.items, selectedRecordId, sessionScope]);
+    }, 0);
+    return () => globalThis.clearTimeout(timeoutId);
+  }, [activeProfileId, expensesQuery.data?.items, selectedRecordId, sessionScope, setRecordIdSearchParam]);
 
   useEffect(() => {
     const el = expenseFormDialogRef.current;
@@ -1096,8 +1116,8 @@ export function ExpensesPage() {
     } else {
       next.delete("year");
     }
-    if (profileFilter && profileFilter !== "all") {
-      next.set("profile", profileFilter);
+    if (effectiveProfileFilter && effectiveProfileFilter !== "all") {
+      next.set("profile", effectiveProfileFilter);
     } else {
       next.delete("profile");
     }
@@ -1114,26 +1134,7 @@ export function ExpensesPage() {
     if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true });
     }
-  }, [deductibleFilter, profileFilter, quarterFilter, searchParams, searchTerm, setSearchParams, yearFilter]);
-  useEffect(() => {
-    const scopedSpecial = profileFilter === "all" || profileFilter === "__default__" || profileFilter === "__unassigned__";
-    if (scopedSpecial) {
-      return;
-    }
-    if (profileFilter && !isTemplateProfileInScope(profileFilter, sessionScope)) {
-      setProfileFilter("all");
-    }
-  }, [profileFilter, sessionScope]);
-  useEffect(() => {
-    if (archiveProfileId && !isTemplateProfileInScope(archiveProfileId, sessionScope)) {
-      setArchiveProfileId("");
-    }
-  }, [archiveProfileId, sessionScope]);
-  useEffect(() => {
-    if (importProfileId && !isTemplateProfileInScope(importProfileId, sessionScope)) {
-      setImportProfileId("");
-    }
-  }, [importProfileId, sessionScope]);
+  }, [deductibleFilter, effectiveProfileFilter, quarterFilter, searchParams, searchTerm, setSearchParams, yearFilter]);
 
   if (!sessionScope.hasEmitterScope) {
     return (
@@ -1173,7 +1174,7 @@ export function ExpensesPage() {
               <div className="grid gap-2">
                 <label className="text-sm font-medium">Emisor destino</label>
                 <Select
-                  value={importProfileId}
+                  value={effectiveImportProfileId}
                   onChange={(e) => setImportProfileId(e.target.value)}
                   className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
                 >
@@ -1202,7 +1203,7 @@ export function ExpensesPage() {
                   type="button"
                   variant="outline"
                   onClick={() => handleImportExpenses({ previewOnly: true })}
-                  disabled={importExpensesMutation.isPending || !importProfileId}
+                  disabled={importExpensesMutation.isPending || !effectiveImportProfileId}
                 >
                   {importExpensesMutation.isPending
                     ? "Procesando..."
@@ -1380,7 +1381,7 @@ export function ExpensesPage() {
                 <span className="font-medium text-foreground">Emisor</span>
                 <Select
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  value={profileFilter}
+                  value={effectiveProfileFilter}
                   onChange={(event) => setProfileFilter(event.target.value)}
                   aria-label="Perfil para gastos"
                 >
@@ -1480,7 +1481,7 @@ export function ExpensesPage() {
                     </Select>
                     <Select
                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={archiveProfileId}
+                      value={effectiveArchiveProfileId}
                       onChange={(event) => setArchiveProfileId(event.target.value)}
                     >
                       <option value="">Selecciona emisor</option>

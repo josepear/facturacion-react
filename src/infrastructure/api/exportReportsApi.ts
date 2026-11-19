@@ -154,6 +154,8 @@ export type PublicShareWorkbookExportBody = {
   documentKind?: "all" | "facturas" | "presupuestos";
   searchText?: string;
   quarters?: string[];
+  invoiceQuarters?: string[];
+  expenseQuarters?: string[];
 };
 
 /** Alineado con `normalizeShareReportToken` en `share-report-server.mjs`. */
@@ -181,6 +183,19 @@ export function buildShareReportViewerUrl(token: string): string {
   return `${pathname}${qs}`;
 }
 
+/**
+ * URL pública (sin sesión) del HTML oficial de una factura incluida en un informe compartido.
+ * El `ref` es opaco (hash) y el servidor valida que la factura pertenece a ese informe.
+ */
+export function buildPublicShareInvoiceHtmlUrl(token: string, ref: string): string {
+  const safeToken = normalizeShareReportToken(token);
+  const safeRef = String(ref || "").replace(/[^\w-]/gu, "").slice(0, 64);
+  if (!safeToken || !safeRef) {
+    return "";
+  }
+  return `/api/public-share-report/${encodeURIComponent(safeToken)}/invoice-html?ref=${encodeURIComponent(safeRef)}`;
+}
+
 export type PublicShareReportMeta = {
   profileLabel?: string;
   templateProfileId?: string;
@@ -205,6 +220,8 @@ export type PublicShareReportTotals = {
 };
 
 export type PublicShareInvoiceRow = {
+  /** Identificador opaco que permite abrir el HTML oficial de esta factura sin sesión. */
+  ref?: string;
   issueDate?: string;
   issueDateLabel?: string;
   typeLabel?: string;

@@ -99,6 +99,7 @@ export default async function globalSetup() {
 
     if (!Array.isArray(vendors) || !Array.isArray(categories)) {
       const shapePreview = JSON.stringify(options).slice(0, 220);
+      // eslint-disable-next-line no-console -- aviso deliberado del setup E2E
       console.warn(
         `[E2E setup] /api/expense-options devolvió formato no estándar. ` +
           `Se continúa porque los tests críticos actuales no dependen de este contrato. Preview: ${shapePreview}`,

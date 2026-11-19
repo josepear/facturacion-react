@@ -58,7 +58,7 @@ export function FacturarSaveSummary({ document, profileLabel, lineTotals }: Fact
           <Row label="Vencimiento">{String(document.dueDate || "").trim() || "—"}</Row>
           <Row label="Referencia">{String(document.reference || "").trim() || "—"}</Row>
           <Row label="Cálculo conceptos">
-            {document.totalsBasis === "gross" ? "Por bruto (desde líneas)" : "Por líneas"}
+            {document.totalsBasis === "gross" ? "Por bruto (importe manual)" : "Por líneas"}
           </Row>
         </div>
 

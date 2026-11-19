@@ -1,7 +1,8 @@
 import { lazy } from "react";
-import { createBrowserRouter, Navigate, useLocation } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { AppShell } from "@/app/AppShell";
+import { IndexRedirectToFacturar } from "@/app/IndexRedirectToFacturar";
 import { RequireAuth } from "@/features/auth/RequireAuth";
 import { AsesorLayout } from "@/features/asesor/layout/AsesorLayout";
 import { AsesorCeliaPage } from "@/features/asesor/pages/AsesorCeliaPage";
@@ -16,11 +17,6 @@ const ClientsPage = lazy(() => import("@/features/clients/pages/ClientsPage").th
 const HistoryPage = lazy(() => import("@/features/history/pages/HistoryPage").then((m) => ({ default: m.HistoryPage })));
 const ExpensesPage = lazy(() => import("@/features/expenses/pages/ExpensesPage").then((m) => ({ default: m.ExpensesPage })));
 const SettingsPage = lazy(() => import("@/features/settings/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
-
-function IndexRedirectToFacturar() {
-  const { search } = useLocation();
-  return <Navigate to={{ pathname: "/facturar", search }} replace />;
-}
 
 // In production the app is served at /react/ by the legacy Node server.
 // Vite sets import.meta.env.BASE_URL to "/" in dev and "/react/" in prod builds.

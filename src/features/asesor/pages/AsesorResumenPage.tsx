@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,8 +49,8 @@ export function AsesorResumenPage() {
     [profileOptions, sessionScope],
   );
 
-  const historyItemsRaw = historyQuery.data ?? [];
-  const expenseItemsRaw = expensesQuery.data?.items ?? [];
+  const historyItemsRaw = useMemo(() => historyQuery.data ?? [], [historyQuery.data]);
+  const expenseItemsRaw = useMemo(() => expensesQuery.data?.items ?? [], [expensesQuery.data?.items]);
 
   const historyItems = useMemo(
     () =>
@@ -82,18 +82,10 @@ export function AsesorResumenPage() {
     return Array.from(new Set([...invoiceYears, ...expenseYears].filter(Boolean))).sort().reverse();
   }, [historyItems, expenseItems]);
 
-  useEffect(() => {
-    if (filterProfile) {
-      return;
-    }
-    if (!sessionScope.hasEmitterScope) {
-      return;
-    }
-    const first = String(scopedProfileOptions[0]?.id || "").trim();
-    if (first) {
-      setFilterProfile(first);
-    }
-  }, [filterProfile, scopedProfileOptions, sessionScope.hasEmitterScope]);
+  // Emisor por defecto: el primero del alcance del usuario (sin esperar a un efecto).
+  const defaultScopedProfileId = String(scopedProfileOptions[0]?.id || "").trim();
+  const effectiveFilterProfile =
+    filterProfile || (sessionScope.hasEmitterScope ? defaultScopedProfileId : "");
 
   const toggleQuarterFilter = (quarter: string) => {
     setFilterQuarters((prev) =>
@@ -101,13 +93,13 @@ export function AsesorResumenPage() {
     );
   };
 
-  const hasActiveFilters = Boolean(filterYear || filterQuarters.length || filterProfile || filterScope !== "both");
+  const hasActiveFilters = Boolean(filterYear || filterQuarters.length || effectiveFilterProfile || filterScope !== "both");
 
   return (
     <>
       <Card className="border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/20">
         <CardHeader>
-          <CardTitle>Resumen para asesoría</CardTitle>
+          <CardTitle>Resumen para Celia</CardTitle>
           <CardDescription>
             Previsualiza facturas y gastos con los mismos criterios que la hoja de control, genera un enlace de solo
             lectura y compártelo con quien declare o revise (sin acceso al resto de la aplicación).
@@ -134,7 +126,7 @@ export function AsesorResumenPage() {
               <span className="font-medium text-foreground">Emisor</span>
               <select
                 className="flex h-10 min-h-[44px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:min-h-10"
-                value={filterProfile}
+                value={effectiveFilterProfile}
                 onChange={(e) => setFilterProfile(e.target.value)}
                 disabled={!sessionScope.hasEmitterScope}
               >
@@ -230,7 +222,7 @@ export function AsesorResumenPage() {
         profileOptions={sessionScope.isAdmin ? profileOptions : scopedProfileOptions}
         includeAllProfilesOption={sessionScope.isAdmin}
         pageFilterYear={filterYear}
-        pageFilterProfile={filterProfile}
+        pageFilterProfile={effectiveFilterProfile}
         pageFilterQuarters={filterQuarters}
         pageFilterScope={filterScope}
         availableYears={availableYears}
