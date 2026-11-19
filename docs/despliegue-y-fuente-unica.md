@@ -40,6 +40,27 @@ Commits y push **solo** desde este repositorio, en `main` (o rama + PR según
 
 ## Despliegue de la SPA (producción)
 
+Desde el repo canónico, un solo comando (valida, compila, copia, reinicia y comprueba health):
+
+```bash
+cd /Users/josemendoza/Repos/facturacion-react
+npm run deploy:local
+```
+
+Qué hace `scripts/deploy-local.sh`:
+
+1. `typecheck` + `lint` + `test` (omíbelos con `FACTURACION_SKIP_CHECKS=1`).
+2. `npm run build`.
+3. `rsync -a --delete dist/ → $RUNTIME/react-dist/`.
+4. `launchctl kickstart -k gui/<uid>/com.pearandco.facturacion`.
+5. Espera a que `/api/health` responda y muestra el bundle desplegado.
+
+Variables: `FACTURACION_RUNTIME_DIR` (por defecto `~/facturacion-app`),
+`FACTURACION_LAUNCHAGENT`, `FACTURACION_HEALTH_URL`, `FACTURACION_SKIP_CHECKS=1`,
+`FACTURACION_SKIP_RESTART=1`.
+
+Fallback manual equivalente:
+
 ```bash
 cd /Users/josemendoza/Repos/facturacion-react
 npm run build
