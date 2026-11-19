@@ -285,7 +285,15 @@ export function DesignPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const previewAbortRef = useRef<AbortController | null>(null);
-  const previewObjectUrlRef = useRef<string | null>(null);
+
+  // Libera el blob anterior cuando la vista previa se reemplaza o al desmontar
+  // (en el cleanup del efecto posterior al pintado, no antes).
+  useEffect(() => {
+    if (!previewSrc) {
+      return;
+    }
+    return () => URL.revokeObjectURL(previewSrc);
+  }, [previewSrc]);
 
   useEffect(() => {
     if (!draft || !profile || !effectiveProfileId) {
@@ -312,12 +320,7 @@ export function DesignPage() {
           if (cancelled || ac.signal.aborted) {
             return;
           }
-          if (previewObjectUrlRef.current) {
-            URL.revokeObjectURL(previewObjectUrlRef.current);
-          }
-          const nextUrl = URL.createObjectURL(blob);
-          previewObjectUrlRef.current = nextUrl;
-          setPreviewSrc(nextUrl);
+          setPreviewSrc(URL.createObjectURL(blob));
         } catch (error) {
           if (cancelled || ac.signal.aborted) {
             return;
@@ -340,10 +343,6 @@ export function DesignPage() {
   useEffect(
     () => () => {
       previewAbortRef.current?.abort();
-      if (previewObjectUrlRef.current) {
-        URL.revokeObjectURL(previewObjectUrlRef.current);
-        previewObjectUrlRef.current = null;
-      }
     },
     [],
   );
