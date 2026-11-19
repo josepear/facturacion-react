@@ -21,6 +21,16 @@ function safeNextParam(raw: string | null): string {
   return value;
 }
 
+/** El backend exige que return_to empiece por /react (SPA servida bajo ese prefijo). */
+function toGoogleOAuthReturnTo(next: string): string {
+  const raw = String(next || "").trim();
+  if (!raw) {
+    return "/react";
+  }
+  const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
+  return withLeadingSlash.startsWith("/react") ? withLeadingSlash : `/react${withLeadingSlash}`;
+}
+
 /** Sin token: no monta `useSessionQuery` → no petición a `/api/session`. */
 function LoginFormOnly() {
   const { authVersion, login, loginError, clearLoginError, isLoginPending } = useAuth();
@@ -92,7 +102,7 @@ function LoginFormOnly() {
     setOauthError(null);
     setIsOAuthPending(true);
     try {
-      const { url } = await getGoogleOAuthStartUrl(next || "/react");
+      const { url } = await getGoogleOAuthStartUrl(toGoogleOAuthReturnTo(next));
       if (oauthActiveAttemptRef.current !== attemptId || oauthTerminalAttemptRef.current === attemptId) {
         return;
       }

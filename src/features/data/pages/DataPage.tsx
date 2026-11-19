@@ -476,7 +476,7 @@ export function DataPage() {
                   <section key={group.monthKey} className="grid gap-3">
                     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200/80 bg-white/85 px-4 py-3 text-sm dark:border-sky-900/60 dark:bg-sky-950/30">
                       <span className="font-medium text-foreground">{group.title}</span>
-                      <span className="tabular-nums text-informative">{group.items.length} factura(s) · {formatCurrency(group.monthTotal)}</span>
+                      <span className="tabular-nums text-informative">{group.items.length} documento(s) · {formatCurrency(group.monthTotal)}</span>
                     </div>
                     <table className={cn(workbookDataTableBase, "min-w-[26rem]") }>
                       <thead>
@@ -511,7 +511,7 @@ export function DataPage() {
                               </td>
                               <td className={`${workbookDataTdTight} text-right tabular-nums`}>{formatCurrency(Number(i.total || 0))}</td>
                               <td className="p-2 text-center align-middle">
-                                <InvoicePreviewListTrigger recordId={i.recordId} label={i.number || i.recordId} />
+                                <InvoicePreviewListTrigger recordId={i.recordId} label={i.number || i.recordId} docType={i.type} />
                               </td>
                             </tr>
                           );
@@ -580,7 +580,7 @@ export function DataPage() {
                               </td>
                               <td className={`${workbookDataTdTight} text-right tabular-nums`}>{formatCurrency(Number(i.total || 0))}</td>
                               <td className="p-2 text-center align-middle">
-                                <InvoicePreviewListTrigger recordId={i.recordId} label={i.number || i.recordId} />
+                                <InvoicePreviewListTrigger recordId={i.recordId} label={i.number || i.recordId} docType={i.type} />
                               </td>
                             </tr>
                           );

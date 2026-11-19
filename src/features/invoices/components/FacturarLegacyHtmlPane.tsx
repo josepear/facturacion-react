@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { InvoiceDocument } from "@/domain/document/types";
 import { ScaledHtmlPreview } from "@/features/shared/components/ScaledHtmlPreview";
+import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
 import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { fetchDocumentLegacyPreviewBlob } from "@/infrastructure/api/documentsApi";
 import { fetchWithAuth } from "@/infrastructure/api/httpClient";
@@ -177,9 +178,16 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
 
   return (
     <div className="grid gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-900 dark:bg-sky-950/20">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground">Factura (plantilla legacy)</h3>
-        {loading ? <span className="text-xs text-muted-foreground">Actualizando…</span> : null}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-foreground">{getDocLabels(liveDocument.type).legacyPaneTitle}</h3>
+        <div className="flex items-center gap-2">
+          {loading ? <span className="text-xs text-muted-foreground">Actualizando…</span> : null}
+          {src ? (
+            <Button type="button" size="sm" variant="outline" onClick={openModal}>
+              Ampliar
+            </Button>
+          ) : null}
+        </div>
       </div>
       {useSavedOnDisk ? (
         <p className="text-xs text-muted-foreground">HTML del último guardado en disco (coincide con «Ver HTML oficial»).</p>
@@ -197,23 +205,12 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
         <div className="relative rounded-xl border border-sky-200 bg-white shadow-sm dark:border-sky-900 dark:bg-slate-950">
           <ScaledHtmlPreview
             src={src}
-            boxClassName="h-[min(55vh,720px)] min-h-[220px]"
+            boxClassName="h-[min(55dvh,720px)] min-h-[220px] w-full"
             zoomSteps={0}
             blockIframePointer
             onSurfaceClick={openModal}
+            docType={liveDocument.type}
           />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="pointer-events-auto absolute bottom-2 right-2 z-10 bg-background/95 shadow-md"
-            onClick={(e) => {
-              e.stopPropagation();
-              openModal();
-            }}
-          >
-            Ampliar
-          </Button>
         </div>
       ) : loading ? (
         <p className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-8 text-center text-sm text-muted-foreground">
@@ -224,14 +221,14 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
       <dialog
         ref={dialogRef}
         className={cn(
-          "w-[min(96vw,1180px)] max-w-[96vw] rounded-lg border border-border bg-background p-0 shadow-2xl",
+          "w-[min(96vw,1180px)] max-w-[calc(100vw-1rem)] rounded-lg border border-border bg-background p-0 shadow-2xl",
           "open:flex open:max-h-[min(94vh,920px)] open:flex-col",
           "[&::backdrop]:bg-black/55",
         )}
         onClose={() => setModalOpen(false)}
       >
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 sm:px-4">
-          <h4 className="text-sm font-semibold">Vista de factura</h4>
+          <h4 className="text-sm font-semibold">{getDocLabels(liveDocument.type).previewTitle}</h4>
           <div className="flex flex-wrap items-center gap-1">
             <Button
               type="button"
@@ -260,11 +257,11 @@ export function FacturarLegacyHtmlPane({ liveDocument, serverRecordId, isDirty, 
             </Button>
           </div>
         </div>
-        <div className="min-h-0 min-w-0 flex-1 overflow-auto bg-muted/30 p-3 sm:p-4">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-auto bg-muted/30 p-3 sm:p-4">
           {src ? (
             <ScaledHtmlPreview
               src={src}
-              boxClassName="min-h-[min(72vh,800px)] w-full"
+              boxClassName="h-[min(72dvh,800px)] w-full min-w-0"
               zoomSteps={modalZoomSteps}
               blockIframePointer={false}
             />

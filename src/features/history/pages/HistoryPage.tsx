@@ -14,9 +14,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InfoCallout } from "@/components/ui/info-callout";
 import { SectionTitle } from "@/components/ui/section-title";
 import { Select } from "@/components/ui/select";
+import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
 import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
+import { hasSendableRecipients, parseRecipientList } from "@/features/shared/lib/emailRecipients";
 import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { ACCOUNTING_STATUS_OPTIONS, formatAccountingStatusLabel } from "@/features/shared/lib/accountingStatusOptions";
 import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
@@ -75,12 +77,14 @@ export function HistoryPage() {
   const [shareMessage, setShareMessage] = useState<{ text: string; tone: "neutral" | "success" | "error" } | null>(null);
   const [gmailDialog, setGmailDialog] = useState(false);
   const [gmailTo, setGmailTo] = useState("");
+  const gmailRecipients = useMemo(() => parseRecipientList(gmailTo), [gmailTo]);
   const [gmailBodyText, setGmailBodyText] = useState("");
   const [gmailSentMessage, setGmailSentMessage] = useState("");
   const gmailDialogRef = useRef<HTMLDialogElement>(null);
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(() => new Set());
   const [gmailBatchDialog, setGmailBatchDialog] = useState(false);
   const [gmailBatchTo, setGmailBatchTo] = useState("");
+  const gmailBatchRecipients = useMemo(() => parseRecipientList(gmailBatchTo), [gmailBatchTo]);
   const [gmailBatchBody, setGmailBatchBody] = useState("");
   const [gmailBatchMessage, setGmailBatchMessage] = useState("");
   const gmailBatchDialogRef = useRef<HTMLDialogElement>(null);
@@ -326,11 +330,11 @@ export function HistoryPage() {
       sendGmailInvoice({
         recordId: selectedRecordId,
         templateProfileId: gmailProfileId,
-        to: gmailTo,
+        to: gmailRecipients.normalized,
         bodyText: gmailBodyText || undefined,
       }),
     onSuccess: async () => {
-      setGmailSentMessage("Factura enviada por Gmail.");
+      setGmailSentMessage(getDocLabels(openedDocument?.type || "").gmailSentMessage);
       setGmailDialog(false);
       await queryClient.invalidateQueries({ queryKey: ["gmail-status", gmailProfileId] });
     },
@@ -377,7 +381,7 @@ export function HistoryPage() {
       sendGmailInvoiceBatch({
         recordIds: selectedRows.map((r) => r.recordId),
         templateProfileId: gmailBatchProfileId,
-        to: gmailBatchTo.trim() || undefined,
+        to: gmailBatchTo.trim() ? gmailBatchRecipients.normalized : undefined,
         bodyText: gmailBatchBody.trim() || undefined,
       }),
     onSuccess: async () => {
@@ -872,7 +876,7 @@ export function HistoryPage() {
                               checked={selectedRecordIds.has(item.recordId)}
                               disabled={atSelectionLimit}
                               onChange={() => toggleRecordSelection(item.recordId, item.type)}
-                              aria-label={`Seleccionar factura ${item.number || item.recordId}`}
+                              aria-label={getDocLabels(item.type).selectLabel(item.number || item.recordId)}
                             />
                           </div>
                         ) : null}
@@ -919,21 +923,20 @@ export function HistoryPage() {
                           onKeyDown={(e) => e.stopPropagation()}
                           role="presentation"
                         >
-                          {item.type === "factura" ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => navigate(`/facturar?duplicateFrom=${item.recordId}`)}
-                              title="Duplicar esta factura"
-                              className={isActive ? "text-primary-foreground hover:text-primary-foreground/85" : undefined}
-                            >
-                              Duplicar
-                            </Button>
-                          ) : null}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/facturar?duplicateFrom=${item.recordId}`)}
+                            title={getDocLabels(item.type).duplicateTitle}
+                            className={isActive ? "text-primary-foreground hover:text-primary-foreground/85" : undefined}
+                          >
+                            Duplicar
+                          </Button>
                           <InvoicePreviewListTrigger
                             recordId={item.recordId}
                             label={item.number || item.recordId}
+                            docType={item.type}
                             className={isActive ? "text-primary-foreground hover:text-primary-foreground" : undefined}
                           />
                         </div>
@@ -1075,7 +1078,7 @@ export function HistoryPage() {
                       navigate(`/facturar?${query}`);
                     }}
                   >
-                    Editar en Facturar
+                    {getDocLabels(openedDocument.type).editAction}
                   </Button>
                   <Button
                     type="button"
@@ -1207,14 +1210,18 @@ export function HistoryPage() {
         <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar facturas por Gmail (lote)</SectionTitle>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
-            Para (email)
+            Para (opcional, uno o varios separados por comas)
             <input
-              type="email"
+              type="text"
+              inputMode="email"
               value={gmailBatchTo}
               onChange={(e) => setGmailBatchTo(e.target.value)}
-              placeholder="cliente@ejemplo.com (un solo destino para todas)"
+              placeholder="Vacío = correo de cada cliente. Varios: a@x.com, b@y.com"
               style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem" }}
             />
+            {gmailBatchTo.trim() && gmailBatchRecipients.error ? (
+              <span style={{ color: "#dc2626", fontSize: "0.8125rem" }}>{gmailBatchRecipients.error}</span>
+            ) : null}
           </label>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
             Mensaje (opcional)
@@ -1243,7 +1250,10 @@ export function HistoryPage() {
             </Button>
             <Button
               type="button"
-              disabled={!gmailBatchTo.trim() || gmailBatchSendMutation.isPending}
+              disabled={
+                (gmailBatchTo.trim() !== "" && !hasSendableRecipients(gmailBatchRecipients)) ||
+                gmailBatchSendMutation.isPending
+              }
               onClick={() => gmailBatchSendMutation.mutate()}
             >
               {gmailBatchSendMutation.isPending ? "Enviando..." : "Enviar"}
@@ -1257,17 +1267,21 @@ export function HistoryPage() {
         onClose={() => setGmailDialog(false)}
         style={{ borderRadius: 8, padding: 24, maxWidth: 480, width: "90vw", border: "1px solid #ccc" }}
       >
-        <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar factura por Gmail</SectionTitle>
+        <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>{getDocLabels(openedDocument?.type || "").gmailDialogTitle}</SectionTitle>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
-            Para (email)
+            Para (uno o varios, separados por comas)
             <input
-              type="email"
+              type="text"
+              inputMode="email"
               value={gmailTo}
               onChange={(e) => setGmailTo(e.target.value)}
-              placeholder="cliente@ejemplo.com"
+              placeholder="cliente@ejemplo.com, otro@ejemplo.com"
               style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem" }}
             />
+            {gmailTo.trim() && gmailRecipients.error ? (
+              <span style={{ color: "#dc2626", fontSize: "0.8125rem" }}>{gmailRecipients.error}</span>
+            ) : null}
           </label>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
             Mensaje (opcional)
@@ -1296,7 +1310,7 @@ export function HistoryPage() {
             </Button>
             <Button
               type="button"
-              disabled={!gmailTo.trim() || gmailSendMutation.isPending}
+              disabled={!hasSendableRecipients(gmailRecipients) || gmailSendMutation.isPending}
               onClick={() => gmailSendMutation.mutate()}
             >
               {gmailSendMutation.isPending ? "Enviando..." : "Enviar"}

@@ -1,56 +1,68 @@
 import { describe, expect, it } from "vitest";
 
 import { calculateTotals } from "@/domain/document/calculateTotals";
-import { createEmptyDocument } from "@/domain/document/defaults";
+import type { InvoiceDocument } from "@/domain/document/types";
 
-function baseDoc() {
-  const doc = createEmptyDocument();
-  doc.items = [
-    { concept: "Servicio", description: "", quantity: 2, unitPrice: 50, unitLabel: "" },
-  ];
-  doc.taxRate = 7;
-  doc.withholdingRate = 0;
-  return doc;
+const base = {
+  totalsBasis: "items" as const,
+  taxRate: 7,
+  withholdingRate: 15 as const,
+  manualGrossSubtotal: 0,
+};
+
+function build(overrides: Partial<InvoiceDocument>): InvoiceDocument {
+  return {
+    ...(overrides as InvoiceDocument),
+    items: overrides.items ?? [],
+  } as InvoiceDocument;
 }
 
 describe("calculateTotals", () => {
-  it("suma las líneas en modo por concepto", () => {
-    const totals = calculateTotals(baseDoc());
-    expect(totals.subtotal).toBe(100);
-    expect(totals.taxAmount).toBe(7);
-    expect(totals.total).toBe(107);
+  it("suma líneas con cantidad y precio", () => {
+    const totals = calculateTotals(
+      build({
+        ...base,
+        items: [
+          { concept: "Uno", description: "", quantity: 2, unitPrice: 100 },
+          { concept: "Dos", description: "", quantity: 1, unitPrice: 50 },
+        ],
+      }),
+    );
+    expect(totals.subtotal).toBe(250);
+    expect(totals.taxAmount).toBe(17.5);
+    expect(totals.withholdingAmount).toBe(37.5);
+    expect(totals.total).toBe(230);
   });
 
-  it("usa el importe bruto manual en modo bruto e ignora las líneas para el cálculo", () => {
-    const doc = baseDoc();
-    doc.totalsBasis = "gross";
-    doc.manualGrossSubtotal = 200;
-    doc.withholdingRate = 15;
-
-    const totals = calculateTotals(doc);
-    expect(totals.subtotal).toBe(200);
-    expect(totals.taxAmount).toBe(14);
-    expect(totals.withholdingAmount).toBe(30);
-    expect(totals.total).toBe(184);
-    // Las líneas se conservan como detalle para la vista previa.
-    expect(totals.items).toHaveLength(1);
+  it("en modo por bruto usa el importe manual aunque las líneas no tengan cifras", () => {
+    const totals = calculateTotals(
+      build({
+        ...base,
+        totalsBasis: "gross",
+        manualGrossSubtotal: 1000,
+        items: [
+          { concept: "Solo concepto", description: "", quantity: 1, unitPrice: 0 },
+          { concept: "Otro concepto", description: "con detalle", quantity: 1, unitPrice: 0 },
+        ],
+      }),
+    );
+    expect(totals.subtotal).toBe(1000);
+    expect(totals.taxAmount).toBe(70);
+    expect(totals.withholdingAmount).toBe(150);
+    expect(totals.total).toBe(920);
+    expect(totals.items.every((item) => item.total === 0)).toBe(true);
   });
 
-  it("si el modo bruto está a 0, cae de nuevo a la suma de líneas", () => {
-    const doc = baseDoc();
-    doc.totalsBasis = "gross";
-    doc.manualGrossSubtotal = 0;
-
-    const totals = calculateTotals(doc);
-    expect(totals.subtotal).toBe(100);
-    expect(totals.total).toBe(107);
-  });
-
-  it("admite el importe bruto vacío como 0", () => {
-    const doc = baseDoc();
-    doc.totalsBasis = "gross";
-
-    const totals = calculateTotals({ ...doc, manualGrossSubtotal: "" });
-    expect(totals.subtotal).toBe(100);
+  it("en modo por bruto sin importe manual cae en la suma de líneas", () => {
+    const totals = calculateTotals(
+      build({
+        ...base,
+        totalsBasis: "gross",
+        manualGrossSubtotal: 0,
+        items: [{ concept: "Solo concepto", description: "", quantity: 1, unitPrice: 0 }],
+      }),
+    );
+    expect(totals.subtotal).toBe(0);
+    expect(totals.total).toBe(0);
   });
 });

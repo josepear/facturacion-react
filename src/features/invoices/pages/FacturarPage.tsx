@@ -12,6 +12,7 @@ import { InvoiceItemsTable } from "@/features/invoices/components/InvoiceItemsTa
 import { InvoiceTotalsPanel } from "@/features/invoices/components/InvoiceTotalsPanel";
 import { WorkflowModule } from "@/features/invoices/components/WorkflowModule";
 import { useFacturarForm } from "@/features/invoices/hooks/useFacturarForm";
+import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
 import {
   FACTURAR_CLIENT_HISTORY_EMPTY_LIST,
   FACTURAR_CLIENT_HISTORY_NEED_CONFIRM,
@@ -22,6 +23,7 @@ import { PageHeader } from "@/features/shared/components/PageHeader";
 import { InfoCallout } from "@/components/ui/info-callout";
 import { SectionTitle } from "@/components/ui/section-title";
 import { Select } from "@/components/ui/select";
+import { hasSendableRecipients, parseRecipientList } from "@/features/shared/lib/emailRecipients";
 import { isTemplateProfileInScope } from "@/features/shared/lib/sessionScope";
 import { CLOSE, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
@@ -132,6 +134,10 @@ export function FacturarPage() {
     isDirty,
     sessionScope,
     sessionScopePending,
+    draftMeta,
+    draftRestored,
+    restoreDraft,
+    discardDraft,
   } = useFacturarForm(initialRecordId, initialTemplateProfileId, initialDuplicateFromRecordId);
 
   const autoOpenModuleId = useMemo(
@@ -244,6 +250,8 @@ export function FacturarPage() {
     getValues,
     formState: { errors, isSubmitting },
   } = form;
+  const typeWatched = watch("type");
+  const docLabels = getDocLabels(typeWatched);
   const taxRateWatched = watch("taxRate");
   const withholdingRateWatched = watch("withholdingRate");
   const templateProfileIdWatched = watch("templateProfileId");
@@ -288,6 +296,7 @@ export function FacturarPage() {
 
   const [gmailDialog, setGmailDialog] = useState(false);
   const [gmailTo, setGmailTo] = useState("");
+  const gmailRecipients = useMemo(() => parseRecipientList(gmailTo), [gmailTo]);
   const [gmailBodyText, setGmailBodyText] = useState("");
   const [gmailSentMessage, setGmailSentMessage] = useState("");
   const [gmailAuthError, setGmailAuthError] = useState("");
@@ -418,11 +427,11 @@ export function FacturarPage() {
       sendGmailInvoice({
         recordId: serverRecordId,
         templateProfileId: templateProfileIdForGmail,
-        to: gmailTo,
+        to: gmailRecipients.normalized,
         bodyText: gmailBodyText || undefined,
       }),
     onSuccess: async () => {
-      setGmailSentMessage("Factura enviada por Gmail.");
+      setGmailSentMessage(docLabels.gmailSentMessage);
       setGmailDialog(false);
       await queryClient.invalidateQueries({ queryKey: ["gmail-status", templateProfileIdForGmail] });
     },
@@ -524,6 +533,32 @@ export function FacturarPage() {
         Tenant: <span className="font-medium text-foreground">{sessionScope.tenantId || "-"}</span> · Emisores visibles:{" "}
         <span className="font-medium text-foreground">{sessionScope.visibleTemplateProfileIds.length}</span>
       </p>
+
+      {/* Banner de borrador guardado */}
+      {draftMeta && !draftRestored && !initialRecordId ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+          <span className="flex-1 text-amber-900 dark:text-amber-200">
+            Hay un borrador guardado
+            {draftMeta.type ? ` (${draftMeta.type})` : ""}
+            {draftMeta.clientName ? ` · ${draftMeta.clientName}` : ""}
+            {draftMeta.number ? ` · Nº ${draftMeta.number}` : ""}
+            {draftMeta.savedAt
+              ? ` · ${new Date(draftMeta.savedAt).toLocaleString("es-ES", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+              : ""}
+          </span>
+          <Button type="button" variant="outline" size="sm" onClick={restoreDraft}>
+            Recuperar borrador
+          </Button>
+          <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={discardDraft}>
+            Descartar
+          </Button>
+        </div>
+      ) : null}
+      {draftRestored ? (
+        <p className="text-xs text-muted-foreground">
+          Borrador recuperado. Los cambios se guardan automáticamente.
+        </p>
+      ) : null}
 
       <form
         className="grid min-w-0 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
@@ -685,7 +720,7 @@ export function FacturarPage() {
               </Field>
               <Field label="Número">
                 <>
-                  <Input placeholder="Número factura" {...register("number")} />
+                  <Input placeholder={docLabels.numberPlaceholder} {...register("number")} />
                   {numberConflict ? (
                     <p className="mt-0.5 text-xs text-warning">
                       Este número ya está en uso
@@ -973,6 +1008,7 @@ export function FacturarPage() {
                   <InvoicePreviewListTrigger
                     recordId={String(serverRecordId || "").trim()}
                     label={String(watch("number") || "").trim() || undefined}
+                    docType={typeWatched}
                   />
                 </div>
               ) : (
@@ -982,7 +1018,7 @@ export function FacturarPage() {
               )}
               <Field
                 label="Modo cálculo conceptos"
-                hint="'Por concepto' suma las líneas. 'Por bruto' usa el importe bruto que indiques; las líneas siguen saliendo en la vista previa como detalle."
+                hint="«Por concepto» suma cantidad × precio de cada línea. «Por bruto» usa el importe bruto manual: escribe solo los conceptos y las cifras por línea no se usan."
               >
                 <Select
                   className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -994,24 +1030,15 @@ export function FacturarPage() {
               </Field>
               {liveDocument.totalsBasis === "gross" ? (
                 <Field
-                  label="Importe bruto (base imponible)"
-                  hint="Si lo dejas a 0, el total se calcula sumando las líneas. Con una cifra, IGIC e IRPF se aplican sobre ella."
+                  label="Importe bruto (base)"
+                  hint="IGIC e IRPF se calculan sobre este importe. El neto se muestra en Fiscalidad y en la vista previa."
                 >
                   <Input
                     type="number"
                     step="0.01"
-                    min="0"
-                    inputMode="decimal"
-                    className="max-w-md"
-                    {...register("manualGrossSubtotal", {
-                      setValueAs: (value) => {
-                        if (value === "" || value === null || value === undefined) {
-                          return 0;
-                        }
-                        const parsed = Number(value);
-                        return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-                      },
-                    })}
+                    min={0}
+                    className="h-10 w-full max-w-[12rem]"
+                    {...register("manualGrossSubtotal", { valueAsNumber: true })}
                   />
                 </Field>
               ) : null}
@@ -1136,7 +1163,7 @@ export function FacturarPage() {
                                 {row.totalAmount !== null ? formatCurrency(row.totalAmount) : "—"}
                               </td>
                               <td className="p-1 text-center align-middle">
-                                <InvoicePreviewListTrigger recordId={row.recordId} label={row.label} />
+                                <InvoicePreviewListTrigger recordId={row.recordId} label={row.label} docType={row.type} />
                               </td>
                               <td className={cn(workbookDataTdTight, "pr-3")}>
                                 <Button
@@ -1207,7 +1234,7 @@ export function FacturarPage() {
                     </p>
                   ) : null}
                   <p className="text-pretty text-sm text-informative sm:max-w-xl sm:text-right">
-                    Revise la factura en la vista previa HTML antes de guardar (panel de previsualización del documento).
+                    {docLabels.reviewHint}
                   </p>
                   <div className="flex flex-wrap gap-2 sm:justify-end">
                     <Button
@@ -1228,7 +1255,7 @@ export function FacturarPage() {
                     </Button>
                     {hasLastSetup ? (
                       <Button type="button" variant="outline" onClick={repeatLastSetup}>
-                        Repetir última factura
+                        {docLabels.repeatLast}
                       </Button>
                     ) : null}
                     {canOpenOfficialOutput ? (
@@ -1320,7 +1347,7 @@ export function FacturarPage() {
           </div>
         </div>
 
-        <div className="order-first flex min-h-0 flex-col gap-4 lg:order-none lg:sticky lg:top-4 lg:max-h-[calc(100dvh-1.5rem)] lg:overflow-y-auto lg:min-w-0">
+        <div className="order-first flex w-full min-w-0 min-h-0 flex-col gap-4 lg:order-none lg:sticky lg:top-4 lg:max-h-[calc(100dvh-1.5rem)] lg:overflow-y-auto lg:min-w-0">
           <FacturarLegacyHtmlPane
             liveDocument={liveDocument}
             serverRecordId={serverRecordId.trim()}
@@ -1340,17 +1367,21 @@ export function FacturarPage() {
         onClose={() => setGmailDialog(false)}
         style={{ borderRadius: 8, padding: 24, maxWidth: 480, width: "90vw", border: "1px solid #ccc" }}
       >
-        <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>Enviar factura por Gmail</SectionTitle>
+        <SectionTitle style={{ margin: "0 0 16px", fontSize: "1rem", fontWeight: 600 }}>{docLabels.gmailDialogTitle}</SectionTitle>
         <div style={{ display: "grid", gap: 12 }}>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
-            Para (email)
+            Para (uno o varios, separados por comas)
             <input
-              type="email"
+              type="text"
+              inputMode="email"
               value={gmailTo}
               onChange={(e) => setGmailTo(e.target.value)}
-              placeholder="cliente@ejemplo.com"
+              placeholder="cliente@ejemplo.com, otro@ejemplo.com"
               style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: "0.875rem" }}
             />
+            {gmailTo.trim() && gmailRecipients.error ? (
+              <span style={{ color: "#dc2626", fontSize: "0.8125rem" }}>{gmailRecipients.error}</span>
+            ) : null}
           </label>
           <label style={{ display: "grid", gap: 4, fontSize: "0.875rem" }}>
             Mensaje (opcional)
@@ -1379,7 +1410,7 @@ export function FacturarPage() {
             </Button>
             <Button
               type="button"
-              disabled={!gmailTo.trim() || gmailSendMutation.isPending}
+              disabled={!hasSendableRecipients(gmailRecipients) || gmailSendMutation.isPending}
               onClick={() => gmailSendMutation.mutate()}
             >
               {gmailSendMutation.isPending ? "Enviando..." : "Enviar"}

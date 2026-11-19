@@ -60,6 +60,9 @@ export function FacturarSaveSummary({ document, profileLabel, lineTotals }: Fact
           <Row label="Cálculo conceptos">
             {document.totalsBasis === "gross" ? "Por bruto (importe manual)" : "Por líneas"}
           </Row>
+          {document.totalsBasis === "gross" ? (
+            <Row label="Importe bruto">{formatCurrency(Number(document.manualGrossSubtotal || 0))}</Row>
+          ) : null}
         </div>
 
         <div className="space-y-2 border-b border-border pb-3">
@@ -93,7 +96,9 @@ export function FacturarSaveSummary({ document, profileLabel, lineTotals }: Fact
                 return (
                   <li key={`${title}-${index}`} className="flex flex-wrap justify-between gap-2 text-sm">
                     <span className="min-w-0 flex-1 break-words">{title}</span>
-                    <span className="shrink-0 tabular-nums">{formatCurrency(line.total)}</span>
+                    <span className="shrink-0 tabular-nums">
+                      {document.totalsBasis === "gross" ? "—" : formatCurrency(line.total)}
+                    </span>
                   </li>
                 );
               })}

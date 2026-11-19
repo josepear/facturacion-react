@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { ExpenseRecord } from "@/domain/expenses/types";
+import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
 import { ExpenseRecordPreviewModal } from "@/features/shared/components/ExpenseRecordPreviewModal";
 import { InvoiceHtmlPreviewModal } from "@/features/shared/components/InvoiceHtmlPreviewModal";
 import { cn } from "@/lib/utils";
@@ -12,10 +13,12 @@ export type InvoicePreviewListTriggerProps = {
   /** Número o etiqueta corta para accesibilidad y subtítulo del modal. */
   label?: string;
   className?: string;
+  /** Tipo de documento para adaptar el aria-label. */
+  docType?: string;
 };
 
 /** Icono «ojo»: abre modal con HTML oficial / vista previa de la factura o presupuesto. */
-export function InvoicePreviewListTrigger({ recordId, label, className }: InvoicePreviewListTriggerProps) {
+export function InvoicePreviewListTrigger({ recordId, label, className, docType }: InvoicePreviewListTriggerProps) {
   const [open, setOpen] = useState(false);
   const id = String(recordId || "").trim();
   if (!id) {
@@ -33,7 +36,7 @@ export function InvoicePreviewListTrigger({ recordId, label, className }: Invoic
           e.stopPropagation();
           setOpen(true);
         }}
-        aria-label={`Vista previa de la factura ${label || id}`}
+        aria-label={getDocLabels(docType || "").previewLabel(label || id)}
       >
         <Eye className="h-4 w-4" />
       </Button>

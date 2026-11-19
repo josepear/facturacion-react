@@ -1,4 +1,4 @@
-import { Trash2 } from "lucide-react";
+import { BookOpen, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { Control, FieldErrors, UseFormGetValues, UseFormRegister, UseFormSetValue } from "react-hook-form";
 import { useWatch } from "react-hook-form";
@@ -13,6 +13,8 @@ import {
 } from "@/domain/document/perPersonPricing";
 import type { InvoiceDocument } from "@/domain/document/types";
 import { formatCurrency } from "@/lib/utils";
+import { ConceptLibraryDialog } from "@/features/invoices/components/ConceptLibraryDialog";
+import type { LibraryConcept } from "@/features/invoices/lib/conceptLibrary";
 
 type SimpleInvoiceItem = {
   concept: string;
@@ -152,10 +154,46 @@ export function InvoiceItemsTable({
 }: InvoiceItemsTableProps) {
   const items = useWatch({ control, name: "items" }) ?? [];
   const [expandedIndexState, setExpandedIndex] = useState(0);
+  /** Modo por bruto: las líneas son solo texto (sin cantidad/precio/importe). */
+  const isManualGrossMode = totalsBasis === "gross";
+  const expandedIndex = itemCount <= 0 ? 0 : Math.min(expandedIndexState, itemCount - 1);
   const [bulkText, setBulkText] = useState("");
   const [bulkFeedback, setBulkFeedback] = useState("");
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryManageOpen, setLibraryManageOpen] = useState(false);
+  /** Índice donde insertar el concepto elegido de la biblioteca (-1 = al final). */
+  const [libraryInsertAfterIndex, setLibraryInsertAfterIndex] = useState(-1);
 
-  const expandedIndex = itemCount <= 0 ? 0 : Math.min(expandedIndexState, itemCount - 1);
+  function handlePickConcept(concept: LibraryConcept) {
+    const newItem: SimpleInvoiceItem = {
+      concept: concept.concept,
+      description: concept.description,
+      quantity: 1,
+      unitPrice: concept.unitPrice ?? 0,
+      unitLabel: "",
+      hidePerPersonSubtotalInBudget: false,
+    };
+    if (libraryInsertAfterIndex >= 0) {
+      // Reemplazar la línea actual si está vacía, o insertar después
+      const current = items[libraryInsertAfterIndex];
+      const isEmpty = !current?.concept?.trim() && !current?.description?.trim() && (current?.unitPrice ?? 0) === 0;
+      if (isEmpty) {
+        setValue(`items.${libraryInsertAfterIndex}.concept`, newItem.concept, { shouldDirty: true });
+        setValue(`items.${libraryInsertAfterIndex}.description`, newItem.description, { shouldDirty: true });
+        setValue(`items.${libraryInsertAfterIndex}.unitPrice`, newItem.unitPrice, { shouldDirty: true });
+        return;
+      }
+    }
+    onBulkImport([...items.map((it) => ({
+      concept: it?.concept ?? "",
+      description: it?.description ?? "",
+      quantity: it?.quantity ?? 1,
+      unitPrice: it?.unitPrice ?? 0,
+      unitLabel: it?.unitLabel ?? "",
+      hidePerPersonSubtotalInBudget: it?.hidePerPersonSubtotalInBudget ?? false,
+    })), newItem]);
+    setExpandedIndex(items.length);
+  }
 
   function handleAddItemAfter(index: number) {
     onAddItem(index);
@@ -204,26 +242,51 @@ export function InvoiceItemsTable({
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold">Lineas</h2>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            onAddItem(itemCount - 1);
-            setExpandedIndex(itemCount);
-          }}
-        >
-          Anadir linea
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => {
+              setLibraryInsertAfterIndex(-1);
+              setLibraryOpen(true);
+            }}
+          >
+            <BookOpen className="h-4 w-4" /> Biblioteca
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-xs text-muted-foreground"
+            onClick={() => setLibraryManageOpen(true)}
+          >
+            Gestionar
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              onAddItem(itemCount - 1);
+              setExpandedIndex(itemCount);
+            }}
+          >
+            Anadir linea
+          </Button>
+        </div>
       </div>
 
       <div className="mb-1 hidden gap-3 px-1 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-12 sm:items-end">
-        <div className="sm:col-span-5">Concepto</div>
-        <div className="sm:col-span-2">Comensales</div>
-        <div className="sm:col-span-2">EUR x persona</div>
-        <div className="sm:col-span-2 text-right">Total linea</div>
-        <div className="sm:col-span-1" aria-hidden />
+        <div className={isManualGrossMode ? "sm:col-span-11" : "sm:col-span-5"}>Concepto</div>
+        {isManualGrossMode ? null : (
+          <>
+            <div className="sm:col-span-2">Comensales</div>
+            <div className="sm:col-span-2">EUR x persona</div>
+            <div className="sm:col-span-2 text-right">Total linea</div>
+            <div className="sm:col-span-1" aria-hidden />
+          </>
+        )}
       </div>
 
       {Array.from({ length: itemCount }).map((_, index) => {
@@ -259,7 +322,7 @@ export function InvoiceItemsTable({
                 <span className="truncate text-sm font-medium">{conceptLabel}</span>
               </button>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="hidden sm:inline">Total linea: {lineTotalLabel}</span>
+                {isManualGrossMode ? null : <span className="hidden sm:inline">Total linea: {lineTotalLabel}</span>}
                 <Button
                   type="button"
                   variant="ghost"
@@ -288,7 +351,22 @@ export function InvoiceItemsTable({
                   <div className="sm:col-span-5">
                     <label className="grid gap-1 text-xs">
                       <span className="sm:sr-only">Concepto</span>
-                      <Input placeholder="Servicio" {...register(`items.${index}.concept`)} />
+                      <div className="flex gap-1">
+                        <Input className="min-w-0 flex-1" placeholder="Servicio" {...register(`items.${index}.concept`)} />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-10 w-10 shrink-0 text-muted-foreground hover:text-foreground"
+                          title="Elegir de la biblioteca"
+                          onClick={() => {
+                            setLibraryInsertAfterIndex(index);
+                            setLibraryOpen(true);
+                          }}
+                        >
+                          <BookOpen className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </label>
                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
                       <label className="flex cursor-pointer items-center gap-2 text-xs">
@@ -335,6 +413,7 @@ export function InvoiceItemsTable({
                     </div>
                     {perPersonHint ? <p className="mt-1 text-xs text-muted-foreground">{perPersonHint}</p> : null}
                   </div>
+                  {isManualGrossMode ? null : (
                   <div className="sm:col-span-2">
                     <label className="grid gap-1 text-xs">
                       <span className="sm:sr-only">{isPerPerson ? "Comensales" : "Cant."}</span>
@@ -359,12 +438,16 @@ export function InvoiceItemsTable({
                       />
                     </label>
                   </div>
+                  )}
+                  {isManualGrossMode ? null : (
                   <div className="sm:col-span-2">
                     <label className="grid gap-1 text-xs">
                       <span className="sm:sr-only">{isPerPerson ? "EUR x persona" : "Precio"}</span>
                       <Input type="number" step="0.01" {...register(`items.${index}.unitPrice`, { valueAsNumber: true })} />
                     </label>
                   </div>
+                  )}
+                  {isManualGrossMode ? null : (
                   <div className="sm:col-span-2">
                     <label className="grid gap-1 text-xs">
                       <span className="sm:sr-only">Total linea</span>
@@ -385,6 +468,7 @@ export function InvoiceItemsTable({
                       />
                     </label>
                   </div>
+                  )}
                   <div className="flex sm:col-span-1 sm:justify-end">
                     <span className="text-xs text-muted-foreground">Linea {index + 1}</span>
                   </div>
@@ -394,7 +478,9 @@ export function InvoiceItemsTable({
                   <Textarea placeholder="Detalle del concepto" rows={3} {...register(`items.${index}.description`)} />
                 </label>
                 <p className="text-informative text-sm">
-                  Si informas total manual, prevalece sobre cantidad x precio.
+                  {isManualGrossMode
+                    ? "Modo por bruto: escribe solo el concepto. El importe se indica en «Importe bruto (base)»."
+                    : "Si informas total manual, prevalece sobre cantidad x precio."}
                 </p>
               </>
             )}
@@ -403,12 +489,19 @@ export function InvoiceItemsTable({
       })}
 
       {errors.items?.message ? <p className="text-sm text-red-600">{errors.items.message}</p> : null}
-      {totalsBasis === "gross" ? (
-        <p className="text-informative">
-          En modo bruto, si indicas un importe manual se usa para los totales; estas líneas siguen saliendo en la vista
-          previa como detalle.
-        </p>
-      ) : null}
+
+
+      <ConceptLibraryDialog
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        mode="pick"
+        onPickConcept={handlePickConcept}
+      />
+      <ConceptLibraryDialog
+        open={libraryManageOpen}
+        onClose={() => setLibraryManageOpen(false)}
+        mode="manage"
+      />
     </section>
   );
 }

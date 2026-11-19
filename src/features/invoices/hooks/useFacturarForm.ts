@@ -19,6 +19,8 @@ import { getAuthToken } from "@/infrastructure/api/httpClient";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { fetchDocumentDetail, fetchRuntimeConfig, saveDocument } from "@/infrastructure/api/documentsApi";
+import { getDocLabels } from "@/features/invoices/lib/docTypeLabels";
+import { clearDraft, loadDraft, loadDraftMeta, saveDraft, type DraftMeta } from "@/features/invoices/lib/draftStorage";
 import {
   openOfficialDocumentInNewTab,
   type OfficialDocumentOutputKind,
@@ -108,7 +110,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
   const bootstrappedDuplicateFromRef = useRef("");
   const duplicatedFromRef = useRef(false);
   const lastSavedSnapshotRef = useRef<InvoiceDocument | null>(null);
-  const previousTotalsBasisRef = useRef<InvoiceDocument["totalsBasis"] | undefined>(undefined);
 
   const form = useForm<InvoiceDocument>({
     resolver: zodResolver(invoiceDocumentSchema),
@@ -170,15 +171,6 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
 
   const watched = useWatch({ control: form.control });
   const { dirtyFields } = useFormState({ control: form.control });
-
-  useEffect(() => {
-    const b = watched.totalsBasis === "gross" ? "gross" : "items";
-    const prev = previousTotalsBasisRef.current;
-    previousTotalsBasisRef.current = b;
-    if (prev !== undefined && b === "gross" && prev !== "gross") {
-      form.setValue("manualGrossSubtotal", 0, { shouldDirty: true, shouldValidate: true });
-    }
-  }, [watched.totalsBasis, form]);
 
   useEffect(() => {
     if (String(serverRecordId || "").trim()) {
@@ -250,6 +242,70 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     () => applyTotals(mapLegacyDocumentToForm(watched)),
     [watched],
   );
+
+  // ── Borrador: auto-guardado cada 5 s si hay contenido ──
+  const [draftMeta, setDraftMeta] = useState<DraftMeta | null>(() => loadDraftMeta());
+  const [draftRestored, setDraftRestored] = useState(false);
+  const draftAutoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    draftAutoSaveRef.current = setInterval(() => {
+      try {
+        const vals = form.getValues();
+        // Solo guardar si hay algo mínimo (tipo o algún concepto)
+        const hasContent =
+          Boolean(vals.type) ||
+          Boolean(vals.client?.name?.trim()) ||
+          (Array.isArray(vals.items) && vals.items.some((it) => String(it.concept || it.description || "").trim()));
+        if (!hasContent) {
+          return;
+        }
+        const doc = applyTotals(mapFormToLegacyDocument(vals as InvoiceDocument));
+        saveDraft(doc);
+        setDraftMeta(loadDraftMeta());
+      } catch {
+        // Borrador incompleto (p. ej. falta el estado contable): se reintenta
+        // en el siguiente ciclo sin lanzar errores en consola.
+      }
+    }, 5000);
+    return () => {
+      if (draftAutoSaveRef.current) clearInterval(draftAutoSaveRef.current);
+    };
+  }, [form]);
+
+  /** Restaurar borrador guardado. */
+  const restoreDraft = useCallback(() => {
+    const saved = loadDraft();
+    if (!saved) return;
+    const mapped = applyTotals(mapLegacyDocumentToForm(saved.document));
+    form.reset(mapped);
+    // reset() limpia dirtyFields: el efecto de auto-numerado creería que el
+    // número no se ha tocado y lo sustituiría por el siguiente. Si el borrador
+    // ya trae número, se marca como tocado para conservarlo; si viene vacío se
+    // deja que el servidor sugiera uno.
+    const restoredNumber = String(mapped.number || "").trim();
+    if (restoredNumber) {
+      form.setValue("number", restoredNumber, { shouldDirty: true, shouldValidate: true });
+    }
+    setServerRecordId("");
+    lastSavedSnapshotRef.current = null;
+    setDraftRestored(true);
+    // Marcar opciones si tiene datos
+    if (mapped.client?.name?.trim()) {
+      setClientModuleConfirmed(true);
+    }
+    if (mapped.withholdingRate !== undefined) {
+      setFiscalIrpfChoiceAcknowledged(true);
+    }
+  }, [form]);
+
+  /** Descartar borrador. */
+  const discardDraft = useCallback(() => {
+    clearDraft();
+    setDraftMeta(null);
+    setDraftRestored(false);
+  }, []);
+
   const totals = useMemo(
     () =>
       calculateTotals({
@@ -384,6 +440,13 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     const hasClientName = Boolean(String(watched.client?.name || "").trim());
     const clientComplete = hasClientName;
 
+    const manualGross = Number(watched.manualGrossSubtotal ?? 0);
+    const isManualGrossMode = watched.totalsBasis === "gross" && manualGross > 0;
+
+    const hasConceptText = (watched.items ?? []).some((item) =>
+      Boolean(String(item.description || item.concept || "").trim()),
+    );
+
     const hasValidConceptLine = (watched.items ?? []).some((item) => {
       const description = String(item.description || item.concept || "").trim();
       const quantity = Number(item.quantity ?? 0);
@@ -399,7 +462,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
         lineAmount > 0,
       );
     });
-    const conceptsComplete = hasValidConceptLine;
+    // En modo por bruto basta un concepto: el importe va en el bruto manual.
+    const conceptsComplete = isManualGrossMode ? hasConceptText : hasValidConceptLine;
 
     const taxRateNumber = Number(watched.taxRate ?? 0);
     const taxRateValid = Number.isFinite(taxRateNumber) && taxRateNumber >= 0;
@@ -431,8 +495,12 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       concepts: {
         complete: conceptsComplete,
         tip: conceptsComplete
-          ? "Conceptos listos (hay al menos una línea con descripción e importe válido)."
-          : "Añade al menos una línea con descripción e importe válido.",
+          ? isManualGrossMode
+            ? "Conceptos listos (modo por bruto: el importe va en el bruto manual)."
+            : "Conceptos listos (hay al menos una línea con descripción e importe válido)."
+          : isManualGrossMode
+            ? "Escribe al menos un concepto."
+            : "Añade al menos una línea con descripción e importe válido.",
       },
       fiscal: {
         complete: fiscalComplete,
@@ -458,6 +526,8 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     watched.items,
     watched.number,
     watched.taxRate,
+    watched.totalsBasis,
+    watched.manualGrossSubtotal,
     watched.templateProfileId,
     watched.templateLayout,
     clientHistoryOptions.length,
@@ -704,8 +774,15 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       if (!normalized.client.name.trim()) {
         throw new Error("Cliente obligatorio.");
       }
-      if (
-        !normalized.items.some((item) => {
+      const usesManualGross =
+        normalized.totalsBasis === "gross" && Number(normalized.manualGrossSubtotal ?? 0) > 0;
+
+      if (!normalized.items.some((item) => String(item.description || item.concept || "").trim())) {
+        throw new Error("Añade al menos una línea con concepto o descripción.");
+      }
+
+      if (!usesManualGross) {
+        const hasAmountLine = normalized.items.some((item) => {
           const description = String(item.description || item.concept || "").trim();
           const quantity = Number(item.quantity ?? 0);
           const unitPrice = Number(item.unitPrice ?? 0);
@@ -719,9 +796,10 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
             Number.isFinite(lineAmount) &&
             lineAmount > 0,
           );
-        })
-      ) {
-        throw new Error("Añade al menos una línea con descripción e importe válido.");
+        });
+        if (!hasAmountLine) {
+          throw new Error("Añade al menos una línea con descripción e importe válido, o usa el modo por bruto con un importe manual.");
+        }
       }
       if (!totalsAreConsistent(normalized, calculateTotals(normalized))) {
         throw new Error("Los totales no son coherentes. Revisa líneas e impuestos.");
@@ -746,6 +824,9 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
       setFiscalIrpfChoiceAcknowledged(true);
       setClientModuleConfirmed(true);
       setWorkflowLayoutResetVersion((v) => v + 1);
+      // Limpiar borrador tras guardado exitoso
+      clearDraft();
+      setDraftMeta(null);
     },
   });
 
@@ -993,7 +1074,7 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     form.reset(copy);
     setFiscalIrpfChoiceAcknowledged(true);
     setClientModuleConfirmed(true);
-    setNumberAvailabilityText("Factura repetitiva lista. Revisa y guarda.");
+    setNumberAvailabilityText(getDocLabels(snap.type).repeatReady);
     setNumberAvailabilityTone("neutral");
   };
 
@@ -1054,5 +1135,10 @@ export function useFacturarForm(initialRecordId?: string, initialTemplateProfile
     isDirty: form.formState.isDirty,
     sessionScope,
     sessionScopePending,
+    // Borradores
+    draftMeta,
+    draftRestored,
+    restoreDraft,
+    discardDraft,
   };
 }

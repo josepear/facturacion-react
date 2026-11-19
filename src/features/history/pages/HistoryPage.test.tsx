@@ -168,7 +168,7 @@ describe("HistoryPage regression", () => {
       expect(fetchDocumentDetailMock).toHaveBeenCalledWith("docs/b.json");
     });
 
-    await userEvent.click(screen.getByRole("button", { name: "Editar en Facturar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Editar factura" }));
     expect(navigateMock).toHaveBeenCalledWith("/facturar?recordId=docs%2Fb.json");
 
     await userEvent.click(screen.getByRole("button", { name: "Archivar documento" }));
