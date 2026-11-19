@@ -878,7 +878,7 @@ export function HistoryPage() {
                     return (
                       <li
                         key={item.recordId}
-                        className={`flex${item.type === "presupuesto" ? " bg-sky-50 dark:bg-sky-950/30" : ""}`}
+                        className={`flex${item.type === "presupuesto" ? " bg-[#FFF176] dark:bg-[#FFF176]/15" : ""}`}
                       >
                         {item.type === "factura" ? (
                           <div
