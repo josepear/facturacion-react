@@ -14,6 +14,7 @@ export function mapHistoryInvoiceDtoToDomain(dto: HistoryInvoiceDto): HistoryInv
     status: dto.status,
     templateProfileId: dto.templateProfileId,
     templateProfileLabel: dto.templateProfileLabel,
+    gmailLastSend: dto.gmailLastSend ?? null,
   };
 }
 

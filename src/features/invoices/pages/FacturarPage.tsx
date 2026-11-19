@@ -24,6 +24,7 @@ import { InfoCallout } from "@/components/ui/info-callout";
 import { SectionTitle } from "@/components/ui/section-title";
 import { Select } from "@/components/ui/select";
 import { hasSendableRecipients, parseRecipientList } from "@/features/shared/lib/emailRecipients";
+import { describeEmailSend } from "@/features/shared/lib/emailSendRecord";
 import { isTemplateProfileInScope } from "@/features/shared/lib/sessionScope";
 import { CLOSE, SAVE, savePending } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
@@ -430,10 +431,14 @@ export function FacturarPage() {
         to: gmailRecipients.normalized,
         bodyText: gmailBodyText || undefined,
       }),
-    onSuccess: async () => {
-      setGmailSentMessage(docLabels.gmailSentMessage);
+    onSuccess: async (data) => {
+      setGmailSentMessage(describeEmailSend(data.gmailLastSend) || docLabels.gmailSentMessage);
       setGmailDialog(false);
-      await queryClient.invalidateQueries({ queryKey: ["gmail-status", templateProfileIdForGmail] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["gmail-status", templateProfileIdForGmail] }),
+        queryClient.invalidateQueries({ queryKey: ["history-invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["document-detail"] }),
+      ]);
     },
     onError: (err) => {
       setGmailSentMessage(getErrorMessageFromUnknown(err));

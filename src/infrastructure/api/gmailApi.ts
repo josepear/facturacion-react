@@ -1,4 +1,5 @@
 import { request } from "@/infrastructure/api/httpClient";
+import type { EmailSendRecord } from "@/domain/history/types";
 
 /** El POST `/api/gmail/send-invoice` solo acepta rutas que terminen en `.json`. */
 export function normalizeGmailRecordId(recordId: string): string {
@@ -22,6 +23,9 @@ export type GmailStatusResponse = {
 export type GmailSendResponse = {
   ok: boolean;
   sent?: unknown[];
+  messageId?: string;
+  recordIds?: string[];
+  gmailLastSend?: EmailSendRecord;
 };
 
 export function fetchGmailStatus(templateProfileId: string): Promise<GmailStatusResponse> {

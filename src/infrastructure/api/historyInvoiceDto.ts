@@ -1,4 +1,6 @@
 /** Payload wire para GET `/api/history` (elementos del listado). */
+import type { EmailSendRecord } from "@/domain/history/types";
+
 export type HistoryInvoiceDto = {
   recordId: string;
   type: "factura" | "presupuesto";
@@ -11,6 +13,7 @@ export type HistoryInvoiceDto = {
   status: string;
   templateProfileId: string;
   templateProfileLabel: string;
+  gmailLastSend?: EmailSendRecord | null;
 };
 
 export type HistoryInvoicesResponseDto = {

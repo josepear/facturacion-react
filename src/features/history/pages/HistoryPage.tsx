@@ -19,6 +19,7 @@ import { CLOSE } from "@/features/shared/lib/uiActionCopy";
 import { InvoicePreviewListTrigger } from "@/features/shared/components/RecordListPreviewTriggers";
 import { useSessionQuery } from "@/features/shared/hooks/useSessionQuery";
 import { hasSendableRecipients, parseRecipientList } from "@/features/shared/lib/emailRecipients";
+import { describeEmailSend, formatEmailSentAt } from "@/features/shared/lib/emailSendRecord";
 import { isTemplateProfileInScope, resolveSessionScope } from "@/features/shared/lib/sessionScope";
 import { ACCOUNTING_STATUS_OPTIONS, formatAccountingStatusLabel } from "@/features/shared/lib/accountingStatusOptions";
 import { colorKeyForTemplateProfile } from "@/features/shared/lib/templateProfileLookup";
@@ -279,6 +280,12 @@ export function HistoryPage() {
     };
   }, [detailQuery.data]);
 
+  /** Fila del listado (incluye `gmailLastSend`; el detalle no lo devuelve). */
+  const selectedHistoryItem = useMemo(
+    () => (historyQuery.data ?? []).find((row) => row.recordId === selectedRecordId) ?? null,
+    [historyQuery.data, selectedRecordId],
+  );
+
   const years = useMemo(
     () =>
       Array.from(new Set((historyQuery.data ?? []).map((item) => String(item.issueDate || "").slice(0, 4)).filter(Boolean)))
@@ -333,10 +340,14 @@ export function HistoryPage() {
         to: gmailRecipients.normalized,
         bodyText: gmailBodyText || undefined,
       }),
-    onSuccess: async () => {
-      setGmailSentMessage(getDocLabels(openedDocument?.type || "").gmailSentMessage);
+    onSuccess: async (data) => {
+      setGmailSentMessage(describeEmailSend(data.gmailLastSend) || getDocLabels(openedDocument?.type || "").gmailSentMessage);
       setGmailDialog(false);
-      await queryClient.invalidateQueries({ queryKey: ["gmail-status", gmailProfileId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["gmail-status", gmailProfileId] }),
+        queryClient.invalidateQueries({ queryKey: ["history-invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["document-detail", selectedRecordId] }),
+      ]);
     },
     onError: (err) => {
       setGmailSentMessage(getErrorMessageFromUnknown(err));
@@ -384,12 +395,15 @@ export function HistoryPage() {
         to: gmailBatchTo.trim() ? gmailBatchRecipients.normalized : undefined,
         bodyText: gmailBatchBody.trim() || undefined,
       }),
-    onSuccess: async () => {
-      setGmailBatchMessage("Correo enviado.");
+    onSuccess: async (data) => {
+      setGmailBatchMessage(describeEmailSend(data.gmailLastSend) || "Correo enviado.");
       setGmailBatchDialog(false);
       clearSelection();
-      await queryClient.invalidateQueries({ queryKey: ["history-invoices"] });
-      await queryClient.invalidateQueries({ queryKey: ["gmail-status-batch", gmailBatchProfileId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["history-invoices"] }),
+        queryClient.invalidateQueries({ queryKey: ["document-detail"] }),
+        queryClient.invalidateQueries({ queryKey: ["gmail-status-batch", gmailBatchProfileId] }),
+      ]);
     },
     onError: (err) => {
       setGmailBatchMessage(getErrorMessageFromUnknown(err));
@@ -913,6 +927,11 @@ export function HistoryPage() {
                               </>
                             ) : null}
                             {item.status ? ` · ${formatAccountingStatusLabel(item.status)}` : ""}
+                            {item.gmailLastSend?.sentAt ? (
+                              <span title={describeEmailSend(item.gmailLastSend)}>
+                                {" · "}Enviado {formatEmailSentAt(item.gmailLastSend.sentAt)}
+                              </span>
+                            ) : null}
                           </p>
                         </button>
                         <div
@@ -1066,6 +1085,9 @@ export function HistoryPage() {
                   <p><strong>Líneas:</strong> {openedDocument.items.length}</p>
                   <p><strong>Subtotal:</strong> {formatCurrency(openedDocument.computedTotals.subtotal)}</p>
                   <p><strong>Total:</strong> {formatCurrency(openedDocument.computedTotals.total)}</p>
+                  {selectedHistoryItem?.gmailLastSend?.sentAt ? (
+                    <p><strong>Último envío:</strong> {describeEmailSend(selectedHistoryItem.gmailLastSend)}</p>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
