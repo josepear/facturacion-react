@@ -44,6 +44,7 @@ export const invoiceDocumentSchema = z.object({
   issueDate: z.string().trim().min(1, "La fecha de emisión es obligatoria.").regex(isoDatePattern, "Formato de fecha no válido (YYYY-MM-DD)."),
   dueDate: z.string().trim(),
   reference: z.string().trim(),
+  projectName: z.string().trim(),
   templateLayout: z.string().trim(),
   design: z.record(z.string(), z.unknown()),
   paymentMethod: z.string().trim(),

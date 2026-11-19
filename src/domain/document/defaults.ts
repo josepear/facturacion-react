@@ -15,6 +15,7 @@ export function createEmptyDocument(): InvoiceDocument {
     issueDate: getToday(),
     dueDate: "",
     reference: "",
+    projectName: "",
     templateLayout: "",
     design: {
       layout: "",

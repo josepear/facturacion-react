@@ -772,6 +772,12 @@ export function FacturarPage() {
               </Field>
             </div>
 
+            <div className="mt-4">
+              <Field label="Nombre del proyecto" hint="Se imprime en la factura/presupuesto.">
+                <Input placeholder="Nombre del proyecto al que facturas" {...register("projectName")} />
+              </Field>
+            </div>
+
             <details className="group mt-2">
               <summary className="cursor-pointer select-none text-informative hover:text-foreground list-none flex items-center gap-1">
                 <span className="transition-transform group-open:rotate-90">▶</span>

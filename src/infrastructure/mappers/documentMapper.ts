@@ -91,6 +91,7 @@ export function mapLegacyDocumentToForm(input: unknown): InvoiceDocument {
     issueDate: issueDateMapped,
     dueDate: asString(record.dueDate),
     reference: asString(record.reference),
+    projectName: asString(record.projectName),
     templateLayout: asString(design.layout) || base.templateLayout,
     design: {
       ...(base.design || {}),
@@ -168,6 +169,7 @@ export function mapFormToLegacyDocument(document: InvoiceDocument): InvoiceDocum
 
   return {
     ...document,
+    projectName: asString(document.projectName),
     design: {
       ...(document.design || {}),
       layout: asString(document.templateLayout),

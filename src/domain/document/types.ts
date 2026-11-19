@@ -53,6 +53,8 @@ export type InvoiceDocument = {
   issueDate: string;
   dueDate: string;
   reference: string;
+  /** Nombre del proyecto al que se factura/presupuesta (se imprime en la plantilla). */
+  projectName: string;
   templateLayout: string;
   /** Datos visuales legacy (tipografias, colores, medidas, etc.). */
   design: InvoiceDocumentDesign;
