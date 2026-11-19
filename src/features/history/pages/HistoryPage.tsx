@@ -876,7 +876,10 @@ export function HistoryPage() {
                     const atSelectionLimit = selectedRecordIds.size >= 20 && !selectedRecordIds.has(item.recordId);
                     const qNorm = resolveCalendarQuarter("", String(item.issueDate || ""));
                     return (
-                      <li key={item.recordId} className="flex">
+                      <li
+                        key={item.recordId}
+                        className={`flex${item.type === "presupuesto" ? " bg-sky-50 dark:bg-sky-950/30" : ""}`}
+                      >
                         {item.type === "factura" ? (
                           <div
                             className="flex shrink-0 items-start border-r border-border px-2 py-2"
@@ -936,7 +939,7 @@ export function HistoryPage() {
                         </button>
                         <div
                           className={`flex shrink-0 items-center gap-1 border-l border-border px-1 py-1 ${
-                            isActive ? "border-primary-foreground/25 bg-primary" : "bg-background"
+                            isActive ? "border-primary-foreground/25 bg-primary" : "bg-transparent"
                           }`}
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => e.stopPropagation()}
