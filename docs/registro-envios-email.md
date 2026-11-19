@@ -42,8 +42,9 @@ El guardado de documentos (`persistDocument` en `server.mjs`) reescribe el JSON.
 registro no se pierda al editar y guardar de nuevo, el servidor **copia `gmailLastSend`** del JSON
 anterior al nuevo (cambio aplicado en el runtime el 2026-11-19).
 
-> Nota: `server.mjs` vive en el runtime (`/Users/josemendoza/facturacion-app`) y no está versionado
-> en este repo. Este ajuste debe trasladarse al repositorio del backend cuando exista.
+> Nota: `server.mjs` vive en el repo del backend (`josepear/facturacion`) y el runtime solo tiene la
+> copia desplegada. El ajuste está versionado (commit `1b7ea26`) y se despliega con
+> `./scripts/deploy-to-macmini.sh --local` desde ese repo.
 
 ## Limitaciones
 
