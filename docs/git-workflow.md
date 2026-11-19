@@ -22,4 +22,10 @@ Evitar mezclar en la misma rama temas no relacionados (p. ej. Facturar + Gastos 
 ## Publicar
 
 - Push de la rama de trabajo y abrir PR hacia `main` (o hacia la rama de integración acordada).
-- El despliegue al mini sigue el runbook del monorepo padre (`./scripts/deploy-to-macmini.sh` desde la raíz de facturación).
+- **Repositorio canónico (único original):** `/Users/josemendoza/Repos/facturacion-react`
+  (`github.com:josepear/facturacion-react.git`). No hay copias de trabajo fuera de esa ruta.
+- El runtime (`/Users/josemendoza/facturacion-app`) solo contiene configuración y artefactos; no se
+  edita ni se commitea desde allí.
+- Despliegue de la SPA y verificación: ver [`despliegue-y-fuente-unica.md`](despliegue-y-fuente-unica.md).
+- El script del monorepo padre (`~/facturacion-app/scripts/deploy-to-macmini.sh`) compila React desde
+  el repo canónico (`FACTURACION_REACT_REPO`) y sincroniza el monorepo al runtime.
