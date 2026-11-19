@@ -58,6 +58,10 @@ export type DesignConfig = {
   paymentAlignX: HorizontalAlign;
   paymentAlignY: VerticalAlign;
   paymentBankAlignX: HorizontalAlign;
+  /** Caja del nombre del proyecto: 0 = ancho automático (ajustada al texto). */
+  projectBoxWidthMm: number;
+  projectNameSizePt: number;
+  projectAlignX: HorizontalAlign;
 };
 
 /** Textos de emisor que el legacy edita en la pestaña «Diseño» (viven en `business`). */
@@ -118,6 +122,9 @@ export const DEFAULT_DESIGN: DesignConfig = {
   paymentAlignX: "left",
   paymentAlignY: "bottom",
   paymentBankAlignX: "right",
+  projectBoxWidthMm: 0,
+  projectNameSizePt: 9,
+  projectAlignX: "left",
 };
 
 export const DEFAULT_DESIGN_BUSINESS_TEXTS: DesignBusinessTexts = {
@@ -163,6 +170,8 @@ export const DESIGN_NUMERIC_RANGES = {
   itemTitleSizePt: { min: 10, max: 20, step: 0.1, unit: "pt", label: "Título principal" },
   conceptSizePt: { min: 10, max: 20, step: 0.1, unit: "pt", label: "Concepto" },
   footerSloganSizePt: { min: 14, max: 30, step: 0.1, unit: "pt", label: "Slogan pie" },
+  projectBoxWidthMm: { min: 0, max: 190, step: 1, unit: "mm", label: "Anchura caja proyecto" },
+  projectNameSizePt: { min: 6, max: 18, step: 0.1, unit: "pt", label: "Tamaño texto proyecto" },
 } as const;
 
 export type DesignNumericKey = keyof typeof DESIGN_NUMERIC_RANGES;
@@ -251,5 +260,8 @@ export function mergeDesign(raw: unknown): DesignConfig {
     paymentAlignX: pickHorizontal(source.paymentAlignX, d.paymentAlignX),
     paymentAlignY: pickVertical(source.paymentAlignY, d.paymentAlignY),
     paymentBankAlignX: pickHorizontal(source.paymentBankAlignX, d.paymentBankAlignX),
+    projectBoxWidthMm: clampNumber(source.projectBoxWidthMm, 0, 190, d.projectBoxWidthMm),
+    projectNameSizePt: clampNumber(source.projectNameSizePt, 6, 18, d.projectNameSizePt),
+    projectAlignX: pickHorizontal(source.projectAlignX, d.projectAlignX),
   };
 }

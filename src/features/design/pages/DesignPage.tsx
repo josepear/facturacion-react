@@ -748,6 +748,36 @@ export function DesignPage() {
                 </CardContent>
               </Card>
 
+              <Card>
+                <CardHeader>
+                  <CardTitle>Proyecto</CardTitle>
+                  <CardDescription>
+                    Caja con el nombre del proyecto del documento (campo «Nombre del proyecto» en Facturar).
+                    0 mm = se ajusta al texto.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <RangeField
+                    designKey="projectBoxWidthMm"
+                    value={draft.design.projectBoxWidthMm}
+                    disabled={!canEdit}
+                    onChange={(next) => updateDesign({ projectBoxWidthMm: next })}
+                  />
+                  <RangeField
+                    designKey="projectNameSizePt"
+                    value={draft.design.projectNameSizePt}
+                    disabled={!canEdit}
+                    onChange={(next) => updateDesign({ projectNameSizePt: next })}
+                  />
+                  <AlignField
+                    label="Justificación horizontal"
+                    value={draft.design.projectAlignX}
+                    disabled={!canEdit}
+                    onChange={(next) => updateDesign({ projectAlignX: next as DesignConfig["projectAlignX"] })}
+                  />
+                </CardContent>
+              </Card>
+
               <details className="rounded-lg border border-border bg-card p-4" open>
                 <summary className="cursor-pointer text-sm font-semibold">Ajustes finos</summary>
                 <div className="mt-4 space-y-6">
