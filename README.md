@@ -24,6 +24,7 @@ Base limpia de frontend para facturación, iniciada en Fase 0.
 - **Registro de envíos por email** (Gmail): qué se guarda, dónde se ve y persistencia al volver a guardar: [`docs/registro-envios-email.md`](docs/registro-envios-email.md).
 - **Fuente única y despliegue** (dónde está cada cosa, cómo se compila/publica la SPA y reglas anti-deriva): [`docs/despliegue-y-fuente-unica.md`](docs/despliegue-y-fuente-unica.md).
 - **Nombre del proyecto** en Facturar (campo, modelo, persistencia e impresión en las 3 plantillas legacy): [`docs/facturar-nombre-proyecto.md`](docs/facturar-nombre-proyecto.md).
+- **Diseño del PDF en React** (pestaña Diseño: plantilla, fuentes, colores, medidas y vista previa): [`docs/diseno-editor-plantilla.md`](docs/diseno-editor-plantilla.md).
 - **UI: colores de texto y del Historial** (texto `#1e1e1e` y fondos de fila por tipo): [`docs/ui-colores-y-texto.md`](docs/ui-colores-y-texto.md).
 - `scripts/legacy-html-field-inventory.mjs`: extrae todos los `name="..."` del `index.html` legacy agrupados por pestaña (`data-tab-panel`), para checklist antes de implementar en React.
 

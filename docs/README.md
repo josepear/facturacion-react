@@ -22,6 +22,7 @@ día, también en el `README.md` raíz). Un doc que no está en este índice se 
 | Documento | Qué contiene |
 | --- | --- |
 | [`facturar-nombre-proyecto.md`](facturar-nombre-proyecto.md) | Campo «Nombre del proyecto»: modelo, Zod, mappers, persistencia e impresión en las 3 plantillas legacy. |
+| [`diseno-editor-plantilla.md`](diseno-editor-plantilla.md) | Pestaña **Diseño** en React: plantilla, tipografías, colores, medidas, alineaciones, guardado por emisor y tipo y vista previa en vivo. |
 | [`facturar-modos-calculo-conceptos.md`](facturar-modos-calculo-conceptos.md) | «Por concepto» vs «Por bruto (importe manual)»: IGIC/IRPF sobre el bruto, checklist y tests. |
 | [`facturar-mejoras-y-paridad-conceptos.md`](facturar-mejoras-y-paridad-conceptos.md) | Mejoras recientes en conceptos, Guardar y paridad con el legacy. |
 | [`registro-envios-email.md`](registro-envios-email.md) | Registro de envíos por Gmail: qué guarda el servidor (`gmailLastSend`), dónde se ve y cómo sobrevive al volver a guardar. |

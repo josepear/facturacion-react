@@ -309,9 +309,9 @@ En React existe la ruta **`/datos`** con dashboard y tablas; el legacy añade su
 - [x] **(P1) Panel de resumen de perfil activo:** tarjeta encima de «Perfil activo (servidor)» con badge, logo (`business.brandImage`), marca/NIF, conteo/total/última fecha de facturas del perfil activo vía `["history-invoices"]` + `fetchHistoryInvoices` (commit `298f43f`). Resumen de plantilla legacy (`#personal-template-summary-root`) no replicado al detalle.
 - [x] **(P1) Sugerencias de tag de número de factura:** chips bajo «ID en el número de factura» cuando `POST /api/config` devuelve `suggestions` en el error (mismo contrato que legacy `notifyTemplateProfilesSaveFailure`).
 
-### Configuración / Diseño (Plantilla) — sección parcialmente ausente
+### Configuración / Diseño (Plantilla) — cerrado
 
-- [ ] **(P2) Editor de diseño avanzado completo:** la pestaña "Plantilla" tiene selectores de color hex (`design-accent-hex`, `design-dark-hex`), sliders de tamaño de fuente/columna (pt, mm) y selectores de alineación por zona (issuer, client, side, items). React solo gestiona `layout`, `colorKey` y datos básicos.
+- [x] **(P2) Editor de diseño avanzado completo:** página **Diseño** (`/diseno`) con los mismos controles que la pestaña legacy: plantilla PDF, colores (acento/oscuro), logo (ancho y alineaciones), tipografías y tamaños (pt), medidas (mm), alineaciones por zona (issuer, client, side, items, footer, payment), textos de servicios y pie; guardado por emisor y por tipo de documento (`design` / `designPresupuesto`) con vista previa en vivo (`useDocumentDesign` + `businessOverride`). Ver [`diseno-editor-plantilla.md`](./diseno-editor-plantilla.md).
 - [x] **(P2) "Nueva base de diseño" modal:** diálogo nativo «Nueva base de diseño» (nombre + plantilla pear/editorial/voulita), perfil mínimo en memoria y `syncLauncherSelection` hasta guardar en servidor.
 - [x] **(P2) Guardar diseño + propagar a histórico:** botón "Guardar diseño y actualizar facturas anteriores" en SettingsPage llamando a `POST /api/template-profiles/propagate` (commit `516f817`).
 
