@@ -878,11 +878,17 @@ export function HistoryPage() {
                     return (
                       <li
                         key={item.recordId}
-                        className={`flex${item.type === "presupuesto" ? " bg-[#FFF176] dark:bg-[#FFF176]/15" : ""}`}
+                        className={`flex${
+                          item.type === "presupuesto"
+                            ? " bg-[#FFF176] dark:bg-[#FFF176]/15"
+                            : item.type === "factura"
+                              ? " bg-[#CFD8DC] dark:bg-[#CFD8DC]/15"
+                              : ""
+                        }`}
                       >
                         {item.type === "factura" ? (
                           <div
-                            className="flex shrink-0 items-start border-r border-border px-2 py-2"
+                            className={`flex shrink-0 items-start border-r border-border px-2 py-2 ${isActive ? "bg-primary" : ""}`}
                             onClick={(e) => e.stopPropagation()}
                             onKeyDown={(e) => e.stopPropagation()}
                             role="presentation"
