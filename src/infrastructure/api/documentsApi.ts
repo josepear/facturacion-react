@@ -84,6 +84,35 @@ export async function fetchDocumentLegacyPreviewBlob(
   return response.blob();
 }
 
+type DesignPreviewInput = {
+  document: InvoiceDocument;
+  /** Textos de emisor que se editan en la pestaña «Diseño» y no están en el documento. */
+  businessOverride?: Record<string, unknown>;
+};
+
+/**
+ * Vista previa para el editor de diseño: usa el `design` del documento en lugar del
+ * guardado en el perfil, para ver los cambios antes de guardar.
+ */
+export async function fetchDesignPreviewBlob(input: DesignPreviewInput, signal?: AbortSignal): Promise<Blob> {
+  const response = await fetchWithAuth("/api/documents/preview-html", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      document: input.document,
+      useDocumentDesign: true,
+      ...(input.businessOverride ? { businessOverride: input.businessOverride } : {}),
+    }),
+    signal,
+  });
+  if (!response.ok) {
+    const asJson = (await response.json().catch(() => null)) as { error?: string } | null;
+    const msg = typeof asJson?.error === "string" && asJson.error.trim() ? asJson.error.trim() : `HTTP ${response.status}`;
+    throw new Error(msg);
+  }
+  return response.blob();
+}
+
 type ArchiveYearInput = {
   year: string;
   templateProfileId: string;

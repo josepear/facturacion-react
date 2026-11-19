@@ -81,6 +81,13 @@ export type CalculatedTotals = {
   total: number;
 };
 
+export type TemplateProfileDesign = {
+  layout?: string;
+  fontFamily?: string;
+  /** Parámetros completos del diseño del PDF (`designConfig.ts`). */
+  [key: string]: unknown;
+};
+
 export type TemplateProfileConfig = {
   id: string;
   label?: string;
@@ -112,11 +119,24 @@ export type TemplateProfileConfig = {
     brandImage?: string;
     /** Ruta o URL de firma (legacy `businessSignatureImage`). */
     signatureImage?: string;
+    /** Bloque de servicios superior del PDF (legacy `businessReferenceTopCopy`). */
+    referenceTopCopy?: string;
+    showReferenceTopCopy?: boolean;
+    /** Pie de página del PDF. */
+    footerUrl?: string;
+    footerSloganTop?: string;
+    footerSloganBottom?: string;
+    footerNote?: string;
+    showFooterSlogan?: boolean;
+    showFooterUrl?: boolean;
+    showFooterNote?: boolean;
+    showSignature?: boolean;
+    showPaymentStrip?: boolean;
+    showFinanceStrip?: boolean;
   };
-  design?: {
-    layout?: string;
-    fontFamily?: string;
-  };
+  design?: TemplateProfileDesign;
+  /** Diseño propio para presupuestos (si difiere del de facturas). */
+  designPresupuesto?: TemplateProfileDesign;
 };
 
 export type ConfigResponse = {

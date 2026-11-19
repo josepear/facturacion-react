@@ -17,6 +17,7 @@ const ClientsPage = lazy(() => import("@/features/clients/pages/ClientsPage").th
 const HistoryPage = lazy(() => import("@/features/history/pages/HistoryPage").then((m) => ({ default: m.HistoryPage })));
 const ExpensesPage = lazy(() => import("@/features/expenses/pages/ExpensesPage").then((m) => ({ default: m.ExpensesPage })));
 const SettingsPage = lazy(() => import("@/features/settings/pages/SettingsPage").then((m) => ({ default: m.SettingsPage })));
+const DesignPage = lazy(() => import("@/features/design/pages/DesignPage").then((m) => ({ default: m.DesignPage })));
 
 // In production the app is served at /react/ by the legacy Node server.
 // Vite sets import.meta.env.BASE_URL to "/" in dev and "/react/" in prod builds.
@@ -75,6 +76,10 @@ export const router = createBrowserRouter(
         {
           path: "configuracion",
           element: <SettingsPage />,
+        },
+        {
+          path: "diseno",
+          element: <DesignPage />,
         },
         {
           path: "*",

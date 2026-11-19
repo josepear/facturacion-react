@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { BarChart2, BookOpen, FileSpreadsheet, FlaskConical, LayoutGrid, LogOut, Menu, Moon, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
+import { BarChart2, BookOpen, FileSpreadsheet, FlaskConical, LayoutGrid, LogOut, Menu, Moon, Palette, ReceiptText, Settings, Sun, Users, WalletCards, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
@@ -24,6 +24,7 @@ const navItems: ShellNavItem[] = [
   { to: "/datos", label: "Datos", icon: BarChart2 },
   { to: "/asesor", label: "Asesor", icon: FileSpreadsheet },
   { to: "/clientes", label: "Clientes", icon: Users },
+  { to: "/diseno", label: "Diseño", icon: Palette },
   { to: "/configuracion", label: "Emisores", icon: Settings },
 ];
 
